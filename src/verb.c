@@ -296,7 +296,7 @@ K find(K x, K y){
 
     // for x of rank n we look for objects of rank n-1
     // so if xrank < yrank, call find recursively for each y
-    if (xrank < yrank){
+    if (xrank < yrank && xt != -yt){
         K r=tn(KK,0);
         for (i64 i=0, yn=KCOUNT(y); i<yn; i++){
             K t=find(ref(x),item(i,y));
