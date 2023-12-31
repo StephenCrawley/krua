@@ -498,15 +498,57 @@ K take(K x, K y){
     return UNREF_X(n_take(*INT(x),y));
 }
 
-// x_y
-// 2_0 1 2 3 -> 2 3
-// drop defined in terms of take
-K drop(K x, K y){
-    if (TYP(x)!=-KI)
-        return UNREF_XY(kerr("'type! x_y (drop) - x must be int atom"));
+K cut(K x, K y){
+    i64 xn=HDR_CNT(x);
 
-    i64 n=*INT(x), m=KCOUNT(y);
-    return UNREF_X(n_take(ABS(n)>=m ? 0 : n>0 ? n-m : n+m,y));
+    // if x=0#0, return empty array
+    if (xn == 0)
+        return UNREF_XY(tn(KK,0));
+
+    // make sure x is monotonically increasing and in domain of y
+    // check first element in y's domain [0,#y)
+    if (*INT(x) < 0)
+        return UNREF_XY(kerr("domain!"));
+
+    // then we scan x
+    for (i64 i=0, n=xn-1; i<n; i++){
+        if (INT(x)[i+1] < INT(x)[i])
+            return UNREF_XY(kerr("domain!"));
+    }
+
+    // finally check last element is in y's domain
+    if (INT(x)[xn-1] >= HDR_CNT(y))
+        return UNREF_XY(kerr("domain!"));
+
+    // iterate and create cut list
+    K r=tn(KK,xn);
+    i64 start, end;
+    for (i64 i=0, n=xn-1; i<n; i++){
+        start = INT(x)[i], end = INT(x)[i+1];
+        OBJ(r)[i] = index(ref(y), add(ki(start),til(end-start)));
+    }
+    OBJ(r)[xn-1] = index(y, add(ki(end),til(HDR_CNT(y)-end)));
+
+    return UNREF_X(r);
+}
+
+// x_y
+// drop: 2_0 1 2 3 -> 2 3
+// cut:0 2_(1;2;"a") -> (1 2;,"a")
+K drop(K x, K y){
+    if (IS_ATOM(y))
+        return UNREF_XY(kerr("'rank! x_y (drop/cut) - y must be list"));
+
+    if (TYP(x) == KI)
+        return cut(x,y);
+    
+    if (TYP(x) == -KI){
+        i64 n=*INT(x), m=KCOUNT(y);
+        // drop is defined in terms of take
+        return UNREF_X(n_take(ABS(n)>=m ? 0 : n>0 ? n-m : n+m,y));
+    }
+
+    return UNREF_XY(kerr("'type! x_y (drop) - x must be int atom"));
 }
 
 K fill(K x, K y){
