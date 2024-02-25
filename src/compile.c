@@ -5,6 +5,7 @@
 #define IMM_ARG_MAX  255  //max value of immediate arg (max representable by 8bits)
 #define BYTES(x)     LAMBDA_OPCODE(x) //bytecodes accessor
 #define CONSTS(x)    LAMBDA_CONSTS(x) //constants accessor
+#define IS_IMPLICIT_VAR(x) __extension__({i64 _x=*INT(x); _x=='x' ? 1 : _x=='y' ? 2 : _x=='z' ? 3 : 0 ;})
 
 // in this script x is the parse tree (or any child object within it)
 // and r is the object to be returned to the VM (see compile() below)
@@ -56,13 +57,33 @@ static K compileGetVar(K r, K x){
     i64 i;
 
     // get param
-    if ((i = symIndex(LAMBDA_PARAMS(r),x)) < CNT(LAMBDA_PARAMS(r))){
+    // 2 possibilites: explicit and implicit params
+    // implicit {x+y} will have LAMBDA_PARAMS=,`
+    // explicit {[a;b] a+b} will have LAMBDA_PARAMS=`a`b
+
+    // implicit: check first param is null and the variable is one of `x`y`z
+    char *xyz = "xyz";
+    i64 paramCount = HDR_CNT(LAMBDA_PARAMS(r));
+    if (!*INT(LAMBDA_PARAMS(r)) && (i = IS_IMPLICIT_VAR(x))){
+        // we append x to the params list if it's not there
+        if (symIndex(LAMBDA_PARAMS(r),x) == paramCount){
+            i64 newParamCount = i - (paramCount - 1);
+            K newParams = tn(KS, newParamCount);
+            for (i64 j=0; j<newParamCount; j++) INT(newParams)[j] = xyz[i-newParamCount]+j;
+            LAMBDA_PARAMS(r) = j2(LAMBDA_PARAMS(r), newParams);
+        }
+        return addByte(r,OP_GET_LOCAL + i - 1);
+    }
+    // explicit
+    else if ((i = symIndex(LAMBDA_PARAMS(r),x)) < paramCount){
         return addByte(r,OP_GET_LOCAL + i);
     }
+
     // get local
     else if ((i = symIndex(LAMBDA_LOCALS(r),x)) < CNT(LAMBDA_LOCALS(r))){
         return addByte(r, OP_GET_LOCAL + i + 8);
     }
+
     // get global
     else {
         if ((i = symIndex(LAMBDA_GLOBALS(r),x)) == CNT(LAMBDA_GLOBALS(r))){
@@ -206,6 +227,7 @@ K compileLambda(K x, K f){
     //(opcodes;consts;"{x}";params;locals;globals)
     x=compile0(x, jk(jk(j2(k2(tn(KX,1),tn(KK,0)),f),tn(KK,0)),tn(KK,0)));
     if (IS_ERROR(x)) return x;
+    if (!*INT(LAMBDA_PARAMS(x))) LAMBDA_PARAMS(x) = sublist(LAMBDA_PARAMS(x), 1, HDR_CNT(LAMBDA_PARAMS(x))-1);
     HDR_RNK(x)=HDR_CNT(LAMBDA_PARAMS(x));
     return tx(KL,x);
 }
