@@ -132,6 +132,15 @@ TEST(strip_both) {
     PASS();
 }
 
+TEST(only_whitespace) {
+    (void)GLOBALS;
+    const char *src = "   ";
+    K result = eval(kcstr(src), GLOBALS);
+    ASSERT(result != 0, "whitespace-only string should be valid");
+    ASSERT(result == knull(), "whitespace-only string should return K generic null");
+    PASS();
+}
+
 /*TEST(ignore_quoted_slash){
     (void)GLOBALS;
     const char *src = "\"ignore / in quotes\"";
@@ -435,6 +444,7 @@ void run_tests() {
     RUN_TEST(strip_trailing_comment);
     RUN_TEST(strip_trailing_whitespace);
     RUN_TEST(strip_both);
+    RUN_TEST(only_whitespace);
     //RUN_TEST(ignore_quoted_slash);
 
     printf("\nTokenization:\n");
