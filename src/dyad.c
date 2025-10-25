@@ -1,6 +1,6 @@
 #include "dyad.h"
 
-DYAD dyad_table[] = {nyi, add, nyi, mlt, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi};
+DYAD dyad_table[] = {nyi, add, nyi, mlt, nyi, at, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi};
 
 K nyi(K x, K y){NYI_ERROR(1, "dyadic operation", unref(x);unref(y))}
 
@@ -29,3 +29,7 @@ K f(K x, K y){ \
 
 BINARY_OP(add,+)
 BINARY_OP(mlt,*)
+
+K at(K x, K y){
+    return apply(x, 1, &y);
+}

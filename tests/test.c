@@ -321,6 +321,18 @@ TEST(compile_application) {
     PASS();
 }
 
+TEST(compile_application2) {
+    (void)GLOBALS;
+    K tokens = tokenize("\"abc\" 0");
+    K bytecode = compile_tokens(tokens);
+    ASSERT(bytecode && HDR_COUNT(bytecode) == 3, "application should compile");
+    ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be PUSH const");
+    ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[1]), "second should PUSH const");
+    ASSERT(CHR_PTR(bytecode)[2] == (OP_BINARY + 5), "third should be BINARY @ (apply)");
+    unref(bytecode);
+    PASS();
+}
+
 // VM execution tests
 TEST(vm_simple_add) {
     const char *src = "1+2";
@@ -361,15 +373,37 @@ TEST(vm_assignment_2) {
     PASS();
 }
 
-TEST(vm_undefined_variable) {
-    const char *src = "foo";
+TEST(index_str_with_atom){
+    //(void)GLOBALS;
+    const char *src = "\"abc\" 0";
     K result = eval(kcstr(src), GLOBALS);
-    ASSERT(result == 0, "undefined variable should return error");
-    ASSERT(kerrno == KERR_VALUE, "undefined variable should raise value error");
+    ASSERT(result && IS_TAG(result) && TAG_TYPE(result) == KChrType, "string index should return KChrType atom");
+    ASSERT(TAG_VAL(result) == 'a', "string index should return 'a'");
     PASS();
 }
 
-// Edge case tests
+TEST(index_str_with_list){
+    const char *src = "\"abc\" 2 1 0";
+    K result = eval(kcstr(src), GLOBALS);
+    ASSERT(result && !IS_TAG(result), "indexing with list should return list");
+    ASSERT(HDR_TYPE(result) == KChrType, "result should be KChrType");
+    ASSERT(HDR_COUNT(result) == 3, "result should have length 3");
+    ASSERT(memcmp(CHR_PTR(result), "cba", 3) == 0, "result should be \"cba\"");
+    unref(result);
+    PASS();
+}
+
+TEST(index_int_with_list){
+    const char *src = "3 2 1@0";
+    K result = eval(kcstr(src), GLOBALS);
+    ASSERT(result && IS_TAG(result), "indexing at 0 should return atom");
+    ASSERT(TAG_TYPE(result) == KIntType, "result should be KIntType");
+    ASSERT(TAG_VAL(result) == 3, "first element should be 3");
+    unref(result);
+    PASS();
+}
+
+// Error tests
 TEST(unclosed_string) {
     (void)GLOBALS;
     const char *src = "\"hello";
@@ -437,6 +471,14 @@ TEST(value_undefined_in_expr) {
     PASS();
 }
 
+TEST(vm_undefined_variable) {
+    const char *src = "foo";
+    K result = eval(kcstr(src), GLOBALS);
+    ASSERT(result == 0, "undefined variable should return error");
+    ASSERT(kerrno == KERR_VALUE, "undefined variable should raise value error");
+    PASS();
+}
+
 // Test runner
 void run_tests() {
     printf("\nPreprocessing:\n");
@@ -466,12 +508,17 @@ void run_tests() {
     RUN_TEST(compile_unary_op);
     RUN_TEST(compile_assignment);
     RUN_TEST(compile_application);
+    RUN_TEST(compile_application2);
 
     printf("\nVM Execution:\n");
     RUN_TEST(vm_simple_add);
     RUN_TEST(vm_simple_multiply);
     RUN_TEST(vm_assignment);
     RUN_TEST(vm_assignment_2);
+    RUN_TEST(empty_string_literal);
+    RUN_TEST(index_str_with_atom);
+    RUN_TEST(index_str_with_list);
+    RUN_TEST(index_int_with_list);
 
     printf("\nError Handling:\n");
     RUN_TEST(invalid_token);
@@ -479,7 +526,6 @@ void run_tests() {
     RUN_TEST(parse_unclosed_string_in_expr);
     RUN_TEST(parse_invalid_token_in_expr);
     RUN_TEST(parse_single_quote);
-    RUN_TEST(empty_string_literal);
     RUN_TEST(vm_undefined_variable);
     RUN_TEST(value_undefined_in_expr);
 
