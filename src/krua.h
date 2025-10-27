@@ -33,6 +33,7 @@ typedef uintptr_t K;
 typedef uint8_t  K_char; // characters are stored in an unsigned byte
 typedef int32_t  K_int;  // default integer is a signed 32 bits
 typedef uint32_t K_sym;
+typedef int64_t  K_long;
 
 // NB: K_int is 32bit instead of 64bit simply for implementation simplicity:
 //     64bit ints would require special handling as the full 64bit range can't be contained in a tag, so int atoms (common!) would require special handling
@@ -67,6 +68,7 @@ typedef struct {
 #define OBJ_PTR(x)    ((     K*)(x))
 #define CHR_PTR(x)    ((K_char*)(x))
 #define INT_PTR(x)    (( K_int*)(x))
+#define LNG_PTR(x)    ((K_long*)(x))
 #define SYM_PTR(x)    INT_PTR(x)
 
 // TODO: generalize for different archs? assumes K is 64bits

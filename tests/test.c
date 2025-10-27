@@ -61,7 +61,6 @@ static int tests_failed = 0;
  * - Error tests will print to stdout (messy output) - this is expected and proves errors are caught
  * - Each test should clean up its allocations with unref()
  * - GLOBALS is now passed as parameter - use it for eval() calls
- * 
  * - This allows both tracked and untracked builds to work from same source
  * - Tests that don't use GLOBALS should have (void)GLOBALS; to suppress warnings
  * - RUN_TEST macro handles GLOBALS creation automatically
