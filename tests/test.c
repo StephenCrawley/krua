@@ -402,6 +402,26 @@ TEST(index_int_with_list){
     PASS();
 }
 
+TEST(index_int_out_of_bounds){
+    const char *src = "1 2@3";
+    K result = eval(kcstr(src), GLOBALS);
+    ASSERT(result && IS_TAG(result), "out of bounds index should return atom");
+    ASSERT(TAG_TYPE(result) == KIntType, "result should be KIntType");
+    ASSERT(TAG_VAL(result) == 0, "out of bounds int index should return 0");
+    unref(result);
+    PASS();
+}
+
+TEST(index_str_out_of_bounds){
+    const char *src = "\"ab\"@3";
+    K result = eval(kcstr(src), GLOBALS);
+    ASSERT(result && IS_TAG(result), "out of bounds index should return atom");
+    ASSERT(TAG_TYPE(result) == KChrType, "result should be KChrType");
+    ASSERT(TAG_VAL(result) == ' ', "out of bounds string index should return space");
+    unref(result);
+    PASS();
+}
+
 // Error tests
 TEST(unclosed_string) {
     (void)GLOBALS;
@@ -518,6 +538,8 @@ void run_tests() {
     RUN_TEST(index_str_with_atom);
     RUN_TEST(index_str_with_list);
     RUN_TEST(index_int_with_list);
+    RUN_TEST(index_int_out_of_bounds);
+    RUN_TEST(index_str_out_of_bounds);
 
     printf("\nError Handling:\n");
     RUN_TEST(invalid_token);

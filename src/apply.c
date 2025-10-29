@@ -15,7 +15,7 @@ K simpleIndex(K r, K x, K_int* ix){
 K index(K x, K ix){
     return 
         TAG_TYPE(ix) ? 
-        TAG(HDR_TYPE(x), TAG_VAL(ix)<(size_t)HDR_COUNT(x) ? (HDR_TYPE(x)==KChrType ? CHR_PTR(x)[TAG_VAL(ix)] : INT_PTR(x)[TAG_VAL(ix)]) : 0): 
+        TAG(HDR_TYPE(x), TAG_VAL(ix)<(size_t)HDR_COUNT(x) ? (HDR_TYPE(x)==KChrType ? CHR_PTR(x)[TAG_VAL(ix)] : INT_PTR(x)[TAG_VAL(ix)]) : "\0 "[HDR_TYPE(x)==KChrType]):
         simpleIndex(knew(HDR_TYPE(x), HDR_COUNT(ix)), x, INT_PTR(ix));
 }
 
