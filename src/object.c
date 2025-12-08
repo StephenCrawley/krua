@@ -159,7 +159,7 @@ K_char addSym(K *syms, K_sym x){
     }
     // check if var name already in list
     K_int i = -1;
-    K_sym *s = SYM_PTR(syms);
+    K_sym *s = SYM_PTR(*syms);
     while (i < HDR_COUNT(*syms)){ if (x == s[++i]) return i; }
     // else join to list
     *syms = joinTag(*syms, x);
@@ -222,7 +222,7 @@ K razeStr(K x){
     return UNREF_X(r);
 }
 
-K cutstr(K x, K_char c){
+K cutStr(K x, K_char c){
     K_int n = 1;
     FOR_EACH(x) if(CHR_PTR(x)[i] == c) n++;
     K r = knew(KObjType, n);
@@ -232,10 +232,10 @@ K cutstr(K x, K_char c){
         OBJ_PTR(r)[i] = knewcopy(KChrType, e-s, (K)s);
         s = ++e;
     }
-    return r;
+    return UNREF_X(r);
 }
 
-K joinstr(K x, K_char c){
+K joinStr(K x, K_char c){
     K_int n = HDR_COUNT(x);
     FOR_EACH(x) n += HDR_COUNT(OBJ_PTR(x)[i]);
     K r = knew(KChrType, n);

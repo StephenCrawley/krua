@@ -21,12 +21,12 @@ test_krua: tests/test.o $(OBJECTS)
 	$(CC) $(CFLAGS) -o test_krua tests/test.o $(OBJECTS)
 
 # Leak target - build and run tests with leak checking
-leak: test_leak
+leak: clean test_leak
 	./test_leak
 
-# Test executable with leak tracking
-test_leak: tests/test.o tests/refcount.o $(OBJECTS)
-	$(CC) $(CFLAGS) -DTRACK_REFS -o test_leak tests/test.o tests/refcount.o $(OBJECTS)
+# Test executable with leak tracking (rebuild all .o files with TRACK_REFS)
+test_leak: tests/test.c tests/refcount.c $(SOURCES) $(HEADERS)
+	$(CC) $(CFLAGS) -DTRACK_REFS -o test_leak tests/test.c tests/refcount.c $(SOURCES)
 
 # Pattern rule for object files
 %.o: %.c $(HEADERS)
