@@ -22,8 +22,8 @@ enum {
     KERR_NYI,          // Not yet implemented
 };    
 
-#define PARSE_ERROR(p, e, cleanup) \
-    if (p){ kerrno = KERR_PARSE; kerrpos = i; kerrstr = e; cleanup; return 0; }
+#define PARSE_ERROR(p, pos, e, cleanup) \
+    if (p){ kerrno = KERR_PARSE; kerrpos = (pos); kerrstr = (e); cleanup; return 0; }
 #define TYPE_ERROR(p, e, cleanup) \
     if (p){ kerrno = KERR_TYPE; kerrstr = e; cleanup; return 0; }
 #define VALUE_ERROR(p, e, v, cleanup) \

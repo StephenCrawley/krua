@@ -77,37 +77,36 @@ void locals(K src, K *vars){
     }
 }
 
-static K lambda(K_char *src, K_int *ip, K_int n){
-    K_int i = *ip, t0 = i;
-    // check lambda args exist
-    PARSE_ERROR(src[++i] != '[', "lambda must have params {[a;b]a+b}", );
-    ++i;  // advance past '['
-    K_char *param_end = memchr(&src[i], ']', n-i);
-    PARSE_ERROR(!param_end, "unclosed param list", kerrpos = n); // set kerrpos directly as `i` not advanced
-    K vars = params(knewcopy(KChrType, param_end - (src+i), (K)(src+i)));
+// find matching close bracket, returns n if unmatched
+static K_int findClose(K_char *s, K_int i, K_int n, K_char open, K_char close) {
+    for (int d = 1; d && ++i < n; )
+        d += (s[i] == open) - (s[i] == close);
+    return i;
+}
+
+static K lambda(K_char *src, K_int start, K_int end){
+    // ensure params list exists
+    PARSE_ERROR(src[start+1] != '[', start+1, "lambda must have params {[a;b]a+b}", );
+    K_char *pstart = src + start + 2; // skip {[
+    K_char *pend = memchr(pstart, ']', end - start - 2);
+    PARSE_ERROR(!pend, end, "unclosed param list", );
+    
+    // extract params and body
+    K vars = params(knewcopy(KChrType, pend - pstart, (K)pstart));
     K_char argc = HDR_COUNT(vars);
-    // find lambda end
-    int nest_level = 1;
-    while (nest_level && ++i < n){
-        nest_level += (src[i] == '{') - (src[i] == '}');
-    }
-    PARSE_ERROR(nest_level, "lambda", unref(vars));
-    ++i; // advance i past closing }
-    // pull out just the body of the lamba
-    K body = knewcopy(KChrType, i - (param_end - src) - 2, (K)(param_end + 1));
-    // add locals to vars array
+    K body = knewcopy(KChrType, (src + end) - pend - 1, (K)(pend + 1));
     locals(body, &vars);
-    K_char varc = HDR_COUNT(vars); // Save count BEFORE compile adds globals
-    // compile everything between { and }
-    K l = compile(body, vars);
-    if (!l) return 0;
-    HDR_ARGC(l) = argc;
-    HDR_VARC(l) = varc; // Only params + assigned locals, NOT globals
-    HDR_TYPE(l) = KLambdaType;
-    unref(OBJ_PTR(l)[3]); // unref 'body' string
-    OBJ_PTR(l)[3] = knewcopy(KChrType, i - t0, (K)(src + t0));
-    *ip = i;
-    return l;
+    K_char varc = HDR_COUNT(vars);
+    
+    K f = compile(body, vars);
+    if (!f) return 0;
+    
+    HDR_ARGC(f) = argc;
+    HDR_VARC(f) = varc;
+    HDR_TYPE(f) = KLambdaType;
+    unref(OBJ_PTR(f)[3]);
+    OBJ_PTR(f)[3] = knewcopy(KChrType, end - start + 1, (K)(src + start));
+    return f;
 }
 
 // return index of next non-whitespace character
@@ -151,18 +150,21 @@ K token(K x, K *vars, K *consts){
             // string
             ++t0;
             do ++i; while (i < n && src[i] != '"');
-            PARSE_ERROR(i == n, "unclosed string", unref(r));
+            PARSE_ERROR(i == n, i, "unclosed string", unref(r));
             *tok++ = addConst(consts, (i-t0) == 1 ? kchr(src[t0]) : knewcopy(KChrType, i-t0, (K)(src+t0)));
             ++i;
         } else if (src[i] == '{'){
-            K res = lambda(src, &i, n);
+            K_int end = findClose(src, i, n, '{', '}');
+            PARSE_ERROR(end == n, i, "unclosed lambda", unref(r));
+            K res = lambda(src, i, end);
             if (!res) return UNREF_R(0);
             *tok++ = addConst(consts, res);
+            i = end + 1;
         } else {
             // operators, punctuation
             K_char *op = strchr(OPS, src[i]);
             // TODO: allow punctuation
-            PARSE_ERROR(src[i] - 32 > 127u || !op, "invalid token", unref(r));
+            PARSE_ERROR(src[i] - 32 > 127u || !op, i, "invalid token", unref(r));
             *tok++ = op ? op - OPS : src[i];
             ++i;
         }
