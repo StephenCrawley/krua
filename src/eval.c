@@ -8,6 +8,12 @@
 
 const K_char OPS[] = ":+-*%@.!,<>?#_~&|=$^";
 
+// Global interpreter state (for lambda application in apply.c)
+K GLOBALS = 0;
+
+// forwards declarations
+K compile(K, K);
+
 // K bytecode:
 // class  index
 // 0      0  - 31: apply monadic operator
@@ -48,6 +54,62 @@ static K numbers(char *src, K_int count){
     return r;
 }
 
+K params(K x){
+    if (HDR_COUNT(x) == 0) return UNREF_X(knew(KSymType, 0)); // []
+    x = cutStr(x, ';'); // cutStr consumes x
+    K r = knew(KSymType, HDR_COUNT(x));
+    // simply encode whatever is there. don't check if param names are valid
+    K *p = OBJ_PTR(x);
+    FOR_EACH(x){SYM_PTR(r)[i] = encodeSym(CHR_PTR(p[i]), HDR_COUNT(p[i]));}
+    return UNREF_X(r);
+}
+
+// put local vars into `vars`. find locals by identifying assignment
+// NB: does not consume (unref) arg 'src' 
+void locals(K src, K *vars){
+    K_char *s = CHR_PTR(src);
+    for (K_int i = 1, n = HDR_COUNT(src); i < n; i++){
+        if (s[i] == ':' && ISALPHA(s[i-1])){
+            K_char *v = &s[i-1];
+            while (v > s && ISALPHA(v[-1])) --v;
+            addVar(vars, encodeSym(v, (s+i) - v));
+        }
+    }
+}
+
+static K lambda(K_char *src, K_int *ip, K_int n){
+    K_int i = *ip, t0 = i;
+    // check lambda args exist
+    PARSE_ERROR(src[++i] != '[', "lambda must have params {[a;b]a+b}", );
+    ++i;  // advance past '['
+    K_char *param_end = memchr(&src[i], ']', n-i);
+    PARSE_ERROR(!param_end, "unclosed param list", kerrpos = n); // set kerrpos directly as `i` not advanced
+    K vars = params(knewcopy(KChrType, param_end - (src+i), (K)(src+i)));
+    K_char argc = HDR_COUNT(vars);
+    // find lambda end
+    int nest_level = 1;
+    while (nest_level && ++i < n){
+        nest_level += (src[i] == '{') - (src[i] == '}');
+    }
+    PARSE_ERROR(nest_level, "lambda", unref(vars));
+    ++i; // advance i past closing }
+    // pull out just the body of the lamba
+    K body = knewcopy(KChrType, i - (param_end - src) - 2, (K)(param_end + 1));
+    // add locals to vars array
+    locals(body, &vars);
+    K_char varc = HDR_COUNT(vars); // Save count BEFORE compile adds globals
+    // compile everything between { and }
+    K l = compile(body, vars);
+    if (!l) return 0;
+    HDR_ARGC(l) = argc;
+    HDR_VARC(l) = varc; // Only params + assigned locals, NOT globals
+    HDR_TYPE(l) = KLambdaType;
+    unref(OBJ_PTR(l)[3]); // unref 'body' string
+    OBJ_PTR(l)[3] = knewcopy(KChrType, i - t0, (K)(src + t0));
+    *ip = i;
+    return l;
+}
+
 // return index of next non-whitespace character
 static int next(char *src, int i){
     while (src[i] == ' ') ++i;
@@ -72,7 +134,7 @@ K token(K x, K *vars, K *consts){
     K_char *tok = CHR_PTR(r);
     while ((i = next(src, i)) < n){ // while next() non-whitespace position is valid/in source
         // token start index
-        int t0 = i;
+        K_int t0 = i;
 
         if (ISALPHA(src[i])){
             // variables
@@ -92,14 +154,14 @@ K token(K x, K *vars, K *consts){
             PARSE_ERROR(i == n, "unclosed string", unref(r));
             *tok++ = addConst(consts, (i-t0) == 1 ? kchr(src[t0]) : knewcopy(KChrType, i-t0, (K)(src+t0)));
             ++i;
+        } else if (src[i] == '{'){
+            K res = lambda(src, &i, n);
+            if (!res) return UNREF_R(0);
+            *tok++ = addConst(consts, res);
         } else {
-            // operators, punctutation
+            // operators, punctuation
             K_char *op = strchr(OPS, src[i]);
             // TODO: allow punctuation
-            //if (src[i] - 32 > 127u || !op){
-            //    printf("'parse! invalid token:\n    %.*s\n%*s^\n", n, src, i+4, "");
-            //    return UNREF_R(0);
-            //}
             PARSE_ERROR(src[i] - 32 > 127u || !op, "invalid token", unref(r));
             *tok++ = op ? op - OPS : src[i];
             ++i;
@@ -175,7 +237,8 @@ K getGlobal(K GLOBALS, K_sym var){
 // - 32 constants per expression
 // - 32 variables per expression (incl. args/locals/gobals)
 // TODO: multi-byte encoding
-K vm(K x, K vars, K consts, K GLOBALS){
+K vm(K x, K vars, K consts, K GLOBALS, K_char varc, K*args){
+    if (HDR_COUNT(x) == 0) return knull();  // Empty bytecode
     K_sym *v = SYM_PTR(vars);
     K_char *ip = CHR_PTR(x), *e = ip + HDR_COUNT(x);
     K stack[STACK_SIZE], *top = stack+STACK_SIZE, *base = top, a; // stack grows down
@@ -186,8 +249,8 @@ K vm(K x, K vars, K consts, K GLOBALS){
         case 1: a=*top++; *top=dyad_table[i](a,*top); if (!*top) goto bail; break;
         case 2: NYI_ERROR(1, "vm: n-adic operation", goto bail) break;
         case 3: *--top=ref(OBJ_PTR(consts)[i]); break;
-        case 4: *--top=getGlobal(GLOBALS,v[i]); if (!*top) goto bail; break;
-        case 5: K*slot=getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;
+        case 4: *--top=i<varc?ref(args[i]):getGlobal(GLOBALS,v[i]); if (!*top) goto bail; break;
+        case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;
         }
     }
     return *top;
@@ -211,7 +274,9 @@ void strip(K x){
 }
 
 // evaluate a K-string
-K eval(K x, K GLOBALS){
+K eval(K x, K GLOBALS_param){
+    GLOBALS = GLOBALS_param;  // Set global for access by apply()
+
     // early exits
     if (HDR_COUNT(x) == 0) return UNREF_X(knull());
     if (CHR_PTR(x)[0] == '\\') exit(0);
@@ -227,6 +292,6 @@ K eval(K x, K GLOBALS){
     // call VM
     K bytecode = OBJ_PTR(r)[0];
     bool assignment = ISCLASS(OP_SET_VAR, CHR_PTR(bytecode)[HDR_COUNT(bytecode)-1]); // is last op assignment?
-    r = UNREF_R(vm(bytecode, OBJ_PTR(r)[1], OBJ_PTR(r)[2], GLOBALS));
+    r = UNREF_R(vm(bytecode, OBJ_PTR(r)[1], OBJ_PTR(r)[2], GLOBALS, 0, 0));
     return assignment ? UNREF_R(knull()) : r; // don't print if last op is assignment
 }

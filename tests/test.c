@@ -52,10 +52,10 @@ static int tests_failed = 0;
 
 #define ASSERT(cond, msg) do { if (!(cond)) { printf("FAIL: %s\n", msg); tests_failed++; return; } } while(0)
 
-/* Testing Principles & Practices:
+/* Testing Practices:
  * - Always use `const char *src = "..."` pattern for string literals, never inline them
- * - Use strlen(src) for lengths, never hardcode magic numbers like 3, 4, etc
- * - Cast to (K) when passing to knewcopy: knewcopy(KChrType, strlen(src), (K)src)
+ * - Use strlen(src) for char* lengths if needed. Never hardcode magic numbers like 3, 4, etc, for source lengths
+ * - Use kcstr(s) to create KChrType from null-terminated C strings
  * - Use ISCLASS(class, byte) macro for bytecode range checks, not manual arithmetic
  * - Keep tests simple and direct - no frameworks, just ASSERT and PASS
  * - Error tests will print to stdout (messy output) - this is expected and proves errors are caught
@@ -86,6 +86,23 @@ static K tokenize(const char *src) {
 static K compile_tokens(K tokens) {
     if (!tokens) return 0;
     return compileExpr(tokens); // NOTE: compileExpr unrefs tokens
+}
+
+// Verify K object is a valid lambda: (bytecode; params; consts; source)
+static int is_valid_lambda(K x) {
+    if (!x || IS_TAG(x)) return 0;
+    if (HDR_TYPE(x) != KLambdaType) return 0;
+    if (HDR_COUNT(x) != 4) return 0;
+    // [0] bytecode (KChrType)
+    if (HDR_TYPE(OBJ_PTR(x)[0]) != KChrType) return 0;
+    // [1] params (KSymType)
+    if (HDR_TYPE(OBJ_PTR(x)[1]) != KSymType) return 0;
+    // [2] consts (KObjType or null)
+    K consts = OBJ_PTR(x)[2];
+    if (consts && !IS_TAG(consts) && HDR_TYPE(consts) != KObjType) return 0;
+    // [3] source (KChrType)
+    if (HDR_TYPE(OBJ_PTR(x)[3]) != KChrType) return 0;
+    return 1;
 }
 
 // Strip/sanitization tests
@@ -213,6 +230,65 @@ TEST(trailing_whitespace) {
     K r = tokenize("123   ");
     ASSERT(r && HDR_COUNT(r) == 1, "should ignore trailing whitespace");
     unref(r);
+    PASS();
+}
+
+TEST(lambda_simple) {
+    (void)GLOBALS;
+    K x = kcstr("{[x]x+1}");
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r, "tokenization should succeed");
+    ASSERT(!IS_TAG(r) && HDR_TYPE(r) == KChrType && HDR_COUNT(r) == 1, "should produce 1 token");
+    ASSERT(ISCLASS(OP_CONST, CHR_PTR(r)[0]), "list should be in CONST range");
+    ASSERT(consts && HDR_COUNT(consts) == 1, "should add lambda to consts");
+    ASSERT(HDR_TYPE(OBJ_PTR(consts)[0]) == KLambdaType, "const should be KLambdaType");
+    unref(x); unref(r); unref(vars); unref(consts);
+    PASS();
+}
+
+TEST(lambda_stores_full_src) {
+    (void)GLOBALS;
+    const char *src = "{[x]x+1}";
+    K x = kcstr(src);
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && consts, "tokenization should succeed");
+    K lambda = OBJ_PTR(consts)[0];
+    ASSERT(is_valid_lambda(lambda), "should be valid lambda");
+    K lambda_src = OBJ_PTR(lambda)[3];
+    ASSERT(HDR_COUNT(lambda_src) == strlen(src), "source length should match");
+    ASSERT(memcmp(CHR_PTR(lambda_src), src, strlen(src)) == 0, "should store full lambda source with braces and params");
+    unref(x); unref(r); unref(vars); unref(consts);
+    PASS();
+}
+
+TEST(lambda_nested) {
+    (void)GLOBALS;
+    const char *src = "{[x;y]y+{[a]a+1}x}";
+    K x = kcstr(src);
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && consts, "tokenization should succeed");
+    K outer = OBJ_PTR(consts)[0];
+    ASSERT(is_valid_lambda(outer), "outer should be valid lambda");
+    ASSERT(HDR_COUNT(OBJ_PTR(outer)[1]) == 2, "outer should have 2 params");
+    // Inner lambda should be in outer's consts
+    K outer_consts = OBJ_PTR(outer)[2];
+    ASSERT(outer_consts && HDR_TYPE(outer_consts) == KObjType, "outer should have consts");
+    // Find the inner lambda in consts
+    int found_inner = 0;
+    FOR_EACH(outer_consts) {
+        K item = OBJ_PTR(outer_consts)[i];
+        if (!IS_TAG(item) && HDR_TYPE(item) == KLambdaType) {
+            ASSERT(is_valid_lambda(item), "inner should be valid lambda");
+            ASSERT(HDR_COUNT(OBJ_PTR(item)[1]) == 1, "inner should have 1 param");
+            found_inner = 1;
+            break;
+        }
+    }
+    ASSERT(found_inner, "should find inner lambda in outer consts");
+    unref(x); unref(r); unref(vars); unref(consts);
     PASS();
 }
 
@@ -422,6 +498,116 @@ TEST(index_str_out_of_bounds){
     PASS();
 }
 
+TEST(lambda_eval_returns_lambda) {
+    K r = eval(kcstr("{[x]x+1}"), GLOBALS);
+    ASSERT(r, "eval should succeed");
+    ASSERT(!IS_TAG(r) && HDR_TYPE(r) == KLambdaType, "should return KLambdaType");
+    unref(r);
+    PASS();
+}
+
+TEST(lambda_eval_no_params) {
+    K r = eval(kcstr("{[]1}"), GLOBALS);
+    ASSERT(r, "eval should succeed");
+    ASSERT(!IS_TAG(r) && HDR_TYPE(r) == KLambdaType, "should return KLambdaType");
+    unref(r);
+    PASS();
+}
+
+TEST(lambda_eval_single_param) {
+    K r = eval(kcstr("{[x]x}"), GLOBALS);
+    ASSERT(is_valid_lambda(r), "should be valid lambda");
+    ASSERT(HDR_COUNT(OBJ_PTR(r)[1]) == 1, "should have 1 param");
+    unref(r);
+    PASS();
+}
+
+TEST(lambda_eval_multi_params) {
+    K r = eval(kcstr("{[a;b;c]a+b+c}"), GLOBALS);
+    ASSERT(r, "eval should succeed");
+    ASSERT(!IS_TAG(r) && HDR_TYPE(r) == KLambdaType, "should return KLambdaType");
+    ASSERT(HDR_COUNT(OBJ_PTR(r)[1]) == 3, "should have 3 params");
+    unref(r);
+    PASS();
+}
+
+// Lambda application tests
+TEST(lambda_apply_empty_body) {
+    K r = eval(kcstr("{[x]}@42"), GLOBALS);
+    ASSERT(r == knull(), "lambda with empty body should return knull");
+    PASS();
+}
+
+TEST(lambda_apply_identity) {
+    K r = eval(kcstr("{[x]x}@42"), GLOBALS);
+    ASSERT(r && TAG_VAL(r) == 42, "{[x]x}@42 should be 42");
+    unref(r);
+    PASS();
+}
+
+TEST(lambda_apply_add) {
+    K r = eval(kcstr("{[x]x+1}@2"), GLOBALS);
+    ASSERT(r && TAG_VAL(r) == 3, "{[x]x+1}@2 should be 3");
+    unref(r);
+    PASS();
+}
+
+TEST(lambda_apply_multiply) {
+    K r = eval(kcstr("{[x]x*2}@10"), GLOBALS);
+    ASSERT(r && TAG_VAL(r) == 20, "{[x]x*2}@10 should be 20");
+    unref(r);
+    PASS();
+}
+
+TEST(lambda_apply_with_local) {
+    K r = eval(kcstr("{[x]y:x+1}@6"), GLOBALS);
+    ASSERT(r && TAG_VAL(r) == 7, "lambda with local: {[x]y:x+1;y}@5 should be 6");
+    unref(r);
+    PASS();
+}
+
+TEST(lambda_apply_multiple_locals) {
+    K r = eval(kcstr("{[x]z:y:x+1}@6"), GLOBALS);
+    ASSERT(r && TAG_VAL(r) == 7, "multiple locals: (5+1)*2=12");
+    unref(r);
+    PASS();
+}
+
+TEST(lambda_apply_local_and_param) {
+    K r = eval(kcstr("{[x]x+y:x+1}@5"), GLOBALS);
+    ASSERT(r && TAG_VAL(r) == 11, "local+param: (5+1)+5=11");
+    unref(r);
+    PASS();
+}
+
+TEST(lambda_apply_nested) {
+    K r = eval(kcstr("{[x]x+{[y]y*2}@3}@5"), GLOBALS);
+    ASSERT(r && TAG_VAL(r) == 11, "nested lambda: 5+(3*2)=11");
+    unref(r);
+    PASS();
+}
+
+TEST(lambda_apply_no_params) {
+    K r = eval(kcstr("{[]42}"), GLOBALS);
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KLambdaType, "{[]42} should eval to lambda");
+    unref(r);
+    PASS();
+}
+
+TEST(lambda_error_type_mismatch) {
+    K r = eval(kcstr("{[x]x+1}@\"a\""), GLOBALS);
+    ASSERT(!r, "applying lambda to string should fail");
+    ASSERT(kerrno == KERR_TYPE, "should raise type error");
+    PASS();
+}
+
+TEST(lambda_error_undefined_var) {
+    K r = eval(kcstr("{[x]x+z}@5"), GLOBALS);
+    ASSERT(!r, "undefined variable in lambda body should fail");
+    ASSERT(kerrno == KERR_VALUE, "should raise value error");
+    PASS();
+}
+
 // Error tests
 TEST(unclosed_string) {
     (void)GLOBALS;
@@ -498,6 +684,27 @@ TEST(vm_undefined_variable) {
     PASS();
 }
 
+TEST(lambda_error_missing_bracket) {
+    K r = eval(kcstr("{x}"), GLOBALS);
+    ASSERT(!r, "should error: lambda must have params");
+    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
+    PASS();
+}
+
+TEST(lambda_error_unclosed_params) {
+    K r = eval(kcstr("{[x"), GLOBALS);
+    ASSERT(!r, "should error: unclosed param list");
+    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
+    PASS();
+}
+
+TEST(lambda_error_unclosed_lambda) {
+    K r = eval(kcstr("{[x]x+1"), GLOBALS);
+    ASSERT(!r, "should error: unclosed lambda");
+    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
+    PASS();
+}
+
 // Test runner
 void run_tests() {
     printf("\nPreprocessing:\n");
@@ -516,6 +723,9 @@ void run_tests() {
     RUN_TEST(integer_list);
     RUN_TEST(string_literal);
     RUN_TEST(trailing_whitespace);
+    RUN_TEST(lambda_simple);
+    RUN_TEST(lambda_stores_full_src);
+    RUN_TEST(lambda_nested);
     RUN_TEST(binary_add);
     RUN_TEST(unary_plus);
     RUN_TEST(assignment);
@@ -540,6 +750,21 @@ void run_tests() {
     RUN_TEST(index_int_with_list);
     RUN_TEST(index_int_out_of_bounds);
     RUN_TEST(index_str_out_of_bounds);
+    RUN_TEST(lambda_eval_returns_lambda);
+    RUN_TEST(lambda_eval_no_params);
+    RUN_TEST(lambda_eval_single_param);
+    RUN_TEST(lambda_eval_multi_params);
+    RUN_TEST(lambda_apply_empty_body);
+    RUN_TEST(lambda_apply_identity);
+    RUN_TEST(lambda_apply_add);
+    RUN_TEST(lambda_apply_multiply);
+    RUN_TEST(lambda_apply_with_local);
+    RUN_TEST(lambda_apply_multiple_locals);
+    RUN_TEST(lambda_apply_local_and_param);
+    RUN_TEST(lambda_apply_nested);
+    RUN_TEST(lambda_apply_no_params);
+    RUN_TEST(lambda_error_type_mismatch);
+    RUN_TEST(lambda_error_undefined_var);
 
     printf("\nError Handling:\n");
     RUN_TEST(invalid_token);
@@ -549,6 +774,9 @@ void run_tests() {
     RUN_TEST(parse_single_quote);
     RUN_TEST(vm_undefined_variable);
     RUN_TEST(value_undefined_in_expr);
+    RUN_TEST(lambda_error_missing_bracket);
+    RUN_TEST(lambda_error_unclosed_params);
+    RUN_TEST(lambda_error_unclosed_lambda);
 
     printf("\n======================\n");
     printf("Tests run:    %d\n", tests_run);

@@ -19,9 +19,13 @@ enum {
 
 #define ISCLASS(class, b) ({K_char _b=(b); _b-class < 32u;})
 
+// Global interpreter state
+extern K GLOBALS;
+
 K token(K,K*,K*);
 K compileExpr(K);
 K getGlobal(K, K_sym);
+K vm(K x, K vars, K consts, K GLOBALS, K_char localc, K*args);
 void strip(K);
 K eval(K,K);
 

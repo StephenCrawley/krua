@@ -24,7 +24,7 @@ void _unref(K x){
     if (!x || IS_TAG(x) || HDR_REFC(x)--){
         return;
     }
-    if (HDR_TYPE(x) == KObjType){  // TODO: handle all types which are list of K objects
+    if (IS_NESTED(x)){
         FOR_EACH(x){ unref(OBJ_PTR(x)[i]); }
     }
     M[HDR_BUCKET(x)] = OBJ_PTR(x)[0] = M[HDR_BUCKET(x)];
@@ -314,6 +314,8 @@ static void _kprint(K x){
             K_char *s = CHR_PTR(&SYM_PTR(x)[i]);
             int j=0; putchar('`'); while (j++<4 && *s) putchar(*s++);
         }
+    } else if (type == KLambdaType) {
+        _kprint(OBJ_PTR(x)[n - 1]); // last object in KLambdaType is a K string of the lambda
     } else { // TODO: remove
         printf("print not supported for type: %d", type);
         exit(1);

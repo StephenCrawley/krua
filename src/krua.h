@@ -40,19 +40,22 @@ typedef int64_t  K_long;
 //     to support 64bit, a K value would need a 3rd object type: a tagged pointer where the upper bits contain type (KLongType) and the lower bits are a pointer to the value
 //     this is not hard to implement, but i'm not interested in supporting this right now
 
-// K type enum
+// K type enum (remember: update KWIDTHS after adding a type)
 enum {
     KObjType = 0,
     KChrType,
     KIntType,
     KSymType,
     KMonadType,
+    K_GENERIC_TYPES_START,
+    KLambdaType = K_GENERIC_TYPES_START,
 };
 
 // when K is a pointer, it points to the start of a heap-allocated list
 // directly ahead of this list is the array header, which contains some metadata (type, refcount, membucket, listcount, etc)
 typedef struct {
-                // TODO: a(attribute/argcount. for lists/lambdas respectively)
+    K_char  a;  // a(attribute/argcount. for lists/lambdas respectively)
+    K_char  m;  // count of locals
     K_char  b;  // memory bucket
     K_char  t;  // type
     K_int   r;  // refcount
@@ -61,6 +64,8 @@ typedef struct {
 
 // we access heap-allocated K arrays with the following:
 #define K_HDR(x)      ((K_hdr*)(x))[-1]
+#define HDR_ARGC(x)   K_HDR(x).a
+#define HDR_VARC(x)   K_HDR(x).m
 #define HDR_BUCKET(x) K_HDR(x).b
 #define HDR_TYPE(x)   K_HDR(x).t
 #define HDR_REFC(x)   K_HDR(x).r
@@ -71,7 +76,6 @@ typedef struct {
 #define LNG_PTR(x)    ((K_long*)(x))
 #define SYM_PTR(x)    INT_PTR(x)
 
-// TODO: generalize for different archs? assumes K is 64bits
 // we inspect and access tagged K objects with:
 #define IS_TAG(x)   ((x) >> 56)
 #define TAG_TYPE(x) ((x) >> 56)
@@ -86,13 +90,15 @@ typedef struct {
 #define MEMCPY(d, s, n) (K)memcpy((void*)(d), (void*)(s), n)
 #define WIDTH_OF(x)     KWIDTHS[HDR_TYPE(x)]
 #define PTR_TO(x, i)    ({ K _x=(x); _x + (i)*WIDTH_OF(_x); })
-#define IS_ATOM(x)      ({ K _x=(x); IS_TAG(_x) ;}) // TODO: not only tagged values are atoms
+#define IS_ATOM(x)      ({ K _x=(x); IS_TAG(_x)||HDR_TYPE(_x)==KLambdaType ;}) //TODO: can we group type enums so atomics are contiguous?
+#define IS_NESTED(x)    ({ K_char _t=HDR_TYPE(x); !_t || _t>=K_GENERIC_TYPES_START ;})
+// TODO: EXPR/LAMBDA ACCESS (bytecode; vars; consts; source)
 
 // some useful global data is here:
 
 // width of each type's items
-//                      Obj, Chr, Int, Sym
-static int KWIDTHS[] = {  8,   1,   4,   4};
+//                      Obj, Chr, Int, Sym, Monad, Lambda
+static int KWIDTHS[] = {  8,   1,   4,   4,     8,      8};
 
 // some useful macros are here:
 

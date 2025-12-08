@@ -12,8 +12,9 @@ const char *kerr_names[] = {
     "parse",
     "type",
     "length",
-    "nyi",
     "value",
+    "rank",
+    "nyi",
 };
 
 void kperror(char *src){
