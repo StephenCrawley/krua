@@ -19,7 +19,7 @@ const char *kerr_names[] = {
 
 void kperror(char *src){
     fprintf(stderr, "'%s! %s %s\n", kerr_names[kerrno], kerrstr, kerrno == KERR_VALUE ? kerrbuf : "");
-    if (kerrno == KERR_PARSE) {
+    if (kerrno == KERR_PARSE && kerrpos != -1) {
         fprintf(stderr, "    %s\n%*s^\n", src, kerrpos+4, "");
     }
 }

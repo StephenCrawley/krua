@@ -160,6 +160,14 @@ K token(K x, K *vars, K *consts){
             if (!res) return UNREF_R(0);
             *tok++ = addConst(consts, res);
             i = end + 1;
+        } else if (src[i] == '(' || src[i] == ')'){
+            if (src[i] == '(' && src[i+1] == ')'){
+                // add empty list literal const ()
+                *tok++ = addConst(consts, knew(KObjType, 0));
+                i += 2;
+            } else {
+                *tok++ = src[i++];
+            }
         } else {
             // operators, punctuation
             K_char *op = strchr(OPS, src[i]);
@@ -173,45 +181,67 @@ K token(K x, K *vars, K *consts){
     return r;
 }
 
-// parse + compile token stream to bytecode
-// NB: consumes (unrefs) arg 'x'
-K compileExpr(K x){
-    K_char *tok = (K_char*)x;
-    K_int i = 0, j = 0, n = HDR_COUNT(x);
+// emit bytecode given token stream x
+// fenced is an array of subexpression token streams from ()-delimited source code
+// NB: consumes x
+static K emit(K x, K fenced) {
+    K_char *tok = CHR_PTR(x); // token pointer
+    K_int n = HDR_COUNT(x);
+    if (!n) return UNREF_X(knew(KChrType, 0));
+    
+    #define BC(c) ({K_char _c=(c); ISCLASS(OP_FENCED,_c) ? parse(ref(OBJ_PTR(fenced)[_c&31])) : kc1(_c);})
+    
+    K_int i = 0, j = 0;
     K r = knew(KObjType, n);
-    // -1+-2+3
-    // -:1+-:2+3
-    // -:+1-:+23
-    // 32+-:1+-:
-    while (i < n){
-        if (tok[i] < 20){ // +x
-            OBJ_PTR(r)[j] = kc1(OP_UNARY + tok[i]);
-            i += 1;
-        } else if (i+1 == n){
-            OBJ_PTR(r)[j] = kc1(tok[i]);
-            i += 1;
-        } else if (i+1 < n && tok[i+1] < 20){ // x+
-            OBJ_PTR(r)[j] = (!tok[i+1] && ISCLASS(OP_GET_VAR, tok[i])) ? kc1(OP_SET_VAR + tok[i]%32) : kc2(OP_BINARY + tok[i+1], tok[i]);
+    
+    while (i < n) {
+        if (tok[i] < 20) {  // +x
+            OBJ_PTR(r)[j++] = kc1(OP_UNARY + tok[i++]);
+        } else if (i+1 == n) {  // last token
+            OBJ_PTR(r)[j++] = BC(tok[i++]);
+        } else if (tok[i+1] < 20) {  // x: or x+ 
+            OBJ_PTR(r)[j++] = (!tok[i+1] && ISCLASS(OP_GET_VAR, tok[i])) ? 
+                kc1(OP_SET_VAR + tok[i]%32) : razeStr(k2(BC(tok[i]), kc1(OP_BINARY + tok[i+1])));
             i += 2;
-        } else { // x y -> x@y
-            OBJ_PTR(r)[j] = kc2(OP_BINARY + 5, tok[i]);
-            i += 1;
+        } else {  // x y
+            OBJ_PTR(r)[j++] = razeStr(k2(BC(tok[i++]), kc1(OP_BINARY + 5)));
         }
-        j++;
     }
     HDR_COUNT(r) = j;
-    //alternative. flatter version. write directly to bytecode array. untested
-    //K_int m = n, i = 0, j = 0; for (int k=0, _n=n-1; k<_n; k++) m += (b[k]>=20 & b[k+1]>=20);
-    //K ret = knew(KChrType, m); K_char *r = CHR_PTR(ret), *b = CHR_PTR(x), t;
-    //while(i<n-1) { if(b[i]<20){r[j++]=b[i++]+OP_UNARY;} else if(b[i+1]<20){t=b[i++];r[j++]=OP_BINARY+b[i++];r[j++]=t;}else{r[j++]=0x45;r[j++]=b[i++]} }
-    //if(i<n)r[j++]=b[i];
-    //can we do it in reverse?
+    
+    #undef BC
+    
+    // reverse
+    K o, *s=OBJ_PTR(r), *e=OBJ_PTR(r)+j-1; while (s<e){o=*s;*s++=*e;*e--=o;}
+    
+    return UNREF_X(razeStr(r));
+}
 
-    // raze + reverse
-    r = razeStr(r);
-    K_char t, *s=CHR_PTR(r), *e=CHR_PTR(r)+HDR_COUNT(r)-1; while (s<e){t=*s;*s++=*e;*e--=t;}
-
-    return UNREF_X(r);
+// extract fenced expressions (parens), then compile
+// NB: consumes x
+K parse(K x) {
+    K fenced = 0;
+    K_char *t = CHR_PTR(x);
+    K_int n = HDR_COUNT(x), j = 0;
+    
+    for (K_int i = 0; i < n; ) {
+        if (t[i] == '(') {
+            K_int end = findClose(t, i, n, '(', ')');
+            PARSE_ERROR(end == n, i, "unmatched (", unref(fenced); unref(x));
+            K body = knewcopy(KChrType, end - i - 1, (K)(t + i + 1));
+            fenced = fenced ? joinObj(fenced, body) : k1(body);
+            t[j++] = OP_FENCED + HDR_COUNT(fenced) - 1;
+            i = end + 1;
+        } else {
+            PARSE_ERROR(t[i] == ')', -1, "unmatched )", unref(fenced); unref(x));
+            t[j++] = t[i++];
+        }
+    }
+    HDR_COUNT(x) = j;
+    
+    K r = emit(x, fenced);
+    unref(fenced);
+    return r;
 }
 
 // compile source code to bytecode
@@ -219,7 +249,7 @@ K compileExpr(K x){
 K compile(K src, K vars){
     K r, consts = 0;
     if (!(r = token(src, &vars, &consts))) goto cleanup;
-    if (!(r = compileExpr(r))) goto cleanup;
+    if (!(r = parse(r))) goto cleanup;
     return k4(r, vars, consts, src);
 cleanup:
     unref(vars), unref(consts), unref(src);

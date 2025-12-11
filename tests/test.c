@@ -85,7 +85,7 @@ static K tokenize(const char *src) {
 
 static K compile_tokens(K tokens) {
     if (!tokens) return 0;
-    return compileExpr(tokens); // NOTE: compileExpr unrefs tokens
+    return parse(tokens); // NOTE: parse unrefs tokens
 }
 
 // Verify K object is a valid lambda: (bytecode; params; consts; source)
@@ -292,6 +292,20 @@ TEST(lambda_nested) {
     PASS();
 }
 
+TEST(empty_parens_token) {
+    (void)GLOBALS;
+    K vars = 0, consts = 0;
+    K x = kcstr("()");
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "() should produce 1 token");
+    ASSERT(CHR_PTR(r)[0] == OP_CONST, "should be CONST index 0");
+    ASSERT(consts && HDR_COUNT(consts) == 1, "should have 1 constant");
+    K c = OBJ_PTR(consts)[0];
+    ASSERT(!IS_TAG(c) && HDR_TYPE(c) == KObjType && HDR_COUNT(c) == 0, "const should be empty list");
+    unref(x), unref(r), unref(vars), unref(consts);
+    PASS();
+}
+
 // Expression tokenization tests
 TEST(binary_add) {
     (void)GLOBALS;
@@ -324,6 +338,17 @@ TEST(multiple_variables) {
     (void)GLOBALS;
     K r = tokenize("x y z");
     ASSERT(r && HDR_COUNT(r) == 3, "should produce 3 variable tokens");
+    unref(r);
+    PASS();
+}
+
+TEST(paren_token_passthrough) {
+    (void)GLOBALS;
+    K r = tokenize("(1)");
+    ASSERT(r && HDR_COUNT(r) == 3, "should produce 3 tokens");
+    ASSERT(CHR_PTR(r)[0] == '(', "first should be literal (");
+    ASSERT(ISCLASS(OP_CONST, CHR_PTR(r)[1]), "second should be CONST");
+    ASSERT(CHR_PTR(r)[2] == ')', "third should be literal )");
     unref(r);
     PASS();
 }
@@ -404,6 +429,38 @@ TEST(compile_application2) {
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be PUSH const");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[1]), "second should PUSH const");
     ASSERT(CHR_PTR(bytecode)[2] == (OP_BINARY + 5), "third should be BINARY @ (apply)");
+    unref(bytecode);
+    PASS();
+}
+
+TEST(paren_compile_simple) {
+    (void)GLOBALS;
+    K tokens = tokenize("(1)");
+    K bytecode = parse(tokens);
+    ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "should compile to 1 byte");
+    ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
+    unref(bytecode);
+    PASS();
+}
+
+TEST(paren_compile_nested) {
+    (void)GLOBALS;
+    K tokens = tokenize("((1))");
+    K bytecode = parse(tokens);
+    ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "nested parens should compile to 1 byte");
+    ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
+    unref(bytecode);
+    PASS();
+}
+
+TEST(paren_compile_with_op) {
+    (void)GLOBALS;
+    K tokens = tokenize("(1+2)*3");
+    K bytecode = parse(tokens);
+    ASSERT(bytecode && HDR_COUNT(bytecode) == 5, "should compile to 5 bytes");
+    // Bytecode is reversed: 3, (1+2), *, where (1+2) expands to 2, 1, +
+    // So: CONST(3), CONST(2), CONST(1), BINARY(+), BINARY(*)
+    ASSERT(CHR_PTR(bytecode)[4] == OP_BINARY + 3, "last should be BINARY *");
     unref(bytecode);
     PASS();
 }
@@ -608,6 +665,37 @@ TEST(lambda_error_undefined_var) {
     PASS();
 }
 
+TEST(paren_eval_simple) {
+    K r = eval(kcstr("(42)"), GLOBALS);
+    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 42, "(42) should be 42");
+    PASS();
+}
+
+TEST(paren_eval_grouping) {
+    K r = eval(kcstr("(1+2)*3"), GLOBALS);
+    ASSERT(r && IS_TAG(r), "result should be a tag");
+    ASSERT(TAG_VAL(r) == 9, "(1+2)*3 should be 9");
+    PASS();
+}
+
+TEST(paren_eval_nested) {
+    K r = eval(kcstr("((1+2))"), GLOBALS);
+    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 3, "((1+2)) should be 3");
+    PASS();
+}
+
+TEST(paren_eval_deep) {
+    K r = eval(kcstr("(((1+2)))"), GLOBALS);
+    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 3, "(((1+2))) should be 3");
+    PASS();
+}
+
+TEST(paren_eval_multiple) {
+    K r = eval(kcstr("(1+2)+(3+4)"), GLOBALS);
+    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 10, "(1+2)+(3+4) should be 10");
+    PASS();
+}
+
 // Error tests
 TEST(unclosed_string) {
     (void)GLOBALS;
@@ -729,6 +817,8 @@ void run_tests() {
     RUN_TEST(binary_add);
     RUN_TEST(unary_plus);
     RUN_TEST(assignment);
+    RUN_TEST(paren_token_passthrough);
+    RUN_TEST(empty_parens_token);
 
     printf("\nCompilation:\n");
     RUN_TEST(compile_empty);
@@ -738,6 +828,9 @@ void run_tests() {
     RUN_TEST(compile_assignment);
     RUN_TEST(compile_application);
     RUN_TEST(compile_application2);
+    RUN_TEST(paren_compile_simple);
+    RUN_TEST(paren_compile_nested);
+    RUN_TEST(paren_compile_with_op);
 
     printf("\nVM Execution:\n");
     RUN_TEST(vm_simple_add);
@@ -765,6 +858,11 @@ void run_tests() {
     RUN_TEST(lambda_apply_no_params);
     RUN_TEST(lambda_error_type_mismatch);
     RUN_TEST(lambda_error_undefined_var);
+    RUN_TEST(paren_eval_simple);
+    RUN_TEST(paren_eval_grouping);
+    RUN_TEST(paren_eval_nested);
+    RUN_TEST(paren_eval_deep);
+    RUN_TEST(paren_eval_multiple);
 
     printf("\nError Handling:\n");
     RUN_TEST(invalid_token);
