@@ -651,6 +651,13 @@ TEST(lambda_apply_no_params) {
     PASS();
 }
 
+TEST(lambda_reassign_param) {
+    K r = eval(kcstr("{[x]x:\"new\"}@\"old\""), GLOBALS);
+    // If double-free, likely crashes or fails leak test
+    unref(r);
+    PASS();
+}
+
 TEST(lambda_error_type_mismatch) {
     K r = eval(kcstr("{[x]x+1}@\"a\""), GLOBALS);
     ASSERT(!r, "applying lambda to string should fail");
@@ -856,6 +863,7 @@ void run_tests() {
     RUN_TEST(lambda_apply_local_and_param);
     RUN_TEST(lambda_apply_nested);
     RUN_TEST(lambda_apply_no_params);
+    RUN_TEST(lambda_reassign_param);
     RUN_TEST(lambda_error_type_mismatch);
     RUN_TEST(lambda_error_undefined_var);
     RUN_TEST(paren_eval_simple);
