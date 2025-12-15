@@ -24,7 +24,7 @@ enum {
 extern K GLOBALS;
 
 K token(K,K*,K*);
-K parse(K);
+K compile(K);
 K getGlobal(K, K_sym);
 K vm(K x, K vars, K consts, K GLOBALS, K_char localc, K*args);
 void strip(K);

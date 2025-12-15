@@ -85,7 +85,9 @@ static K tokenize(const char *src) {
 
 static K compile_tokens(K tokens) {
     if (!tokens) return 0;
-    return parse(tokens); // NOTE: parse unrefs tokens
+    K r = compile(tokens);
+    unref(tokens);
+    return r;
 }
 
 // Verify K object is a valid lambda: (bytecode; params; consts; source)
@@ -436,7 +438,7 @@ TEST(compile_application2) {
 TEST(paren_compile_simple) {
     (void)GLOBALS;
     K tokens = tokenize("(1)");
-    K bytecode = parse(tokens);
+    K bytecode = compile_tokens(tokens);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "should compile to 1 byte");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
     unref(bytecode);
@@ -446,7 +448,7 @@ TEST(paren_compile_simple) {
 TEST(paren_compile_nested) {
     (void)GLOBALS;
     K tokens = tokenize("((1))");
-    K bytecode = parse(tokens);
+    K bytecode = compile_tokens(tokens);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "nested parens should compile to 1 byte");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
     unref(bytecode);
@@ -456,7 +458,7 @@ TEST(paren_compile_nested) {
 TEST(paren_compile_with_op) {
     (void)GLOBALS;
     K tokens = tokenize("(1+2)*3");
-    K bytecode = parse(tokens);
+    K bytecode = compile_tokens(tokens);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 5, "should compile to 5 bytes");
     // Bytecode is reversed: 3, (1+2), *, where (1+2) expands to 2, 1, +
     // So: CONST(3), CONST(2), CONST(1), BINARY(+), BINARY(*)

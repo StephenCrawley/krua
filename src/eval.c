@@ -1,4 +1,4 @@
-// krua tokenize -> parse -> compile -> vm
+// krua tokenize -> compile -> vm
 
 #include "eval.h"
 
@@ -12,7 +12,7 @@ const K_char OPS[] = ":+-*%@.!,<>?#_~&|=$^";
 K GLOBALS = 0;
 
 // forwards declarations
-K compile(K, K);
+K load(K, K);
 
 // K bytecode:
 // class  index
@@ -98,7 +98,7 @@ static K lambda(K_char *src, K_int start, K_int end){
     locals(body, &vars);
     K_char varc = HDR_COUNT(vars);
     
-    K f = compile(body, vars);
+    K f = load(body, vars);
     if (!f) return 0;
     
     HDR_ARGC(f) = argc;
@@ -183,13 +183,12 @@ K token(K x, K *vars, K *consts){
 
 // emit bytecode given token stream x
 // fenced is an array of subexpression token streams from ()-delimited source code
-// NB: consumes x
 static K emit(K x, K fenced) {
     K_char *tok = CHR_PTR(x); // token pointer
     K_int n = HDR_COUNT(x);
-    if (!n) return UNREF_X(knew(KChrType, 0));
+    if (!n) return knew(KChrType, 0);
     
-    #define BC(c) ({K_char _c=(c); ISCLASS(OP_FENCED,_c) ? parse(ref(OBJ_PTR(fenced)[_c&31])) : kc1(_c);})
+    #define BC(c) ({K_char _c=(c); ISCLASS(OP_FENCED,_c) ? compile(OBJ_PTR(fenced)[_c&31]) : kc1(_c);})
     
     K_int i = 0, j = 0;
     K r = knew(KObjType, n);
@@ -214,12 +213,11 @@ static K emit(K x, K fenced) {
     // reverse
     K o, *s=OBJ_PTR(r), *e=OBJ_PTR(r)+j-1; while (s<e){o=*s;*s++=*e;*e--=o;}
     
-    return UNREF_X(razeStr(r));
+    return razeStr(r);
 }
 
 // extract fenced expressions (parens), then compile
-// NB: consumes x
-K parse(K x) {
+K compile(K x) {
     K fenced = 0;
     K_char *t = CHR_PTR(x);
     K_int n = HDR_COUNT(x), j = 0;
@@ -227,13 +225,13 @@ K parse(K x) {
     for (K_int i = 0; i < n; ) {
         if (t[i] == '(') {
             K_int end = findClose(t, i, n, '(', ')');
-            PARSE_ERROR(end == n, i, "unmatched (", unref(fenced); unref(x));
+            PARSE_ERROR(end == n, -1, "unmatched (", unref(fenced));
             K body = knewcopy(KChrType, end - i - 1, (K)(t + i + 1));
             fenced = fenced ? joinObj(fenced, body) : k1(body);
             t[j++] = OP_FENCED + HDR_COUNT(fenced) - 1;
             i = end + 1;
         } else {
-            PARSE_ERROR(t[i] == ')', -1, "unmatched )", unref(fenced); unref(x));
+            PARSE_ERROR(t[i] == ')', -1, "unmatched )", unref(fenced));
             t[j++] = t[i++];
         }
     }
@@ -244,13 +242,16 @@ K parse(K x) {
     return r;
 }
 
-// compile source code to bytecode
+// compile source code to bytecode and vars/consts
 // returns (bytecode; variables; constants; sourcecode)
-K compile(K src, K vars){
-    K r, consts = 0;
-    if (!(r = token(src, &vars, &consts))) goto cleanup;
-    if (!(r = parse(r))) goto cleanup;
-    return k4(r, vars, consts, src);
+K load(K src, K vars){
+    K tokens, bytecode, consts = 0;
+    tokens = token(src, &vars, &consts);
+    if (!tokens) goto cleanup;
+    bytecode = compile(tokens);
+    unref(tokens);
+    if (!bytecode) goto cleanup;
+    return k4(bytecode, vars, consts, src);
 cleanup:
     unref(vars), unref(consts), unref(src);
     return 0;
@@ -317,8 +318,8 @@ K eval(K x, K GLOBALS_param){
     strip(x);
     if (HDR_COUNT(x) == 0) return UNREF_X(knull());
 
-    // compile to bytecode
-    K r = compile(x, 0);
+    // load source for execution on VM
+    K r = load(x, 0);
     if (!r) return 0;
 
     // call VM
