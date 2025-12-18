@@ -222,6 +222,7 @@ K razeStr(K x){
     return UNREF_X(r);
 }
 
+// cutStr("ab,cd", ',') -> ("ab";"cd")
 K cutStr(K x, K_char c){
     K_int n = 1;
     FOR_EACH(x) if(CHR_PTR(x)[i] == c) n++;
@@ -235,6 +236,7 @@ K cutStr(K x, K_char c){
     return UNREF_X(r);
 }
 
+// joinStr(("ab";"cd"), '|') -> "ab|cd"
 K joinStr(K x, K_char c){
     K_int n = HDR_COUNT(x);
     FOR_EACH(x) n += HDR_COUNT(OBJ_PTR(x)[i]);
@@ -258,6 +260,20 @@ K joinObj(K x, K y){
     x = kextend(x, 1);
     OBJ_PTR(x)[HDR_COUNT(x)-1] = y;
     return x;
+}
+
+// (1;2) -> 1 2
+K squeeze(K x){
+    if (!x || HDR_COUNT(x) == 0) return x;
+    K_char type = TAG_TYPE(OBJ_PTR(x)[0]);
+    if (!type) return x;
+    FOR_EACH(x) if (type != TAG_TYPE(OBJ_PTR(x)[i])) return x;
+    K r = knew(type, HDR_COUNT(x));
+    switch(WIDTH_OF(r)){
+    case 1: {K_char *d = CHR_PTR(r); FOR_EACH(r) d[i] = TAG_VAL(OBJ_PTR(x)[i]); break;}
+    case 4: {K_int  *d = INT_PTR(r); FOR_EACH(r) d[i] = TAG_VAL(OBJ_PTR(x)[i]); break;}
+    }
+    return UNREF_X(r);
 }
 
 // ** K object print ** //

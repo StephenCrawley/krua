@@ -35,6 +35,7 @@ K cutStr(K, K_char);
 K joinStr(K, K_char);
 K joinTag(K, K);
 K joinObj(K, K);
+K squeeze(K);
 K kprint(K);
 
 #ifdef TRACK_REFS

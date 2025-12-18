@@ -172,7 +172,7 @@ K token(K x, K *vars, K *consts){
             // operators, punctuation
             K_char *op = strchr(OPS, src[i]);
             // TODO: allow punctuation
-            PARSE_ERROR(src[i] - 32 > 127u || !op, i, "invalid token", unref(r));
+            PARSE_ERROR(src[i] - 32 > 127u || (!op && src[i] != ';'), i, "invalid token", unref(r));
             *tok++ = op ? op - OPS : src[i];
             ++i;
         }
@@ -181,6 +181,9 @@ K token(K x, K *vars, K *consts){
     return r;
 }
 
+// in-place reverse
+#define REVERSE(r) K o, *s=OBJ_PTR(r), *e=OBJ_PTR(r)+HDR_COUNT(r)-1; while (s<e){o=*s;*s++=*e;*e--=o;};
+
 // emit bytecode given token stream x
 // fenced is an array of subexpression token streams from ()-delimited source code
 static K emit(K x, K fenced) {
@@ -188,7 +191,7 @@ static K emit(K x, K fenced) {
     K_int n = HDR_COUNT(x);
     if (!n) return knew(KChrType, 0);
     
-    #define BC(c) ({K_char _c=(c); ISCLASS(OP_FENCED,_c) ? compile(OBJ_PTR(fenced)[_c&31]) : kc1(_c);})
+    #define BC(c) ({K_char _c=(c); ISCLASS(OP_FENCED,_c) ? compile(OBJ_PTR(fenced)[_c&31], 1) : kc1(_c);})
     
     K_int i = 0, j = 0;
     K r = knew(KObjType, n);
@@ -211,13 +214,13 @@ static K emit(K x, K fenced) {
     #undef BC
     
     // reverse
-    K o, *s=OBJ_PTR(r), *e=OBJ_PTR(r)+j-1; while (s<e){o=*s;*s++=*e;*e--=o;}
+    REVERSE(r);
     
     return razeStr(r);
 }
 
 // extract fenced expressions (parens), then compile
-K compile(K x) {
+K compile(K x, bool f) {
     K fenced = 0;
     K_char *t = CHR_PTR(x);
     K_int n = HDR_COUNT(x), j = 0;
@@ -236,11 +239,27 @@ K compile(K x) {
         }
     }
     HDR_COUNT(x) = j;
-    
-    K r = emit(x, fenced);
+
+    // cut on ; and emit tokens for each subexpression
+    x = cutStr(ref(x), ';');
+    K r = knew(KObjType, HDR_COUNT(x));
+    K *ret = OBJ_PTR(r), *expr = OBJ_PTR(x);
+    FOR_EACH(x) ret[i] = emit(expr[i], fenced);
+    if (f && HDR_COUNT(x) > 1){ // is a fenced expression?
+        REVERSE(r);
+        r = joinObj(r, kc2(OP_ENLIST, HDR_COUNT(r)));
+        r = razeStr(r);
+    } else if (f){
+        r = razeStr(r);
+    } else {
+        r = joinStr(r, OP_POP);
+    }
+
     unref(fenced);
-    return r;
+    return UNREF_X(r);
 }
+
+#undef REVERSE
 
 // compile source code to bytecode and vars/consts
 // returns (bytecode; variables; constants; sourcecode)
@@ -248,7 +267,7 @@ K load(K src, K vars){
     K tokens, bytecode, consts = 0;
     tokens = token(src, &vars, &consts);
     if (!tokens) goto cleanup;
-    bytecode = compile(tokens);
+    bytecode = compile(tokens, 0);
     unref(tokens);
     if (!bytecode) goto cleanup;
     return k4(bytecode, vars, consts, src);
@@ -268,7 +287,7 @@ K getGlobal(K GLOBALS, K_sym var){
 // NB: does not consume (unref) any args
 // limits:
 // - 32 constants per expression
-// - 32 variables per expression (incl. args/locals/gobals)
+// - 32 variables per expression (incl. args/locals/globals)
 // TODO: multi-byte encoding
 K vm(K x, K vars, K consts, K GLOBALS, K_char varc, K*args){
     if (HDR_COUNT(x) == 0) return knull();  // Empty bytecode
@@ -280,10 +299,12 @@ K vm(K x, K vars, K consts, K GLOBALS, K_char varc, K*args){
         switch(*ip++ >> 5){  // class: upper 3 bits
         case 0: NYI_ERROR(1, "vm: unary operation", goto bail) break;
         case 1: a=*top++; *top=dyad_table[i](a,*top); if (!*top) goto bail; break;
-        case 2: NYI_ERROR(1, "vm: n-adic operation", goto bail) break;
+        case 2: if(!i) unref(*top++); else NYI_ERROR(1, "vm: n-adic operation", goto bail) break;
         case 3: *--top=ref(OBJ_PTR(consts)[i]); break;
         case 4: *--top=i<varc?ref(args[i]):getGlobal(GLOBALS,v[i]); if (!*top) goto bail; break;
         case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;
+        case 7: if(!i){a=knew(KObjType,*ip++);FOR_EACH(a)OBJ_PTR(a)[i]=*top++;*--top=squeeze(a); break;} 
+                NYI_ERROR(1, "vm: OP_SPECIAL", goto bail);
         }
     }
     return *top;
@@ -322,9 +343,12 @@ K eval(K x, K GLOBALS_param){
     K r = load(x, 0);
     if (!r) return 0;
 
-    // call VM
+    // check bytecode for OP_SET_VAR or OP_POP as final byte. if yes, return null
     K bytecode = OBJ_PTR(r)[0];
-    bool assignment = ISCLASS(OP_SET_VAR, CHR_PTR(bytecode)[HDR_COUNT(bytecode)-1]); // is last op assignment?
+    K_char lastOp = CHR_PTR(bytecode)[HDR_COUNT(bytecode)-1];
+    bool returnNull = lastOp == OP_POP || ISCLASS(OP_SET_VAR, lastOp); // is last op assignment or OP_POP?
+    
+    // call VM
     r = UNREF_R(vm(bytecode, OBJ_PTR(r)[1], OBJ_PTR(r)[2], GLOBALS, 0, 0));
-    return assignment ? UNREF_R(knull()) : r; // don't print if last op is assignment
+    return r && returnNull ? UNREF_R(knull()) : r; // don't print if last op is assignment
 }

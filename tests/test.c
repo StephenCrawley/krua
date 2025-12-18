@@ -85,7 +85,7 @@ static K tokenize(const char *src) {
 
 static K compile_tokens(K tokens) {
     if (!tokens) return 0;
-    K r = compile(tokens);
+    K r = compile(tokens, 0);
     unref(tokens);
     return r;
 }
@@ -705,6 +705,61 @@ TEST(paren_eval_multiple) {
     PASS();
 }
 
+TEST(semicolon_terminated_expr) {
+    (void)GLOBALS;
+    K r = eval(kcstr("1 2;"), GLOBALS);
+    ASSERT(r == knull(), "semicolon-terminated expression should return knull");
+    PASS();
+}
+
+TEST(multiexpr_basic) {
+    (void)GLOBALS;
+    K r = eval(kcstr("1 2;2"), GLOBALS);
+    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 2, "should return 2");
+    PASS();
+}
+
+TEST(subexpr_with_ops) {
+    (void)GLOBALS;
+    K r = eval(kcstr("1+2;3*4"), GLOBALS);
+    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 12, "1+2;3*4 should return 12");
+    PASS();
+}
+
+TEST(subexpr_assignment) {
+    const char *src = "x:1;x+2";
+    K result = eval(kcstr(src), GLOBALS);
+    ASSERT(result && IS_TAG(result) && TAG_VAL(result) == 3, "x:1;x+2 should return 3");
+    unref(result);
+    PASS();
+}
+
+TEST(fenced_subexpr_basic) {
+    K r = eval(kcstr("(1;2)"), GLOBALS);
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "(1;2) should return int array");
+    ASSERT(HDR_COUNT(r) == 2 && INT_PTR(r)[0] == 1 && INT_PTR(r)[1] == 2, "(1;2) should be 1 2");
+    unref(r);
+    PASS();
+}
+
+TEST(fenced_subexpr_with_ops) {
+    K r = eval(kcstr("(1;2+3)"), GLOBALS);
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "(1;2+3) should return int array");
+    ASSERT(HDR_COUNT(r) == 2 && INT_PTR(r)[0] == 1 && INT_PTR(r)[1] == 5, "(1;2+3) should be 1 5");
+    unref(r);
+    PASS();
+}
+
+TEST(fenced_subexpr_heterogeneous) {
+    K r = eval(kcstr("(1;\"a\")"), GLOBALS);
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1;\"a\") should return generic list");
+    ASSERT(HDR_COUNT(r) == 2, "(1;\"a\") should have 2 elements");
+    ASSERT(TAG_VAL(OBJ_PTR(r)[0]) == 1, "first element should be 1");
+    ASSERT(TAG_VAL(OBJ_PTR(r)[1]) == 'a', "second element should be 'a'");
+    unref(r);
+    PASS();
+}
+
 // Error tests
 TEST(unclosed_string) {
     (void)GLOBALS;
@@ -873,6 +928,13 @@ void run_tests() {
     RUN_TEST(paren_eval_nested);
     RUN_TEST(paren_eval_deep);
     RUN_TEST(paren_eval_multiple);
+    RUN_TEST(semicolon_terminated_expr);
+    RUN_TEST(multiexpr_basic);
+    RUN_TEST(subexpr_with_ops);
+    RUN_TEST(subexpr_assignment);
+    RUN_TEST(fenced_subexpr_basic);
+    RUN_TEST(fenced_subexpr_with_ops);
+    RUN_TEST(fenced_subexpr_heterogeneous);
 
     printf("\nError Handling:\n");
     RUN_TEST(invalid_token);
