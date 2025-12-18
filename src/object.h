@@ -9,13 +9,12 @@
 #define UNREF_XY(k) UNREF_X(UNREF_Y(k))
 #define UNREF_XR(k) UNREF_X(UNREF_R(k))
 
-K ref(K);
-void _unref(K);
-//K kchr(K_char);
-//K kint(K_int);
 static inline K kchr(K_char c) { return TAG(KChrType, c); }
 static inline K kint(K_int  i) { return TAG(KIntType, i); }
 static inline K knull()        { return TAG(KMonadType,0); }
+
+K ref(K);
+void _unref(K);
 K_sym encodeSym(K_char*, int);
 K_char addSym(K*, K_sym);
 K* getSlot(K, K_sym);
@@ -30,15 +29,13 @@ K kcstr(const char*);
 K ksymdict();
 K kc1(K_char);
 K kc2(K_char, K_char);
-//K razeStr(K x);
 K cutStr(K, K_char);
 K joinStr(K, K_char);
+static inline K razeStr(K x){ return joinStr(x, 0); }
 K joinTag(K, K);
 K joinObj(K, K);
 K squeeze(K);
 K kprint(K);
-
-static inline K razeStr(K x){ return joinStr(x, 0); }
 
 #ifdef TRACK_REFS
   // When tracking, include the tracking header
