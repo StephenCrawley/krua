@@ -30,13 +30,15 @@ K kcstr(const char*);
 K ksymdict();
 K kc1(K_char);
 K kc2(K_char, K_char);
-K razeStr(K x);
+//K razeStr(K x);
 K cutStr(K, K_char);
 K joinStr(K, K_char);
 K joinTag(K, K);
 K joinObj(K, K);
 K squeeze(K);
 K kprint(K);
+
+static inline K razeStr(K x){ return joinStr(x, 0); }
 
 #ifdef TRACK_REFS
   // When tracking, include the tracking header

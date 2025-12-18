@@ -213,15 +213,6 @@ static K kextend(K x, K_int n){
     return x;
 }
 
-// ("ab";"cd") -> "abcd"
-K razeStr(K x){
-    K_int n = 0;
-    FOR_EACH(x){ n += HDR_COUNT( OBJ_PTR(x)[i] ); }
-    K r = knew(KChrType, n), t = r;
-    FOR_EACH(x){ t = HDR_COUNT( OBJ_PTR(x)[i] ) + kcpy(t, OBJ_PTR(x)[i]); }
-    return UNREF_X(r);
-}
-
 // cutStr("ab,cd", ',') -> ("ab";"cd")
 K cutStr(K x, K_char c){
     K_int n = 1;
@@ -238,12 +229,12 @@ K cutStr(K x, K_char c){
 
 // joinStr(("ab";"cd"), '|') -> "ab|cd"
 K joinStr(K x, K_char c){
-    K_int n = HDR_COUNT(x);
+    K_int n = c ? HDR_COUNT(x) : 0;
     FOR_EACH(x) n += HDR_COUNT(OBJ_PTR(x)[i]);
     K r = knew(KChrType, n);
     K_char *s = CHR_PTR(r);
-    FOR_EACH(x){ s = HDR_COUNT(OBJ_PTR(x)[i]) + (K_char*)kcpy((K)s, OBJ_PTR(x)[i]); *s++ = c; }
-    HDR_COUNT(r)--;
+    FOR_EACH(x){ s = HDR_COUNT(OBJ_PTR(x)[i]) + (K_char*)kcpy((K)s, OBJ_PTR(x)[i]); if (c)*s++ = c; }
+    if (c) HDR_COUNT(r)--;
     return UNREF_X(r);
 }
 

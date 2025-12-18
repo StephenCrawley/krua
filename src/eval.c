@@ -249,10 +249,8 @@ K compile(K x, bool f) {
         REVERSE(r);
         r = joinObj(r, kc2(OP_ENLIST, HDR_COUNT(r)));
         r = razeStr(r);
-    } else if (f){
-        r = razeStr(r);
     } else {
-        r = joinStr(r, OP_POP);
+        r = joinStr(r, f ? 0 : OP_POP);
     }
 
     unref(fenced);
