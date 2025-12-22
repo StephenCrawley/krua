@@ -138,7 +138,7 @@ K token(K x, K *vars, K *consts){
 
         if (ISALPHA(src[i])){
             // variables
-            do ++i; while (ISALNUM(src[i]));    
+            do ++i; while (i < n && ISALNUM(src[i]));
             *tok++ = addVar(vars, encodeSym(src+t0, i-t0));
         } else if (ISDIGIT(src[i])){
             // numbers
