@@ -27,7 +27,8 @@ void _unref(K x){
     if (IS_NESTED(x)){
         FOR_EACH(x){ unref(OBJ_PTR(x)[i]); }
     }
-    M[HDR_BUCKET(x)] = OBJ_PTR(x)[0] = M[HDR_BUCKET(x)];
+    OBJ_PTR(x)[0] = M[HDR_BUCKET(x)];
+    M[HDR_BUCKET(x)] = x;
 }
 
 // ** K object allocate and memcpy ** //
