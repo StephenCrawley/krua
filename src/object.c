@@ -228,6 +228,7 @@ K cutStr(K x, K_char c){
 }
 
 // joinStr(("ab";"cd"), '|') -> "ab|cd"
+// special case: joinStr(("ab";"cd"), 0) -> "abcd"
 K joinStr(K x, K_char c){
     K_int n = c ? HDR_COUNT(x) : 0;
     FOR_EACH(x) n += HDR_COUNT(OBJ_PTR(x)[i]);
