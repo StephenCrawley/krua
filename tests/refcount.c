@@ -93,7 +93,7 @@ void mark(K x) {
             tracker.marked[i] = true;
             
             // Recursively mark children
-            if (HDR_TYPE(x) == KObjType) {
+            if (IS_NESTED(x)) {
                 FOR_EACH(x) mark(OBJ_PTR(x)[i]);
             }
             return;
