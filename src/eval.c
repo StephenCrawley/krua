@@ -92,6 +92,7 @@ static K lambda(K_char *src, K_int start, K_int end){
     PARSE_ERROR(!pend, end, "unclosed param list", );
     
     // extract params and body
+    // NB: 'vars' will contain params, local vars, and global vars referenced in the lambda
     K vars = params(knewcopy(KChrType, pend - pstart, (K)pstart));
     K_char argc = HDR_COUNT(vars);
     K body = knewcopy(KChrType, (src + end) - pend - 1, (K)(pend + 1));
