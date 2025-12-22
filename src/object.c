@@ -160,7 +160,7 @@ K_char addSym(K *syms, K_sym x){
     // check if var name already in list
     K_int i = -1;
     K_sym *s = SYM_PTR(*syms);
-    while (i < HDR_COUNT(*syms)){ if (x == s[++i]) return i; }
+    while (++i < HDR_COUNT(*syms)){ if (x == s[i]) return i; }
     // else join to list
     *syms = joinTag(*syms, x);
     return i;
