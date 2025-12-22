@@ -57,6 +57,7 @@ K kalloc(K_int n){
             K_hdr *new_alloc = malloc(HEAP_SIZE); // 512MiB
             if (!new_alloc) { fprintf(stderr, "Out of memory\n"); exit(1); }
             M[b] = (K)(1 + new_alloc); // skip the header and place a pointer to the array in the bucket
+            // IMPORTANT: no need to initialize M[b]. new_alloc points to the returned bucket; see variable 'r' below
             break;
         }
     }
