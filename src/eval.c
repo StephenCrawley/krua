@@ -289,7 +289,6 @@ K getGlobal(K GLOBALS, K_sym var){
 // - 32 variables per expression (incl. args/locals/globals)
 // TODO: multi-byte encoding
 K vm(K x, K vars, K consts, K GLOBALS, K_char varc, K*args){
-    if (HDR_COUNT(x) == 0) return knull();  // Empty bytecode
     K_sym *v = SYM_PTR(vars);
     K_char *ip = CHR_PTR(x), *e = ip + HDR_COUNT(x);
     K stack[STACK_SIZE], *top = stack+STACK_SIZE, *base = top, a; // stack grows down
@@ -298,7 +297,7 @@ K vm(K x, K vars, K consts, K GLOBALS, K_char varc, K*args){
         switch(*ip++ >> 5){  // class: upper 3 bits
         case 0: NYI_ERROR(1, "vm: unary operation", goto bail) break;
         case 1: a=*top++; *top=dyad_table[i](a,*top); if (!*top) goto bail; break;
-        case 2: if(!i) unref(*top++); else NYI_ERROR(1, "vm: n-adic operation", goto bail) break;
+        case 2: if(!i)unref(*top++); else NYI_ERROR(1, "vm: n-adic operation", goto bail) break;
         case 3: *--top=ref(OBJ_PTR(consts)[i]); break;
         case 4: *--top=i<varc?ref(args[i]):getGlobal(GLOBALS,v[i]); if (!*top) goto bail; break;
         case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;
@@ -306,7 +305,7 @@ K vm(K x, K vars, K consts, K GLOBALS, K_char varc, K*args){
                 NYI_ERROR(1, "vm: OP_SPECIAL", goto bail);
         }
     }
-    return *top;
+    return top == base ? knull() : *top;
 bail: while(top < base) unref(*top++); return 0;
 }
 
