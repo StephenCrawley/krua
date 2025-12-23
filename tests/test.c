@@ -857,6 +857,30 @@ TEST(lambda_error_unclosed_lambda) {
     PASS();
 }
 
+// Monad tests
+TEST(monad_value_basic) {
+    K r = eval(kcstr(".\"tests/read.txt\""), GLOBALS);
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "should read file as KChrType");
+    ASSERT(HDR_COUNT(r) == 5, "file should have 5 chars");
+    ASSERT(memcmp(CHR_PTR(r), "hello", 5) == 0, "content should be 'hello'");
+    unref(r);
+    PASS();
+}
+
+TEST(monad_value_file_not_found) {
+    K r = eval(kcstr(".\"nonexistent_file_12345.txt\""), GLOBALS);
+    ASSERT(!r, "missing file should fail");
+    ASSERT(kerrno == KERR_VALUE, "should raise KERR_VALUE");
+    PASS();
+}
+
+TEST(monad_value_type_error) {
+    K r = eval(kcstr(". 123"), GLOBALS);
+    ASSERT(!r, "value on integer should fail");
+    ASSERT(kerrno == KERR_NYI, "should raise KERR_NYI");
+    PASS();
+}
+
 // Test runner
 void run_tests() {
     printf("\nPreprocessing:\n");
@@ -947,6 +971,11 @@ void run_tests() {
     RUN_TEST(lambda_error_missing_bracket);
     RUN_TEST(lambda_error_unclosed_params);
     RUN_TEST(lambda_error_unclosed_lambda);
+
+    printf("\nMonads:\n");
+    RUN_TEST(monad_value_basic);
+    RUN_TEST(monad_value_file_not_found);
+    RUN_TEST(monad_value_type_error);
 
     printf("\n======================\n");
     printf("Tests run:    %d\n", tests_run);

@@ -6,6 +6,7 @@
 #include "krua.h"
 #include "object.h"
 #include "limits.h"
+#include "monad.h"
 #include "dyad.h"
 
 enum {

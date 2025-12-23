@@ -24,3 +24,13 @@ void kperror(char *src){
     }
 }
 
+// functions to copy string into kerrbuf in VALUE_ERROR
+inline void _copy_sym(K_sym v) {
+    MEMCPY(kerrbuf, &v, sizeof(K_sym));
+    kerrbuf[sizeof(K_sym)] = 0;
+}
+inline void _copy_chr(K x) {
+    K_int n = HDR_COUNT(x) < sizeof(kerrbuf)-1 ? HDR_COUNT(x) : sizeof(kerrbuf)-1;
+    MEMCPY(kerrbuf, x, n);
+    kerrbuf[n] = 0;
+}
