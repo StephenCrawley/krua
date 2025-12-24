@@ -297,12 +297,15 @@ K vm(K x, K vars, K consts, K GLOBALS, K_char varc, K*args){
         switch(*ip++ >> 5){  // class: upper 3 bits
         case 0: *top=monad_table[i](*top); if(!*top) goto bail; break;
         case 1: a=*top++; *top=dyad_table[i](a,*top); if (!*top) goto bail; break;
-        case 2: if (!i) unref(*top++); else NYI_ERROR(1, "vm: n-adic operation", goto bail) break;
+        case 2: NYI_ERROR(1, "vm: n-adic operation", goto bail) break;
         case 3: *--top=ref(OBJ_PTR(consts)[i]); break;
         case 4: *--top=i<varc?ref(args[i]):getGlobal(GLOBALS,v[i]); if (!*top) goto bail; break;
         case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;
-        case 7: if (!i){a=knew(KObjType,*ip++);FOR_EACH(a)OBJ_PTR(a)[i]=*top++;*--top=squeeze(a); break;} 
-                NYI_ERROR(1, "vm: OP_SPECIAL", goto bail);
+        case 7: switch(i){ // special ops 0:pop 1:enlist
+                case 0: unref(*top++); break;
+                case 1: a=knew(KObjType,*ip++); FOR_EACH(a)OBJ_PTR(a)[i]=*top++; *--top=squeeze(a); break;
+                default: NYI_ERROR(1, "vm: OP_SPECIAL", goto bail);
+                } 
         }
     }
     return top == base ? knull() : *top;
