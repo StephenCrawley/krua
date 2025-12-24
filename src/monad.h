@@ -9,5 +9,6 @@ typedef K (*MONAD)(K);
 extern MONAD monad_table[20];
 
 K value(K);
+K count(K);
 
 #endif

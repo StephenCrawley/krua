@@ -2,7 +2,7 @@
 
 static K nyi1(K x){NYI_ERROR(1, "monadic operation", unref(x);)}
 
-MONAD monad_table[] = {nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, value, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1};
+MONAD monad_table[] = {nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, value, nyi1, nyi1, nyi1, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1};
 
 K readFile(K path) {
     path = joinTag(path, 0);
@@ -24,4 +24,8 @@ K readFile(K path) {
 K value(K x){
     NYI_ERROR(TAG_TYPE(x) || HDR_TYPE(x) != KChrType, "value", unref(x));
     return readFile(x);
+}
+
+K count(K x){
+    return UNREF_X(TAG(KIntType, IS_ATOM(x) ? 1 : HDR_COUNT(x)));
 }
