@@ -1,6 +1,6 @@
 # Krua Makefile
 CC = gcc
-CFLAGS = -O3 -Wall -Wextra -std=c2x -Isrc -Wno-pointer-sign -Wno-sign-compare -Wno-unused-variable
+CFLAGS = -O3 -Wall -Wextra -std=c2x -Isrc -Wno-pointer-sign -Wno-sign-compare -Wno-unused-variable -g
 SOURCES = src/object.c src/eval.c src/monad.c src/dyad.c src/error.c src/apply.c
 OBJECTS = src/object.o src/eval.o src/monad.o src/dyad.o src/error.o src/apply.o
 HEADERS = src/krua.h src/object.h src/eval.h src/limits.h src/monad.h src/dyad.h src/error.h src/apply.h
