@@ -195,12 +195,11 @@ K knewcopy(K_char t, K_int n, K x){
     return r;
 }
 
-// append y to x. like a memcpy wrapper but handles KObjType y and refs as needed
+// copy y to address x. like a memcpy wrapper but handles KObjType y and refs as needed
 K kcpy(K x, K y){
-    if (HDR_TYPE(y) == KObjType){ // TODO? handle all types which are list of K objects
-        FOR_EACH(y) { OBJ_PTR(x)[i] = ref(OBJ_PTR(y)[i]); }
-    } else {
-        MEMCPY(x, y, HDR_COUNT(y)*WIDTH_OF(y));
+    MEMCPY(x, y, HDR_COUNT(y)*WIDTH_OF(y));
+    if (HDR_TYPE(y) == KObjType){
+        FOR_EACH(y) ref(OBJ_PTR(y)[i]);
     }
     return x;
 }
