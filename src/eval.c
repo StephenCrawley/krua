@@ -36,19 +36,20 @@ static K_char addConst(K *consts, K x){
     return OP_CONST + HDR_COUNT(*consts)-1;
 }
 
-static K numbers(char *src, K_int count){
+static K numbers(char *src, K_int len, K_int count){
     K r;
+    char *end = src + len;
     if (count == 1){
         K_int j = 0;
-        do j = j*10 + (*src++ - '0'); while (ISDIGIT(*src));
+        do j = j*10 + (*src++ - '0'); while (src < end && ISDIGIT(*src));
         r = kint(j);
     } else {
         r = knew(KIntType, count);
         K_int *ints = INT_PTR(r);
         FOR_EACH(r){
             ints[i] = 0;
-            do ints[i] = 10*ints[i] + (*src++ - '0'); while (ISDIGIT(*src));
-            while (*src == ' ') ++src;
+            do ints[i] = 10*ints[i] + (*src++ - '0'); while (src < end && ISDIGIT(*src));
+            while (src < end && *src == ' ') ++src;
         }
     }
     return r;
@@ -145,8 +146,8 @@ K token(K x, K *vars, K *consts){
             K_int count = 1;
             do {
                 count += (src[i++] == ' ' && ISDIGIT(src[i]));
-            } while (ISDIGIT(src[i]) || src[i] == ' ');
-            *tok++ = addConst(consts, numbers(src+t0, count));
+            } while (i < n && (ISDIGIT(src[i]) || src[i] == ' '));
+            *tok++ = addConst(consts, numbers(src+t0, i-t0, count));
         } else if (src[i] == '"'){
             // string
             ++t0;
