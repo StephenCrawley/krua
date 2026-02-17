@@ -85,8 +85,7 @@ static K tokenize(const char *src) {
 
 static K compile_tokens(K tokens) {
     if (!tokens) return 0;
-    K r = compile(tokens, 0);
-    unref(tokens);
+    K r = compile(0, tokens, 0);
     return r;
 }
 
@@ -432,6 +431,53 @@ TEST(compile_application2) {
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[1]), "second should PUSH const");
     ASSERT(CHR_PTR(bytecode)[2] == (OP_BINARY + 5), "third should be BINARY @ (apply)");
     unref(bytecode);
+    PASS();
+}
+
+TEST(bracket_postfix_single_arg) {
+    (void)GLOBALS;
+    const char *src = "{[x]x+1}[6]";
+    K x = kcstr(src);
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
+
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode && !IS_TAG(bytecode), "compilation should succeed");
+
+    K_char *bc = CHR_PTR(bytecode);
+    K_int n = HDR_COUNT(bytecode);
+
+    ASSERT(n == 3, "bytecode should have 3 instructions");
+    ASSERT(ISCLASS(OP_CONST, bc[0]), "first should load lambda");
+    ASSERT(ISCLASS(OP_CONST, bc[1]), "second should load arg 6");
+    ASSERT(bc[2] == OP_N_ARY + 1, "third should be N_ARY apply with 1 arg");
+
+    unref(x), unref(bytecode), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(bracket_postfix_two_args) {
+    (void)GLOBALS;
+    const char *src = "{[x;y]x+y}[1;6]";
+    K x = kcstr(src);
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
+
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode, "compilation should succeed");
+
+    K_char *bc = CHR_PTR(bytecode);
+    K_int n = HDR_COUNT(bytecode);
+
+    ASSERT(n == 4, "bytecode should have 4 instructions");
+    ASSERT(ISCLASS(OP_CONST, bc[0]), "first should load lambda");
+    ASSERT(ISCLASS(OP_CONST, bc[1]), "second should load arg 1");
+    ASSERT(ISCLASS(OP_CONST, bc[2]), "third should load arg 6");
+    ASSERT(bc[3] == OP_N_ARY + 2, "fourth should be N_ARY apply with 2 args");
+
+    unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
 }
 
@@ -857,6 +903,13 @@ TEST(lambda_error_unclosed_lambda) {
     PASS();
 }
 
+TEST(error_unmatched_paren) {
+    K r = eval(kcstr("(1+2"), GLOBALS);
+    ASSERT(!r, "unmatched paren should error");
+    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
+    PASS();
+}
+
 // Monad tests
 TEST(monad_value_basic) {
     K r = eval(kcstr(".\"tests/read.txt\""), GLOBALS);
@@ -916,6 +969,8 @@ void run_tests() {
     RUN_TEST(compile_assignment);
     RUN_TEST(compile_application);
     RUN_TEST(compile_application2);
+    RUN_TEST(bracket_postfix_single_arg);
+    RUN_TEST(bracket_postfix_two_args);
     RUN_TEST(paren_compile_simple);
     RUN_TEST(paren_compile_nested);
     RUN_TEST(paren_compile_with_op);
@@ -971,6 +1026,7 @@ void run_tests() {
     RUN_TEST(lambda_error_missing_bracket);
     RUN_TEST(lambda_error_unclosed_params);
     RUN_TEST(lambda_error_unclosed_lambda);
+    RUN_TEST(error_unmatched_paren);
 
     printf("\nMonads:\n");
     RUN_TEST(monad_value_basic);

@@ -23,7 +23,7 @@ K load(K, K);
 // 4      128-159: get variable(local/arg/global)
 // 5      160-191: set variable
 // 6      192-223: ?
-// 7      224-255: ?
+// 7      224-255: special operations (enlist, pop)
 
 // append a variable name to a vars list and return the bytecode+index
 static K_char addVar(K *vars, K_sym x){
@@ -78,7 +78,7 @@ void locals(K src, K *vars){
     }
 }
 
-// find matching close bracket, returns n if unmatched
+// return index of close bracket (>0), returns 0 if unmatched
 static K_int findClose(K_char *s, K_int i, K_int n, K_char open, K_char close) {
     for (int d = 1; d && ++i < n; )
         d += (s[i] == open) - (s[i] == close);
@@ -172,9 +172,8 @@ K token(K x, K *vars, K *consts){
             }
         } else {
             // operators, punctuation
+            PARSE_ERROR(src[i] - 32 > 94u, i, "invalid token", unref(r));
             K_char *op = strchr(OPS, src[i]);
-            // TODO: allow punctuation
-            PARSE_ERROR(src[i] - 32 > 127u || (!op && src[i] != ';'), i, "invalid token", unref(r));
             *tok++ = op ? op - OPS : src[i];
             ++i;
         }
@@ -183,92 +182,179 @@ K token(K x, K *vars, K *consts){
     return r;
 }
 
-// in-place reverse
-#define REVERSE(r) K o, *s=OBJ_PTR(r), *e=OBJ_PTR(r)+HDR_COUNT(r)-1; while (s<e){o=*s;*s++=*e;*e--=o;};
+// placeholder token ranges for reduced token 
+enum {
+    TOK_PAREN   = 0x40,
+    TOK_BRACKET = 0xc0,
+    TOK_POSTFIX = 0xe0,
+};
 
-// emit bytecode given token stream x
-// fenced is an array of subexpression token streams from ()-delimited source code
-static K emit(K x, K fenced) {
-    K_char *tok = CHR_PTR(x); // token pointer
-    K_int n = HDR_COUNT(x);
-    if (!n) return knew(KChrType, 0);
-    
-    #define BC(c) ({K_char _c=(c); ISCLASS(OP_FENCED,_c) ? compile(OBJ_PTR(fenced)[_c&31], 1) : kc1(_c);})
-    
-    K_int i = 0, j = 0;
-    K r = knew(KObjType, n);
-    
-    while (i < n) {
-        if (tok[i] < 20) {  // +x
-            OBJ_PTR(r)[j++] = kc1(OP_UNARY + tok[i++]);
-        } else if (i+1 == n) {  // last token
-            OBJ_PTR(r)[j++] = BC(tok[i++]);
-        } else if (tok[i+1] < 20) {  // x: or x+ 
-            OBJ_PTR(r)[j++] = (!tok[i+1] && ISCLASS(OP_GET_VAR, tok[i])) ? 
-                kc1(OP_SET_VAR + tok[i]%32) : razeStr(k2(BC(tok[i]), kc1(OP_BINARY + tok[i+1])));
+// in-place reverse of K list
+static void reverse(K r){
+    K o, *s=OBJ_PTR(r), *e=OBJ_PTR(r)+HDR_COUNT(r)-1; while (s<e){o=*s;*s++=*e;*e--=o;};
+}
+// in-place reverse of K_char list
+static void reverseChr(K r){
+    K_char o, *s=CHR_PTR(r), *e=CHR_PTR(r)+HDR_COUNT(r)-1; while (s<e){o=*s;*s++=*e;*e--=o;};
+}
+
+static K expandPostfix(K x, K fenced, K postfix);
+
+static K expandSwitch(K_char c, K fenced, K postfix){
+    if (ISCLASS(TOK_PAREN, c)) return compile(0, ref(OBJ_PTR(fenced)[c & 31]), 1);
+    if (ISCLASS(TOK_POSTFIX, c)) return expandPostfix(OBJ_PTR(postfix)[c & 31], fenced, postfix);
+    return kc1(c);
+}
+
+static K expandPostfix(K x, K fenced, K postfix){
+    K_char *b = CHR_PTR(x);
+    K r = expandSwitch(*b, fenced, postfix);
+    if (!r) return 0;
+    for (K_int i = 1, n = HDR_COUNT(x); i < n; i++) {
+        r = compile(r, ref(OBJ_PTR(fenced)[b[i]&31]), 2);
+        if (!r) return UNREF_R(0);
+    }
+    return r;
+}
+
+static K rpn(K x){
+    K_int i = 0, j = 0, n = HDR_COUNT(x);
+    K r = knew(KChrType, n * 2);
+    K_char *xp = CHR_PTR(x), *rp = CHR_PTR(r);
+    while (i < n){
+        if (i+1 == n || xp[i] < 20){
+            rp[j++] = xp[i++];
+        } else if (xp[i+1] < 20){
+            if (!xp[i+1] && ISCLASS(OP_GET_VAR, xp[i])){
+                rp[j++] = OP_SET_VAR + xp[i]%32;
+            } else {
+                rp[j++] = OP_BINARY + xp[i+1];
+                rp[j++] = xp[i]; 
+            }
             i += 2;
-        } else {  // x y
-            OBJ_PTR(r)[j++] = razeStr(k2(BC(tok[i++]), kc1(OP_BINARY + 5)));
+        } else {
+            rp[j++] = OP_BINARY + 5;
+            rp[j++] = xp[i++];
         }
     }
     HDR_COUNT(r) = j;
-    
-    #undef BC
-    
-    // reverse
-    REVERSE(r);
-    
-    return razeStr(r);
+    reverseChr(r);
+    return r;
 }
 
-// extract fenced expressions (parens), then compile
-K compile(K x, bool f) {
-    K fenced = 0;
-    K_char *t = CHR_PTR(x);
-    K_int n = HDR_COUNT(x), j = 0;
-    
-    for (K_int i = 0; i < n; ) {
-        if (t[i] == '(') {
-            K_int end = findClose(t, i, n, '(', ')');
-            PARSE_ERROR(end == n, -1, "unmatched (", unref(fenced));
-            K body = knewcopy(KChrType, end - i - 1, (K)(t + i + 1));
-            fenced = fenced ? joinObj(fenced, body) : k1(body);
-            t[j++] = OP_FENCED + HDR_COUNT(fenced) - 1;
+static K expandTokens(K x, K fenced, K postfix){
+    K r = knew(KObjType, HDR_COUNT(x));
+    FOR_EACH(x){
+        K t = expandSwitch(CHR_PTR(x)[i], fenced, postfix);
+        if (!t) return UNREF_R(0); 
+        OBJ_PTR(r)[i] = t;
+    }
+    return UNREF_X(razeStr(r));
+}
+
+static K reduceFenced(K x, K *fenced){
+    K_int j = 0;
+    K_char *tok = CHR_PTR(x);
+    for (K_int i = 0, n = HDR_COUNT(x); i < n; ) {
+        if (tok[i] == '(' || tok[i] == '[') {
+            bool p = tok[i] == '(';
+            K_int end = findClose(tok, i, n, tok[i], p?')':']');
+            if (!end) return UNREF_X(0);
+            K body = knewcopy(KChrType, end - i - 1, (K)(tok + i + 1));
+            *fenced = *fenced ? joinObj(*fenced, body) : k1(body);
+            tok[j++] = (p ? TOK_PAREN : TOK_BRACKET) + HDR_COUNT(*fenced) - 1;
             i = end + 1;
         } else {
-            PARSE_ERROR(t[i] == ')', -1, "unmatched )", unref(fenced));
-            t[j++] = t[i++];
+            tok[j++] = tok[i++];
         }
     }
     HDR_COUNT(x) = j;
-
-    // cut on ; and emit tokens for each subexpression
-    x = cutStr(ref(x), ';');
-    K r = knew(KObjType, HDR_COUNT(x));
-    K *ret = OBJ_PTR(r), *expr = OBJ_PTR(x);
-    FOR_EACH(x) ret[i] = emit(expr[i], fenced);
-    if (f && HDR_COUNT(x) > 1){ // is a fenced expression?
-        REVERSE(r);
-        r = joinObj(r, kc2(OP_ENLIST, HDR_COUNT(r)));
-        r = razeStr(r);
-    } else {
-        r = joinStr(r, f ? 0 : OP_POP);
-    }
-
-    unref(fenced);
-    return UNREF_X(r);
+    return x;
 }
 
-#undef REVERSE
+static K reducePostfix(K x, K *postfix){
+    K_int j = 0;
+    K_char *tok = CHR_PTR(x);
+    for (K_int i = 0, n = HDR_COUNT(x); i < n; ){
+        if (i < n-1 && ISCLASS(TOK_BRACKET, tok[i+1])){
+            K_int start = i++;
+            do ++i; while (i<n && ISCLASS(TOK_BRACKET, tok[i]));
+            K body = knewcopy(KChrType, i - start, (K)(tok + start));
+            *postfix = *postfix ? joinObj(*postfix, body) : k1(body);
+            tok[j++] = TOK_POSTFIX + HDR_COUNT(*postfix) - 1;
+        } else {
+            tok[j++] = tok[i++];
+        }
+    }
+    HDR_COUNT(x) = j;
+    return x;
+}
+
+// extract fenced expressions (parens), then compile
+// decomposed into several passes:
+// 1. reduce () and [] to single tokens
+// 2. reduce postfix f[..] and f/ (nyi) to single tokens
+// 3. cut bytecode into slices on ';'
+// 4. emit:
+//     restructure as reverse polish notation
+//     expand (recursively) the reduced structures
+// 5. stitch back the slices of bytecode
+K compile(K f, K x, int mode) {
+    K fenced = 0, postfix = 0, r = 0;
+    if (!(x = reduceFenced(x, &fenced))) goto cleanup;
+    x = reducePostfix(x, &postfix);
+
+    // cut on ; and emit tokens for each subexpression
+    x = cutStr(x, ';');
+    K_int n = HDR_COUNT(x);
+    r = knew(KObjType, n);
+    K *ret = OBJ_PTR(r), *expr = OBJ_PTR(x);
+    FOR_EACH(x){
+        ret[i] = expandTokens(rpn(expr[i]), fenced, postfix); 
+        if(!ret[i]) goto cleanup;
+    }
+    if (mode) reverse(r);
+    switch (mode){
+    case 0: r = joinStr(r, OP_POP); break;
+    case 1: r = razeStr( (n == 1) ? r : joinObj(r, kc2(OP_ENLIST, n)) ); break;
+    case 2: r = razeStr( joinObj(r, joinTag(f, OP_N_ARY + n)) ); break;
+    }
+
+    unref(fenced), unref(postfix);
+    return UNREF_X(r);
+cleanup:
+    unref(x), unref(fenced), unref(postfix), unref(r);
+    return 0;
+}
+
+// check that () and [] are balanced at all depth levels
+// TODO: source level check on ()[]{} and source pointer in error message
+static bool balanced(K tokens){
+    uint64_t stk = 0;
+    unsigned err = 0, sp = 0;
+    K_char *s = CHR_PTR(tokens);
+    FOR_EACH(tokens) {
+        bool l = s[i]=='[', r = s[i]==']';
+        bool o = (s[i]=='(')|l, c = (s[i]==')')|r;
+        bool b = l|r;
+        sp -= c;
+        unsigned k = sp & 63;
+        unsigned d = (unsigned)(((stk >> k) ^ b) & 1);
+        err |= ((unsigned)sp >> 6) | ((unsigned)c & d);
+        stk ^= (uint64_t)d << k;
+        sp += o;
+    }
+    PARSE_ERROR(err|sp, -1, "unmatched", unref(tokens));
+    return 1;
+}
 
 // compile source code to bytecode and vars/consts
 // returns (bytecode; variables; constants; sourcecode)
 K load(K src, K vars){
     K tokens, bytecode, consts = 0;
     tokens = token(src, &vars, &consts);
-    if (!tokens) goto cleanup;
-    bytecode = compile(tokens, 0);
-    unref(tokens);
+    if (!tokens || !balanced(tokens)) goto cleanup;
+    bytecode = compile(0, tokens, 0);
     if (!bytecode) goto cleanup;
     return k4(bytecode, vars, consts, src);
 cleanup:
@@ -298,7 +384,8 @@ K vm(K x, K vars, K consts, K GLOBALS, K_char varc, K*args){
         switch(*ip++ >> 5){  // class: upper 3 bits
         case 0: *top=monad_table[i](*top); if(!*top) goto bail; break;
         case 1: a=*top++; *top=dyad_table[i](a,*top); if (!*top) goto bail; break;
-        case 2: NYI_ERROR(1, "vm: n-adic operation", goto bail) break;
+        case 2: if (i==1) a=*top++,*top=at(a,*top); else NYI_ERROR(1, "vm: n-adic operation", goto bail) break;
+        //TODO: a=*top++; *top = (i==1) ? at(a,*top) : applyN(a,i,top); if (!*top) goto bail; break;
         case 3: *--top=ref(OBJ_PTR(consts)[i]); break;
         case 4: *--top=i<varc?ref(args[i]):getGlobal(GLOBALS,v[i]); if (!*top) goto bail; break;
         case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;
