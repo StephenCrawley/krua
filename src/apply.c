@@ -4,12 +4,14 @@
 
 // forward declarations
 K index(K, K);
+K apply(K, int, K*);
 
 // application
 
 K applyLambda(K x, int n, K *args){
+    RANK_ERROR(HDR_ARGC(x) < n, "too many lambda args", while(n--) unref(args[n]));
     // NYI error is fine, as argc < n is allowed (not an error, returns projection) but not supported yet
-    NYI_ERROR(HDR_ARGC(x) != n, "lambda param count != argument count", while(n--) unref(args[n]));
+    NYI_ERROR(HDR_ARGC(x) > n, "lambda projection", while(n--) unref(args[n]));
     int vn = HDR_VARC(x); // total var count = argc + localc (excl. globalc)
     K locals[vn];
     for (int i = 0; i < vn; i++)
@@ -19,16 +21,22 @@ K applyLambda(K x, int n, K *args){
     return r;
 }
 
+K applyOver(K x, int n, K *args){
+    if (n == 1) return index(x, *args);
+    for (int i = 0; i < n; i++){
+        K t = apply(x, 1, args + i); // don't overwrite x yet...
+        if (i) unref(x); // because we need to unref intermediates which are not the first
+        if (!t) { while (++i < n) unref(args[i]); return 0; }
+        x = t;
+    }
+    return x;
+}
+
 // generic apply
 K apply(K x, int n, K *args){
-    K ix = *args;
-    RANK_ERROR(TAG_TYPE(x), "can't apply atom to argument", while(n--) unref(args[n]));
-    K r  =  
-        HDR_TYPE(x) == KLambdaType ? applyLambda(x,n,args) : 
-        1 == n && HDR_TYPE(x) <= KSymType ? index(x,*args) :
-        //NYI_ERROR(1, "apply", while(n--) unref(args[n]));
-        ({kerrno = KERR_NYI, kerrstr = "apply"; while(n--) unref(args[n]); 0;});
-    return UNREF_X(r); //TODO? move unref to caller? 
+    RANK_ERROR(IS_TAG(x), "can't apply atom to argument", while(n--) unref(args[n]));
+    K r = (HDR_TYPE(x) == KLambdaType ? applyLambda : applyOver)(x, n, args);
+    return r;
 }
 
 // indexing

@@ -65,7 +65,7 @@ K params(K x){
     return UNREF_X(r);
 }
 
-// put local vars into `vars`. find locals by identifying assignment
+// put local vars into 'vars'. find locals by identifying assignment
 // NB: does not consume (unref) arg 'src' 
 void locals(K src, K *vars){
     K_char *s = CHR_PTR(src);
@@ -384,8 +384,7 @@ K vm(K x, K vars, K consts, K GLOBALS, K_char varc, K*args){
         switch(*ip++ >> 5){  // class: upper 3 bits
         case 0: *top=monad_table[i](*top); if(!*top) goto bail; break;
         case 1: a=*top++; *top=dyad_table[i](a,*top); if (!*top) goto bail; break;
-        case 2: if (i==1) a=*top++,*top=at(a,*top); else NYI_ERROR(1, "vm: n-adic operation", goto bail) break;
-        //TODO: a=*top++; *top = (i==1) ? at(a,*top) : applyN(a,i,top); if (!*top) goto bail; break;
+        case 2: a=*top++; *top=apply(a,i,top); unref(a); if (!*top) goto bail; break;
         case 3: *--top=ref(OBJ_PTR(consts)[i]); break;
         case 4: *--top=i<varc?ref(args[i]):getGlobal(GLOBALS,v[i]); if (!*top) goto bail; break;
         case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;

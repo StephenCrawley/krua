@@ -31,5 +31,5 @@ BINARY_OP(add,+)
 BINARY_OP(mlt,*)
 
 K at(K x, K y){
-    return apply(x, 1, &y);
+    return UNREF_X(apply(x, 1, &y));
 }

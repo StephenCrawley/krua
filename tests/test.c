@@ -434,7 +434,7 @@ TEST(compile_application2) {
     PASS();
 }
 
-TEST(bracket_postfix_single_arg) {
+TEST(lambda_postfix_single_arg) {
     (void)GLOBALS;
     const char *src = "{[x]x+1}[6]";
     K x = kcstr(src);
@@ -457,7 +457,7 @@ TEST(bracket_postfix_single_arg) {
     PASS();
 }
 
-TEST(bracket_postfix_two_args) {
+TEST(lambda_postfix_two_args) {
     (void)GLOBALS;
     const char *src = "{[x;y]x+y}[1;6]";
     K x = kcstr(src);
@@ -600,6 +600,64 @@ TEST(index_str_out_of_bounds){
     ASSERT(TAG_TYPE(result) == KChrType, "result should be KChrType");
     ASSERT(TAG_VAL(result) == ' ', "out of bounds string index should return space");
     unref(result);
+    PASS();
+}
+
+TEST(index_postfix_two_args){
+    const char *src = "(1 2;3 4)[1;0]";
+    K result = eval(kcstr(src), GLOBALS);
+    ASSERT(result && IS_TAG(result), "result should be an atom");
+    ASSERT(TAG_TYPE(result) == KIntType, "result should be KIntType");
+    ASSERT(TAG_VAL(result) == 3, "result should be 3");
+    PASS();
+}
+
+TEST(index_postfix_three_args){
+    K r = eval(kcstr("((1 2;3 4);(5 6;7 8))[1;0;1]"), GLOBALS);
+    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 6, "should be 6");
+    PASS();
+}
+
+TEST(index_postfix_single_arg){
+    K r = eval(kcstr("1 2 3[0]"), GLOBALS);
+    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 1, "should be 1");
+    PASS();
+}
+
+TEST(apply_oob_multi_arg){
+    K r = eval(kcstr("(1;\"ab\")[1;5]"), GLOBALS);
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KChrType, "should be char");
+    ASSERT(TAG_VAL(r) == ' ', "OOB string index should be space");
+    PASS();
+}
+
+TEST(apply_atom_rank_error){
+    K r = eval(kcstr("42[0]"), GLOBALS);
+    ASSERT(!r && kerrno == KERR_RANK, "atom apply should be rank error");
+    PASS();
+}
+
+TEST(apply_cascade_rank_error){
+    K r = eval(kcstr("1 2 3[0;0]"), GLOBALS);
+    ASSERT(!r && kerrno == KERR_RANK, "indexing atom should be rank error");
+    PASS();
+}
+
+TEST(apply_string_cascade_rank_error){
+    K r = eval(kcstr("\"abc\"[1;0]"), GLOBALS);
+    ASSERT(!r && kerrno == KERR_RANK, "indexing char atom should be rank error");
+    PASS();
+}
+
+TEST(apply_too_many_args_rank_error){
+    K r = eval(kcstr("(1 2;3 4)[0;0;0]"), GLOBALS);
+    ASSERT(!r && kerrno == KERR_RANK, "3 args on 2-deep should be rank error");
+    PASS();
+}
+
+TEST(apply_chained_bracket_rank_error){
+    K r = eval(kcstr("{[x]x+1}[2][0]"), GLOBALS);
+    ASSERT(!r && kerrno == KERR_RANK, "indexing lambda result atom should be rank error");
     PASS();
 }
 
@@ -969,8 +1027,8 @@ void run_tests() {
     RUN_TEST(compile_assignment);
     RUN_TEST(compile_application);
     RUN_TEST(compile_application2);
-    RUN_TEST(bracket_postfix_single_arg);
-    RUN_TEST(bracket_postfix_two_args);
+    RUN_TEST(lambda_postfix_single_arg);
+    RUN_TEST(lambda_postfix_two_args);
     RUN_TEST(paren_compile_simple);
     RUN_TEST(paren_compile_nested);
     RUN_TEST(paren_compile_with_op);
@@ -986,6 +1044,10 @@ void run_tests() {
     RUN_TEST(index_int_with_list);
     RUN_TEST(index_int_out_of_bounds);
     RUN_TEST(index_str_out_of_bounds);
+    RUN_TEST(index_postfix_two_args);
+    RUN_TEST(index_postfix_three_args);
+    RUN_TEST(index_postfix_single_arg);
+    RUN_TEST(apply_oob_multi_arg);
     RUN_TEST(lambda_eval_returns_lambda);
     RUN_TEST(lambda_eval_no_params);
     RUN_TEST(lambda_eval_single_param);
@@ -1027,6 +1089,11 @@ void run_tests() {
     RUN_TEST(lambda_error_unclosed_params);
     RUN_TEST(lambda_error_unclosed_lambda);
     RUN_TEST(error_unmatched_paren);
+    RUN_TEST(apply_atom_rank_error);
+    RUN_TEST(apply_cascade_rank_error);
+    RUN_TEST(apply_string_cascade_rank_error);
+    RUN_TEST(apply_too_many_args_rank_error);
+    RUN_TEST(apply_chained_bracket_rank_error);
 
     printf("\nMonads:\n");
     RUN_TEST(monad_value_basic);

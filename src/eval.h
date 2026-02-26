@@ -21,7 +21,7 @@ enum {
     OP_ENLIST  = OP_SPECIAL + 1,
 };
 
-#define ISCLASS(class, b) ({K_char _b=(b); _b-class < 32u;})
+#define ISCLASS(class, b) ({uint32_t _b=(b); _b-class < 32u;})
 
 // Global interpreter state
 extern K GLOBALS;

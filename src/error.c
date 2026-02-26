@@ -30,7 +30,8 @@ inline void _copy_sym(K_sym v) {
     kerrbuf[sizeof(K_sym)] = 0;
 }
 inline void _copy_chr(K x) {
-    K_int n = HDR_COUNT(x) < sizeof(kerrbuf)-1 ? HDR_COUNT(x) : sizeof(kerrbuf)-1;
+    size_t n = HDR_COUNT(x);
+    n = n < sizeof(kerrbuf)-1 ? n : sizeof(kerrbuf)-1;
     MEMCPY(kerrbuf, x, n);
     kerrbuf[n] = 0;
 }
