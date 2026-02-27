@@ -172,7 +172,7 @@ K token(K x, K *vars, K *consts){
             }
         } else {
             // operators, punctuation
-            PARSE_ERROR(src[i] - 32 > 94u, i, "invalid token", unref(r));
+            PARSE_ERROR((unsigned)src[i] - 32 > 94u, i, "invalid token", unref(r));
             K_char *op = strchr(OPS, src[i]);
             *tok++ = op ? op - OPS : src[i];
             ++i;
