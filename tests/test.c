@@ -258,7 +258,7 @@ TEST(lambda_stores_full_src) {
     K lambda = OBJ_PTR(consts)[0];
     ASSERT(is_valid_lambda(lambda), "should be valid lambda");
     K lambda_src = OBJ_PTR(lambda)[3];
-    ASSERT(HDR_COUNT(lambda_src) == strlen(src), "source length should match");
+    ASSERT((size_t)HDR_COUNT(lambda_src) == strlen(src), "source length should match");
     ASSERT(memcmp(CHR_PTR(lambda_src), src, strlen(src)) == 0, "should store full lambda source with braces and params");
     unref(x); unref(r); unref(vars); unref(consts);
     PASS();
