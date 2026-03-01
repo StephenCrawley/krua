@@ -23,9 +23,10 @@ K applyLambda(K x, int n, K *args){
 
 K applyOver(K x, int n, K *args){
     if (n == 1) return index(x, *args);
+    ref(x);
     for (int i = 0; i < n; i++){
-        K t = apply(x, 1, args + i); // don't overwrite x yet...
-        if (i) unref(x); // because we need to unref intermediates which are not the first
+        K t = apply(x, 1, args + i);
+        unref(x);
         if (!t) { while (++i < n) unref(args[i]); return 0; }
         x = t;
     }
