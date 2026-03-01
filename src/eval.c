@@ -259,7 +259,6 @@ static K reduceFenced(K x, K *fenced){
         if (tok[i] == '(' || tok[i] == '[') {
             bool p = tok[i] == '(';
             K_int end = findClose(tok, i, n, tok[i], p?')':']');
-            if (!end) return UNREF_X(0);
             K body = knewcopy(KChrType, end - i - 1, (K)(tok + i + 1));
             *fenced = *fenced ? joinObj(*fenced, body) : k1(body);
             tok[j++] = (p ? TOK_PAREN : TOK_BRACKET) + HDR_COUNT(*fenced) - 1;
