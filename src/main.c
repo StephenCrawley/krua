@@ -12,7 +12,8 @@ int main(){
     while (1){
         // print prompt, read input
         printf("  ");
-        fgets(buf, LINE_LEN, stdin);
+        char *_ = fgets(buf, LINE_LEN, stdin);
+        (void)_;
 
         // overwrite potential trailing newline
         K_char *nl = strchr(buf, '\n'); 
