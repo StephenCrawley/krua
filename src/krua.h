@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include "error.h"
 #include "limits.h"
 
 
@@ -39,6 +38,9 @@ typedef int64_t  K_long;
 //     64bit ints would require special handling as the full 64bit range can't be contained in a tag, so int atoms (common!) would require special handling
 //     to support 64bit, a K value would need a 3rd object type: a tagged pointer where the upper bits contain type (KLongType) and the lower bits are a pointer to the value
 //     this is not hard to implement, but i'm not interested in supporting this right now
+
+// include error.h after K typedefs to prevent 'undefined' errors
+#include "error.h"
 
 // K type enum (remember: update KWIDTHS after adding a type)
 enum {

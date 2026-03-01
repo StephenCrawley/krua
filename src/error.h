@@ -12,7 +12,7 @@ extern const char *kerrstr;
 extern char kerrbuf[512];
 extern const char *kerr_names[];
 void kperror(char *src);
-extern void _copy_sym(), _copy_chr(); // used in VALUE_ERROR
+extern void _copy_sym(K_sym v), _copy_chr(K v); // used in VALUE_ERROR
 
 enum {
     KERR_PARSE,        // Parse error
