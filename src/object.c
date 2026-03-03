@@ -204,7 +204,9 @@ K kcpy(K x, K y){
     return x;
 }
 
-// increase the count of list x by n items. reuse x if possible
+// increase the count of list x by n items
+// will reuse x without copy if recount=0 and there is space in the tail
+// otherwise allocates a larger container and copies x
 static K kextend(K x, K_int n){
     n += HDR_COUNT(x);
     if (HDR_REFC(x) || BUCKET_SIZEOF(x) < (n * WIDTH_OF(x) + sizeof(K_hdr))){
@@ -285,8 +287,7 @@ static void _kprint(K x){
         } else if (type == KIntType){
             printf("%d", TAG_VAL(x));
         } else if (type == KSymType){
-            long long s=(long long)TAG_VAL(x);
-            printf("`%.4s", (char*)&s);
+            printf("`%.4s", (char*)&x);
         } else if (type == KMonadType) {
             return;
         } else {

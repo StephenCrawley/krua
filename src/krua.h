@@ -82,7 +82,7 @@ typedef struct {
 #define IS_TAG(x)   ((x) >> 56)
 #define TAG_TYPE(x) ((x) >> 56)
 #define TAG_VAL(x)  ((K_int)(x))
-#define TAG(t,x)    ((x) | (K)(t)<<56) //create a tag
+#define TAG(t,x)    ((K)(t)<<56 | (K)(uint32_t)(K_int)(x)) //create a tag
 
 // dict / table access
 #define KEYS(k)     OBJ_PTR(k)[0]
