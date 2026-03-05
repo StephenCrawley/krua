@@ -2,7 +2,15 @@
 
 static K nyi1(K x){NYI_ERROR(1, "monadic operation", unref(x);)}
 
-MONAD monad_table[] = {nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, value, nyi1, nyi1, nyi1, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1};
+MONAD monad_table[] = {nyi1, nyi1, neg, nyi1, nyi1, nyi1, value, nyi1, nyi1, nyi1, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1};
+
+K neg(K x){
+    TYPE_ERROR(KIntType != (TAG_TYPE(x) ? TAG_TYPE(x) : HDR_TYPE(x)), "-x must be int", unref(x));
+    if (TAG_TYPE(x)) return TAG(KIntType, -TAG_VAL(x));
+    K r = knew(KIntType, HDR_COUNT(x));
+    FOR_EACH(x) INT_PTR(r)[i] = -INT_PTR(x)[i];
+    return UNREF_X(r);
+}
 
 K readFile(K path) {
     path = joinTag(path, 0);

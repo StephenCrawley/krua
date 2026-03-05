@@ -532,6 +532,47 @@ TEST(vm_simple_multiply) {
     PASS();
 }
 
+TEST(vm_sub_atom) {
+    K r = eval(kcstr("1-2"), GLOBALS);
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType, "1-2 should return int atom");
+    ASSERT(TAG_VAL(r) == -1, "1-2 should be -1");
+    PASS();
+}
+
+/*TEST(vm_sub_list_list) { // TODO: BINARY_OP doesn't handle list-list yet
+    K r = eval(kcstr("1 2-3 4"), GLOBALS);
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "1 2-3 4 should return int list");
+    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
+    ASSERT(INT_PTR(r)[0] == -2 && INT_PTR(r)[1] == -2, "1 2-3 4 should be -2 -2");
+    unref(r);
+    PASS();
+}*/
+
+TEST(vm_sub_list_atom) {
+    K r = eval(kcstr("1 2 3-1"), GLOBALS);
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "1 2 3-1 should return int list");
+    ASSERT(HDR_COUNT(r) == 3, "result should have 3 elements");
+    ASSERT(INT_PTR(r)[0] == 0 && INT_PTR(r)[1] == 1 && INT_PTR(r)[2] == 2, "1 2 3-1 should be 0 1 2");
+    unref(r);
+    PASS();
+}
+
+TEST(vm_neg_atom) {
+    K r = eval(kcstr("- 1"), GLOBALS);
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType, "- 1 should return int atom");
+    ASSERT(TAG_VAL(r) == -1, "- 1 should be -1");
+    PASS();
+}
+
+TEST(vm_neg_list) {
+    K r = eval(kcstr("- 1 2 3"), GLOBALS);
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "- 1 2 3 should return int list");
+    ASSERT(HDR_COUNT(r) == 3, "result should have 3 elements");
+    ASSERT(INT_PTR(r)[0] == -1 && INT_PTR(r)[1] == -2 && INT_PTR(r)[2] == -3, "- 1 2 3 should be -1 -2 -3");
+    unref(r);
+    PASS();
+}
+
 TEST(vm_assignment) {
     const char *src = "x:42";
     K result = eval(kcstr(src), GLOBALS);
@@ -1036,6 +1077,11 @@ void run_tests() {
     printf("\nVM Execution:\n");
     RUN_TEST(vm_simple_add);
     RUN_TEST(vm_simple_multiply);
+    RUN_TEST(vm_sub_atom);
+    //RUN_TEST(vm_sub_list_list);
+    RUN_TEST(vm_sub_list_atom);
+    RUN_TEST(vm_neg_atom);
+    RUN_TEST(vm_neg_list);
     RUN_TEST(vm_assignment);
     RUN_TEST(vm_assignment_2);
     RUN_TEST(empty_string_literal);

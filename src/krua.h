@@ -95,6 +95,7 @@ typedef struct {
 #define IS_ATOM(x)      ({ K _x=(x); IS_TAG(_x)||HDR_TYPE(_x)==KLambdaType ;}) //TODO: can we group type enums so atomics are contiguous?
 #define IS_NESTED(x)    ({ K_char _t=HDR_TYPE(x); !_t || _t>=K_GENERIC_TYPES_START ;})
 #define OOB(i, n)       ((uint32_t)(i) >= (uint32_t)(n))
+#define MAX(x, y)       ({typeof(x)_x=(x); typeof(y)_y=(y); _x>_y?_x:_y;})
 // TODO: EXPR/LAMBDA ACCESS (bytecode; vars; consts; source)
 
 // some useful global data is here:

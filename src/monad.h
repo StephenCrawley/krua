@@ -8,6 +8,7 @@ typedef K (*MONAD)(K);
 
 extern MONAD monad_table[20];
 
+K neg(K);
 K value(K);
 K count(K);
 
