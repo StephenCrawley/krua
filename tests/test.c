@@ -587,6 +587,21 @@ TEST(add_lists_2) {
     PASS();
 }
 
+TEST(add_lists_obj_atom) {
+    // (1 2;3 4) + 1 -> (2 3;4 5)
+    const char *src = "(1 2;3 4)+1";
+    K r = eval(kcstr(src), GLOBALS);
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+1 should return obj list");
+    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
+    K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
+    ASSERT(!IS_TAG(r0) && HDR_TYPE(r0) == KIntType && HDR_COUNT(r0) == 2, "first element should be int list of length 2");
+    ASSERT(INT_PTR(r0)[0] == 2 && INT_PTR(r0)[1] == 3, "first element should be 2 3");
+    ASSERT(!IS_TAG(r1) && HDR_TYPE(r1) == KIntType && HDR_COUNT(r1) == 2, "second element should be int list of length 2");
+    ASSERT(INT_PTR(r1)[0] == 4 && INT_PTR(r1)[1] == 5, "second element should be 4 5");
+    unref(r);
+    PASS();
+}
+
 TEST(vm_neg_atom) {
     K r = eval(kcstr("- 1"), GLOBALS);
     ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType, "- 1 should return int atom");
@@ -1112,6 +1127,7 @@ void run_tests() {
     RUN_TEST(vm_sub_list_atom);
     RUN_TEST(add_lists_1);
     RUN_TEST(add_lists_2);
+    RUN_TEST(add_lists_obj_atom);
     RUN_TEST(vm_neg_atom);
     RUN_TEST(vm_neg_list);
     RUN_TEST(vm_assignment);

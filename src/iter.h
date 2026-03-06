@@ -5,6 +5,7 @@
 #include "object.h"
 #include "dyad.h"
 
-K each2binary(DYAD f, K x, K y);
+K _each2(DYAD, K, K);
+K _eachleft(DYAD, K, K);
 
 #endif
