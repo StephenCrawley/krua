@@ -23,8 +23,11 @@ K f(K x, K y){ \
         FOR_EACH(x) INT_PTR(r)[i] = INT_PTR(x)[i] op TAG_VAL(y); \
         return UNREF_X(r); \
     } \
- \
-    return nyi(x,y); \
+    LENGTH_ERROR(HDR_COUNT(x) != HDR_COUNT(y), "", unref(x); unref(y)) \
+    if (HDR_TYPE(x) == KObjType || HDR_TYPE(y) == KObjType) return each2binary(f, x, y); \
+    r = knew(KIntType, HDR_COUNT(x)); \
+    FOR_EACH(x) INT_PTR(r)[i] = INT_PTR(x)[i] op INT_PTR(y)[i]; \
+    return UNREF_XY(r); \
 } \
 
 BINARY_OP(add,+)

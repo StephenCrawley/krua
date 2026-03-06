@@ -35,6 +35,7 @@ static inline K razeStr(K x){ return joinStr(x, 0); }
 K joinTag(K, K);
 K joinObj(K, K);
 K squeeze(K);
+K item(K_int, K);
 K kprint(K);
 
 #ifdef TRACK_REFS

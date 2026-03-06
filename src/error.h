@@ -27,6 +27,8 @@ enum {
     if (p){ kerrno = KERR_PARSE; kerrpos = (pos); kerrstr = (e); cleanup; return 0; }
 #define TYPE_ERROR(p, e, cleanup) \
     if (p){ kerrno = KERR_TYPE; kerrstr = e; cleanup; return 0; }
+#define LENGTH_ERROR(p, e, cleanup) \
+    if (p){ kerrno = KERR_LENGTH; kerrstr = e; cleanup; return 0; }
 #define VALUE_ERROR(p, e, v, cleanup) \
     if (p){ kerrno = KERR_VALUE; kerrstr = e; _Generic((v), K_sym: _copy_sym, K: _copy_chr)(v); cleanup; return 0; }
 #define RANK_ERROR(p, e, cleanup) \

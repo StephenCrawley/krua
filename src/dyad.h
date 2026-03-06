@@ -8,6 +8,8 @@
 
 typedef K (*DYAD)(K,K);
 
+#include "iter.h"
+
 extern DYAD dyad_table[20];
 
 K nyi(K, K);
