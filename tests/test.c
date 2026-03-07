@@ -1055,7 +1055,7 @@ TEST(error_unmatched_paren) {
 }
 
 // Monad tests
-TEST(monad_value_basic) {
+TEST(unary_value_basic) {
     K r = eval(kcstr(".\"tests/read.txt\""), GLOBALS);
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "should read file as KChrType");
     ASSERT(HDR_COUNT(r) == 5, "file should have 5 chars");
@@ -1064,14 +1064,14 @@ TEST(monad_value_basic) {
     PASS();
 }
 
-TEST(monad_value_file_not_found) {
+TEST(unary_value_file_not_found) {
     K r = eval(kcstr(".\"nonexistent_file_12345.txt\""), GLOBALS);
     ASSERT(!r, "missing file should fail");
     ASSERT(kerrno == KERR_VALUE, "should raise KERR_VALUE");
     PASS();
 }
 
-TEST(monad_value_type_error) {
+TEST(unary_value_type_error) {
     K r = eval(kcstr(". 123"), GLOBALS);
     ASSERT(!r, "value on integer should fail");
     ASSERT(kerrno == KERR_NYI, "should raise KERR_NYI");
@@ -1190,9 +1190,9 @@ void run_tests() {
     RUN_TEST(apply_chained_bracket_rank_error);
 
     printf("\nMonads:\n");
-    RUN_TEST(monad_value_basic);
-    RUN_TEST(monad_value_file_not_found);
-    RUN_TEST(monad_value_type_error);
+    RUN_TEST(unary_value_basic);
+    RUN_TEST(unary_value_file_not_found);
+    RUN_TEST(unary_value_type_error);
 
     printf("\n======================\n");
     printf("Tests run:    %d\n", tests_run);

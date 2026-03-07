@@ -1,8 +1,34 @@
-#include "dyad.h"
+#include "op_binary.h"
 
-DYAD dyad_table[] = {nyi, add, sub, mlt, nyi, at, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi};
+// iteration helpers over binary operators
 
-K nyi(K x, K y){NYI_ERROR(1, "dyadic operation", unref(x);unref(y))}
+// f'[x;y]
+static K _each2(F2 f, K x, K y){
+    K r = knew(KObjType, HDR_COUNT(x)), *robj = OBJ_PTR(r);
+    FOR_EACH(r){
+        K t = f(item(i, x), item(i, y));
+        if (!t){ HDR_COUNT(r)=i; unref(r); return UNREF_XY(0); }
+        robj[i] = t;
+    }
+    return UNREF_XY(r);
+}
+
+// x f\: y
+static K _eachleft(F2 f, K x, K y){
+    K r = knew(KObjType, HDR_COUNT(x)), *robj = OBJ_PTR(r);
+    FOR_EACH(r){
+        K t = f(item(i, x), ref(y));
+        if (!t){ HDR_COUNT(r)=i; unref(r); return UNREF_XY(0); }
+        robj[i] = t;
+    }
+    return UNREF_XY(r);
+}
+
+// binary ops
+
+F2 binary_op[] = {nyi, add, sub, mlt, nyi, at, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi};
+
+K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
 
 #define BINARY_OP(f,op) \
 K f(K x, K y){ \

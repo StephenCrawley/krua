@@ -6,8 +6,8 @@
 #include "krua.h"
 #include "object.h"
 #include "limits.h"
-#include "monad.h"
-#include "dyad.h"
+#include "op_unary.h"
+#include "op_binary.h"
 
 enum {
     OP_UNARY   = 0x00,

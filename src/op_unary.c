@@ -1,8 +1,8 @@
-#include "monad.h"
+#include "op_unary.h"
 
-static K nyi1(K x){NYI_ERROR(1, "monadic operation", unref(x);)}
+static K nyi1(K x){NYI_ERROR(1, "unary operator", unref(x);)}
 
-MONAD monad_table[] = {nyi1, nyi1, neg, nyi1, nyi1, nyi1, value, nyi1, nyi1, nyi1, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1};
+F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, nyi1, value, nyi1, nyi1, nyi1, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1};
 
 K neg(K x){
     TYPE_ERROR(KIntType != (TAG_TYPE(x) ? TAG_TYPE(x) : HDR_TYPE(x)), "-x must be int", unref(x));

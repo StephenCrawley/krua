@@ -1,16 +1,14 @@
-#ifndef DYAD_H
-#define DYAD_H
+#ifndef BINARY_H
+#define BINARY_H
 
 #include "krua.h"
 #include "object.h"
-#include "monad.h"
+#include "op_unary.h"
 #include "apply.h"
 
-typedef K (*DYAD)(K,K);
+typedef K (*F2)(K,K); // binary op function. f[x;y]
 
-#include "iter.h"
-
-extern DYAD dyad_table[20];
+extern F2 binary_op[20];
 
 K nyi(K, K);
 K add(K, K);

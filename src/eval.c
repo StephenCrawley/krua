@@ -16,8 +16,8 @@ K load(K, K);
 
 // K bytecode:
 // class  index
-// 0      0  - 31: apply monadic operator
-// 1      32 - 63: apply dyadic operator
+// 0      0  - 31: apply unary operator
+// 1      32 - 63: apply binary operator
 // 2      64 - 95: apply n-adic operator
 // 3      96 -127: push constant
 // 4      128-159: get variable(local/arg/global)
@@ -381,8 +381,8 @@ K vm(K x, K vars, K consts, K GLOBALS, K_char varc, K*args){
     while (ip < e){
         K_char i = *ip & 31; // index: lower 5 bits
         switch(*ip++ >> 5){  // class: upper 3 bits
-        case 0: *top=monad_table[i](*top); if(!*top) goto bail; break;
-        case 1: a=*top++; *top=dyad_table[i](a,*top); if (!*top) goto bail; break;
+        case 0: *top=unary_op[i](*top); if(!*top) goto bail; break;
+        case 1: a=*top++; *top=binary_op[i](a,*top); if (!*top) goto bail; break;
         case 2: a=*top++; *top=apply(a,i,top); unref(a); if (!*top) goto bail; break;
         case 3: *--top=ref(OBJ_PTR(consts)[i]); break;
         case 4: *--top=i<varc?ref(args[i]):getGlobal(GLOBALS,v[i]); if (!*top) goto bail; break;
