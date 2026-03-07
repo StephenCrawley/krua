@@ -1,5 +1,5 @@
 # Krua Makefile
-CC = gcc
+CC = clang
 CFLAGS = -O3 -Wall -Wextra -std=c2x -Isrc -Wno-pointer-sign -Wno-unused-variable -g
 SOURCES = src/object.c src/eval.c src/op_unary.c src/op_binary.c src/error.c src/apply.c
 OBJECTS = src/object.o src/eval.o src/op_unary.o src/op_binary.o src/error.o src/apply.o
