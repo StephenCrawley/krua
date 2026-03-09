@@ -36,6 +36,7 @@ K joinTag(K, K);
 K joinObj(K, K);
 K squeeze(K);
 K item(K_int, K);
+K promote(int, K);
 K kprint(K);
 
 #ifdef TRACK_REFS

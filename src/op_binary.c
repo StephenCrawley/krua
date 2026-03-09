@@ -4,6 +4,7 @@
 
 // f'[x;y]
 static K _each2(F2 f, K x, K y){
+    LENGTH_ERROR(HDR_COUNT(x) != HDR_COUNT(y), "", unref(x); unref(y));
     K r = knew(KObjType, HDR_COUNT(x)), *robj = OBJ_PTR(r);
     FOR_EACH(r){
         K t = f(item(i, x), item(i, y));
@@ -26,6 +27,7 @@ static K _eachleft(F2 f, K x, K y){
 
 // binary ops
 
+//                :    +    -    *    %    @   .    !    ,    <    >    ?    #    _    ~    &    |    =    $    ^
 F2 binary_op[] = {nyi, add, sub, mlt, nyi, at, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi};
 
 K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
@@ -33,23 +35,23 @@ K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
 #define BINARY_OP(f,op) \
 K f(K x, K y){ \
     K r; \
-    if (IS_ATOM(x)){ \
-        if (IS_ATOM(y)){ \
-            TYPE_ERROR(TAG_TYPE(x) != KIntType || TAG_TYPE(y) != KIntType, "", ); \
+    if (IS_TAG(x)){ \
+        if (IS_TAG(y)){ \
+            TYPE_ERROR(MAX(TAG_TYPE(x),TAG_TYPE(y)) > KIntType, "", ); \
             return TAG(KIntType, TAG_VAL(x) op TAG_VAL(y)); \
-        } else { \
-            return f(y, x); /*swap means ops must be commutative!*/ \
         } \
+        return f(y, x); /* swap means ops must be commutative! */ \
     } \
-    if (IS_ATOM(y)){ \
-        if (HDR_TYPE(x) == KObjType) return _eachleft(f, x, y); \
-        TYPE_ERROR(HDR_TYPE(x) != KIntType || TAG_TYPE(y) != KIntType, "", unref(x)) \
+    if (HDR_TYPE(x) == KObjType || (!IS_TAG(y) && HDR_TYPE(y) == KObjType)) return (IS_TAG(y) ? _eachleft : _each2)(f, x, y); \
+    if (!(x = promote(KIntType, x))) return UNREF_Y(0); \
+    if (IS_TAG(y)){ \
+        TYPE_ERROR(TAG_TYPE(y) > KIntType, "", unref(x)) \
         r = knew(KIntType, HDR_COUNT(x)); \
         FOR_EACH(x) INT_PTR(r)[i] = INT_PTR(x)[i] op TAG_VAL(y); \
         return UNREF_X(r); \
     } \
     LENGTH_ERROR(HDR_COUNT(x) != HDR_COUNT(y), "", unref(x); unref(y)) \
-    if (HDR_TYPE(x) == KObjType || HDR_TYPE(y) == KObjType) return _each2(f, x, y); \
+    if (!(y = promote(KIntType, y))) return UNREF_X(0); \
     r = knew(KIntType, HDR_COUNT(x)); \
     FOR_EACH(x) INT_PTR(r)[i] = INT_PTR(x)[i] op INT_PTR(y)[i]; \
     return UNREF_XY(r); \
