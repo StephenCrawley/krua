@@ -850,8 +850,9 @@ TEST(lambda_reassign_param) {
     PASS();
 }
 
-TEST(lambda_error_type_mismatch) {
-    K r = eval(kcstr("{[x]x+1}@\"a\""), GLOBALS);
+TEST(lambda_error) {
+    // runtime error inside lambda is handled correctly
+    K r = eval(kcstr("{[x]. x}@1"), GLOBALS);
     ASSERT(!r, "applying lambda to string should fail");
     ASSERT(kerrno == KERR_TYPE, "should raise type error");
     PASS();
@@ -859,7 +860,7 @@ TEST(lambda_error_type_mismatch) {
 
 TEST(lambda_error_undefined_var) {
     K r = eval(kcstr("{[x]x+z}@5"), GLOBALS);
-    ASSERT(!r, "undefined variable in lambda body should fail");
+    ASSERT(!r, "referencing undefined variable in lambda body should return error");
     ASSERT(kerrno == KERR_VALUE, "should raise value error");
     PASS();
 }
@@ -1074,7 +1075,7 @@ TEST(unary_value_file_not_found) {
 TEST(unary_value_type_error) {
     K r = eval(kcstr(". 123"), GLOBALS);
     ASSERT(!r, "value on integer should fail");
-    ASSERT(kerrno == KERR_NYI, "should raise KERR_NYI");
+    ASSERT(kerrno == KERR_TYPE, "should raise KERR_TYPE");
     PASS();
 }
 
@@ -1156,7 +1157,7 @@ void run_tests() {
     RUN_TEST(lambda_apply_nested);
     RUN_TEST(lambda_apply_no_params);
     RUN_TEST(lambda_reassign_param);
-    RUN_TEST(lambda_error_type_mismatch);
+    RUN_TEST(lambda_error);
     RUN_TEST(lambda_error_undefined_var);
     RUN_TEST(paren_eval_simple);
     RUN_TEST(paren_eval_grouping);

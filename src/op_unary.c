@@ -30,7 +30,7 @@ K readFile(K path) {
 }
 
 K value(K x){
-    NYI_ERROR(TAG_TYPE(x) || HDR_TYPE(x) != KChrType, "value", unref(x));
+    TYPE_ERROR(TAG_TYPE(x) || HDR_TYPE(x) != KChrType, ". x", unref(x));
     return readFile(x);
 }
 
