@@ -10,7 +10,6 @@ typedef K (*F2)(K,K); // binary op function. f[x;y]
 
 extern F2 binary_op[20];
 
-K nyi(K, K);
 K add(K, K);
 K sub(K, K);
 K mlt(K, K);
