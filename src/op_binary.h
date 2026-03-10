@@ -14,6 +14,7 @@ K nyi(K, K);
 K add(K, K);
 K sub(K, K);
 K mlt(K, K);
+K eql(K, K);
 K at(K, K);
 
 #endif
