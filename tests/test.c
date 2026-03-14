@@ -53,22 +53,14 @@ static int tests_failed = 0;
 #define ASSERT(cond, msg) do { if (!(cond)) { printf("FAIL: %s\n", msg); tests_failed++; return; } } while(0)
 
 /* Testing Practices:
- * - Always use `const char *src = "..."` pattern for string literals, never inline them
- * - Use strlen(src) for char* lengths if needed. Never hardcode magic numbers like 3, 4, etc, for source lengths
  * - Use kcstr(s) to create KChrType from null-terminated C strings
  * - Use ISCLASS(class, byte) macro for bytecode range checks, not manual arithmetic
  * - Keep tests simple and direct - no frameworks, just ASSERT and PASS
  * - Error tests will print to stdout (messy output) - this is expected and proves errors are caught
- * - Each test should clean up its allocations with unref()
+ * - Each test should clean up heap allocations with unref() (tags don't need unref)
  * - RUN_TEST macro handles GLOBALS creation automatically
- * 
- * - Test are logically grouped in the test runner to test:
- *   - preprocessing
- *   - tokenization
- *   - compilation
- *   - vm
- *   - error handling
- *   - edge cases
+ * - Use tokenize() helper for tests that only need the token stream
+ *   Call token() directly only when you need access to vars or consts
  */
 
 // Test helpers
@@ -78,12 +70,6 @@ static K tokenize(const char *src) {
     K result = token(x, &vars, &consts);
     unref(x), unref(vars); unref(consts);
     return result;
-}
-
-static K compile_tokens(K tokens) {
-    if (!tokens) return 0;
-    K r = compile(0, tokens, 0);
-    return r;
 }
 
 // Verify K object is a valid lambda: (bytecode; params; consts; source)
@@ -105,7 +91,6 @@ static int is_valid_lambda(K x) {
 
 // Strip/sanitization tests
 TEST(strip_leading_comment) {
-
     const char *src = "/ comment";
     K x = kcstr(src);
     strip(x);
@@ -115,7 +100,6 @@ TEST(strip_leading_comment) {
 }
 
 TEST(strip_trailing_comment) {
-
     const char *src = "1+2 / comment";
     K x = kcstr(src);
     strip(x);
@@ -126,7 +110,6 @@ TEST(strip_trailing_comment) {
 }
 
 TEST(strip_trailing_whitespace) {
-
     const char *src = "abc   ";
     K x = kcstr(src);
     strip(x);
@@ -137,7 +120,6 @@ TEST(strip_trailing_whitespace) {
 }
 
 TEST(strip_both) {
-
     const char *src = "x:1 / assign   ";
     K x = kcstr(src);
     strip(x);
@@ -147,11 +129,9 @@ TEST(strip_both) {
 }
 
 TEST(only_whitespace) {
-
-    const char *src = "   ";
-    K result = eval(kcstr(src));
-    ASSERT(result != 0, "whitespace-only string should be valid");
-    ASSERT(result == knull(), "whitespace-only string should return K generic null");
+    K r = eval(kcstr("   "));
+    ASSERT(r != 0, "whitespace-only string should be valid");
+    ASSERT(r == knull(), "whitespace-only string should return K generic null");
     PASS();
 }
 
@@ -167,7 +147,6 @@ TEST(only_whitespace) {
 
 // Basic tokenization tests
 TEST(empty_input) {
-
     K r = tokenize("");
     ASSERT(r && HDR_COUNT(r) == 0, "empty should produce 0 tokens");
     unref(r);
@@ -175,20 +154,13 @@ TEST(empty_input) {
 }
 
 TEST(invalid_token) {
-
-    // just test a token we don't handle
-    K vars = 0, consts = 0;
-    const char *src = "£";
-    K x = kcstr(src);
-    K r = token(x, &vars, &consts);
-    ASSERT(r == 0, "'£' should fail as invalid token");
+    K r = tokenize("£");
+    ASSERT(!r, "'£' should fail as invalid token");
     ASSERT(kerrno == KERR_PARSE, "invalid token should raise parse error");
-    unref(x), unref(vars); unref(consts);
     PASS();
 }
 
 TEST(single_variable) {
-
     K r = tokenize("abc");
     ASSERT(r && HDR_COUNT(r) == 1, "single var should produce 1 token");
     ASSERT(ISCLASS(OP_GET_VAR, CHR_PTR(r)[0]), "variable should be in GET_VAR range");
@@ -197,7 +169,6 @@ TEST(single_variable) {
 }
 
 TEST(single_integer) {
-
     K r = tokenize("123");
     ASSERT(r && HDR_COUNT(r) == 1, "single int should produce 1 token");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(r)[0]), "int should be in CONST range");
@@ -206,7 +177,6 @@ TEST(single_integer) {
 }
 
 TEST(integer_list) {
-
     K r = tokenize("123 456 789");
     ASSERT(r && HDR_COUNT(r) == 1, "int list should produce 1 token");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(r)[0]), "list should be in CONST range");
@@ -215,7 +185,6 @@ TEST(integer_list) {
 }
 
 TEST(string_literal) {
-
     K r = tokenize("\"hello\"");
     ASSERT(r && HDR_COUNT(r) == 1, "string should produce 1 token");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(r)[0]), "string should be in CONST range");
@@ -223,8 +192,19 @@ TEST(string_literal) {
     PASS();
 }
 
-TEST(trailing_whitespace) {
+TEST(char_literal) {
+    K x = kcstr("\"a\"");
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "single char string should produce 1 token");
+    ASSERT(consts && IS_TAG(OBJ_PTR(consts)[0]), "single char should be a tag, not an array");
+    ASSERT(TAG_TYPE(OBJ_PTR(consts)[0]) == KChrType, "should be KChrType");
+    ASSERT(TAG_VAL(OBJ_PTR(consts)[0]) == 'a', "should be 'a'");
+    unref(x); unref(r); unref(vars); unref(consts);
+    PASS();
+}
 
+TEST(trailing_whitespace) {
     K r = tokenize("123   ");
     ASSERT(r && HDR_COUNT(r) == 1, "should ignore trailing whitespace");
     unref(r);
@@ -232,7 +212,6 @@ TEST(trailing_whitespace) {
 }
 
 TEST(lambda_simple) {
-
     K x = kcstr("{[x]x+1}");
     K vars = 0, consts = 0;
     K r = token(x, &vars, &consts);
@@ -246,7 +225,6 @@ TEST(lambda_simple) {
 }
 
 TEST(lambda_stores_full_src) {
-
     const char *src = "{[x]x+1}";
     K x = kcstr(src);
     K vars = 0, consts = 0;
@@ -262,7 +240,6 @@ TEST(lambda_stores_full_src) {
 }
 
 TEST(lambda_nested) {
-
     const char *src = "{[x;y]y+{[a]a+1}x}";
     K x = kcstr(src);
     K vars = 0, consts = 0;
@@ -271,10 +248,8 @@ TEST(lambda_nested) {
     K outer = OBJ_PTR(consts)[0];
     ASSERT(is_valid_lambda(outer), "outer should be valid lambda");
     ASSERT(HDR_COUNT(OBJ_PTR(outer)[1]) == 2, "outer should have 2 params");
-    // Inner lambda should be in outer's consts
     K outer_consts = OBJ_PTR(outer)[2];
     ASSERT(outer_consts && HDR_TYPE(outer_consts) == KObjType, "outer should have consts");
-    // Find the inner lambda in consts
     int found_inner = 0;
     FOR_EACH(outer_consts) {
         K item = OBJ_PTR(outer_consts)[i];
@@ -291,7 +266,6 @@ TEST(lambda_nested) {
 }
 
 TEST(empty_parens_token) {
-
     K vars = 0, consts = 0;
     K x = kcstr("()");
     K r = token(x, &vars, &consts);
@@ -306,7 +280,6 @@ TEST(empty_parens_token) {
 
 // Expression tokenization tests
 TEST(binary_add) {
-
     K r = tokenize("123+456");
     ASSERT(r && HDR_COUNT(r) == 3, "binary op should produce 3 tokens");
     ASSERT(CHR_PTR(r)[1] == 1, "+ should be operator 1 (OPS[:+-*...])");
@@ -315,7 +288,6 @@ TEST(binary_add) {
 }
 
 TEST(unary_plus) {
-
     K r = tokenize("+123");
     ASSERT(r && HDR_COUNT(r) == 2, "unary op should produce 2 tokens");
     ASSERT(CHR_PTR(r)[0] == 1, "+ should be operator 1");
@@ -324,7 +296,6 @@ TEST(unary_plus) {
 }
 
 TEST(assignment) {
-
     K r = tokenize("a:42");
     ASSERT(r && HDR_COUNT(r) == 3, "assignment should produce 3 tokens");
     ASSERT(CHR_PTR(r)[1] == 0, ": should be operator 0");
@@ -333,7 +304,6 @@ TEST(assignment) {
 }
 
 TEST(multiple_variables) {
-
     K r = tokenize("x y z");
     ASSERT(r && HDR_COUNT(r) == 3, "should produce 3 variable tokens");
     unref(r);
@@ -341,7 +311,6 @@ TEST(multiple_variables) {
 }
 
 TEST(paren_token_passthrough) {
-
     K r = tokenize("(1)");
     ASSERT(r && HDR_COUNT(r) == 3, "should produce 3 tokens");
     ASSERT(CHR_PTR(r)[0] == '(', "first should be literal (");
@@ -353,18 +322,16 @@ TEST(paren_token_passthrough) {
 
 // Compilation tests
 TEST(compile_empty) {
-
     K tokens = tokenize("");
-    K bytecode = compile_tokens(tokens);
+    K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 0, "empty should compile to empty");
     unref(bytecode);
     PASS();
 }
 
 TEST(compile_constant) {
-
     K tokens = tokenize("42");
-    K bytecode = compile_tokens(tokens);
+    K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "constant should compile to 1 byte");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST instruction");
     unref(bytecode);
@@ -372,9 +339,8 @@ TEST(compile_constant) {
 }
 
 TEST(compile_binary_op) {
-
     K tokens = tokenize("1+2");
-    K bytecode = compile_tokens(tokens);
+    K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 3, "binary op should compile to 3 bytes");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be PUSH const");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[1]), "second should be PUSH const");
@@ -384,9 +350,8 @@ TEST(compile_binary_op) {
 }
 
 TEST(compile_unary_op) {
-
     K tokens = tokenize("+5");
-    K bytecode = compile_tokens(tokens);
+    K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 2, "unary op should compile to 2 bytes");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be PUSH const");
     ASSERT(CHR_PTR(bytecode)[1] == (OP_UNARY + 1), "second should be UNARY ADD");
@@ -395,12 +360,10 @@ TEST(compile_unary_op) {
 }
 
 TEST(compile_assignment) {
-
     K vars = 0, consts = 0;
-    const char *src = "a:42";
-    K x = kcstr(src);
+    K x = kcstr("a:42");
     K tokens = token(x, &vars, &consts);
-    K bytecode = compile_tokens(tokens);
+    K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode, "assignment should compile");
     ASSERT(ISCLASS(OP_SET_VAR, CHR_PTR(bytecode)[HDR_COUNT(bytecode)-1]), "last instruction should be SET_VAR class");
     unref(x), unref(bytecode); unref(vars); unref(consts);
@@ -408,9 +371,8 @@ TEST(compile_assignment) {
 }
 
 TEST(compile_application) {
-
     K tokens = tokenize("f x");
-    K bytecode = compile_tokens(tokens);
+    K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 3, "application should compile");
     ASSERT(ISCLASS(OP_GET_VAR, CHR_PTR(bytecode)[0]), "first should be GET var");
     ASSERT(ISCLASS(OP_GET_VAR, CHR_PTR(bytecode)[1]), "second should be GET var");
@@ -420,9 +382,8 @@ TEST(compile_application) {
 }
 
 TEST(compile_application2) {
-
     K tokens = tokenize("\"abc\" 0");
-    K bytecode = compile_tokens(tokens);
+    K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 3, "application should compile");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be PUSH const");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[1]), "second should PUSH const");
@@ -432,56 +393,41 @@ TEST(compile_application2) {
 }
 
 TEST(lambda_postfix_single_arg) {
-
-    const char *src = "{[x]x+1}[6]";
-    K x = kcstr(src);
+    K x = kcstr("{[x]x+1}[6]");
     K vars = 0, consts = 0;
     K tokens = token(x, &vars, &consts);
     ASSERT(tokens, "tokenization should succeed");
-
     K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && !IS_TAG(bytecode), "compilation should succeed");
-
     K_char *bc = CHR_PTR(bytecode);
-    K_int n = HDR_COUNT(bytecode);
-
-    ASSERT(n == 3, "bytecode should have 3 instructions");
+    ASSERT(HDR_COUNT(bytecode) == 3, "bytecode should have 3 instructions");
     ASSERT(ISCLASS(OP_CONST, bc[0]), "first should load lambda");
     ASSERT(ISCLASS(OP_CONST, bc[1]), "second should load arg 6");
     ASSERT(bc[2] == OP_N_ARY + 1, "third should be N_ARY apply with 1 arg");
-
     unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
 }
 
 TEST(lambda_postfix_two_args) {
-
-    const char *src = "{[x;y]x+y}[1;6]";
-    K x = kcstr(src);
+    K x = kcstr("{[x;y]x+y}[1;6]");
     K vars = 0, consts = 0;
     K tokens = token(x, &vars, &consts);
     ASSERT(tokens, "tokenization should succeed");
-
     K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode, "compilation should succeed");
-
     K_char *bc = CHR_PTR(bytecode);
-    K_int n = HDR_COUNT(bytecode);
-
-    ASSERT(n == 4, "bytecode should have 4 instructions");
+    ASSERT(HDR_COUNT(bytecode) == 4, "bytecode should have 4 instructions");
     ASSERT(ISCLASS(OP_CONST, bc[0]), "first should load lambda");
     ASSERT(ISCLASS(OP_CONST, bc[1]), "second should load arg 1");
     ASSERT(ISCLASS(OP_CONST, bc[2]), "third should load arg 6");
     ASSERT(bc[3] == OP_N_ARY + 2, "fourth should be N_ARY apply with 2 args");
-
     unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
 }
 
 TEST(paren_compile_simple) {
-
     K tokens = tokenize("(1)");
-    K bytecode = compile_tokens(tokens);
+    K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "should compile to 1 byte");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
     unref(bytecode);
@@ -489,9 +435,8 @@ TEST(paren_compile_simple) {
 }
 
 TEST(paren_compile_nested) {
-
     K tokens = tokenize("((1))");
-    K bytecode = compile_tokens(tokens);
+    K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "nested parens should compile to 1 byte");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
     unref(bytecode);
@@ -499,12 +444,9 @@ TEST(paren_compile_nested) {
 }
 
 TEST(paren_compile_with_op) {
-
     K tokens = tokenize("(1+2)*3");
-    K bytecode = compile_tokens(tokens);
+    K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 5, "should compile to 5 bytes");
-    // Bytecode is reversed: 3, (1+2), *, where (1+2) expands to 2, 1, +
-    // So: CONST(3), CONST(2), CONST(1), BINARY(+), BINARY(*)
     ASSERT(CHR_PTR(bytecode)[4] == OP_BINARY + 3, "last should be BINARY *");
     unref(bytecode);
     PASS();
@@ -512,20 +454,16 @@ TEST(paren_compile_with_op) {
 
 // VM execution tests
 TEST(vm_simple_add) {
-    const char *src = "1+2";
-    K result = eval(kcstr(src));
-    ASSERT(result && IS_TAG(result), "result should be a tag");
-    ASSERT(TAG_VAL(result) == 3, "1+2 should evaluate to 3");
-    unref(result);
+    K r = eval(kcstr("1+2"));
+    ASSERT(r && IS_TAG(r), "result should be a tag");
+    ASSERT(TAG_VAL(r) == 3, "1+2 should evaluate to 3");
     PASS();
 }
 
 TEST(vm_simple_multiply) {
-    const char *src = "3*4";
-    K result = eval(kcstr(src));
-    ASSERT(result && IS_TAG(result), "result should be a tag");
-    ASSERT(TAG_VAL(result) == 12, "3*4 should evaluate to 12");
-    unref(result);
+    K r = eval(kcstr("3*4"));
+    ASSERT(r && IS_TAG(r), "result should be a tag");
+    ASSERT(TAG_VAL(r) == 12, "3*4 should evaluate to 12");
     PASS();
 }
 
@@ -536,14 +474,14 @@ TEST(vm_sub_atom) {
     PASS();
 }
 
-/*TEST(vm_sub_list_list) { // TODO: BINARY_OP doesn't handle list-list yet
+TEST(vm_sub_list_list) { // TODO: BINARY_OP doesn't handle list-list yet
     K r = eval(kcstr("1 2-3 4"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "1 2-3 4 should return int list");
     ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
     ASSERT(INT_PTR(r)[0] == -2 && INT_PTR(r)[1] == -2, "1 2-3 4 should be -2 -2");
     unref(r);
     PASS();
-}*/
+}
 
 TEST(vm_sub_list_atom) {
     K r = eval(kcstr("1 2 3-1"));
@@ -555,9 +493,7 @@ TEST(vm_sub_list_atom) {
 }
 
 TEST(add_lists_1) {
-    // (1 2;3 4) + 1 1 -> (2 3;4 5)
-    const char *src = "(1 2;3 4)+1 1";
-    K r = eval(kcstr(src));
+    K r = eval(kcstr("(1 2;3 4)+1 1"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+1 1 should return obj list");
     ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
     K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
@@ -570,9 +506,7 @@ TEST(add_lists_1) {
 }
 
 TEST(add_lists_2) {
-    // (1 2;3 4) + (1 2;3 4) -> (2 4;6 8)
-    const char *src = "(1 2;3 4)+(1 2;3 4)";
-    K r = eval(kcstr(src));
+    K r = eval(kcstr("(1 2;3 4)+(1 2;3 4)"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+(1 2;3 4) should return obj list");
     ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
     K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
@@ -585,9 +519,7 @@ TEST(add_lists_2) {
 }
 
 TEST(add_lists_obj_atom) {
-    // (1 2;3 4) + 1 -> (2 3;4 5)
-    const char *src = "(1 2;3 4)+1";
-    K r = eval(kcstr(src));
+    K r = eval(kcstr("(1 2;3 4)+1"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+1 should return obj list");
     ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
     K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
@@ -616,82 +548,67 @@ TEST(vm_neg_list) {
 }
 
 TEST(vm_assignment) {
-    const char *src = "x:42";
-    K result = eval(kcstr(src));
-    ASSERT(result == knull(), "assignment as final op should return knull");
-    // Check that x was actually assigned
+    K r = eval(kcstr("x:42"));
+    ASSERT(r == knull(), "assignment as final op should return knull");
     K x_val = getGlobal(encodeSym("x", 1));
     ASSERT(x_val && TAG_VAL(x_val) == 42, "x should be assigned 42");
-    unref(x_val);
     PASS();
 }
+
 TEST(vm_assignment_2) {
-    const char *src = "x:42+1";
-    K result = eval(kcstr(src));
-    ASSERT(result == knull(), "assignment as final op should return knull");
-    // Check that x was actually assigned
+    K r = eval(kcstr("x:42+1"));
+    ASSERT(r == knull(), "assignment as final op should return knull");
     K x_val = getGlobal(encodeSym("x", 1));
     ASSERT(x_val && TAG_VAL(x_val) == 43, "x should be assigned 43");
-    unref(x_val);
     PASS();
 }
 
 TEST(index_str_with_atom){
-    
-    const char *src = "\"abc\" 0";
-    K result = eval(kcstr(src));
-    ASSERT(result && IS_TAG(result) && TAG_TYPE(result) == KChrType, "string index should return KChrType atom");
-    ASSERT(TAG_VAL(result) == 'a', "string index should return 'a'");
+    K r = eval(kcstr("\"abc\" 0"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KChrType, "string index should return KChrType atom");
+    ASSERT(TAG_VAL(r) == 'a', "string index should return 'a'");
     PASS();
 }
 
 TEST(index_str_with_list){
-    const char *src = "\"abc\" 2 1 0";
-    K result = eval(kcstr(src));
-    ASSERT(result && !IS_TAG(result), "indexing with list should return list");
-    ASSERT(HDR_TYPE(result) == KChrType, "result should be KChrType");
-    ASSERT(HDR_COUNT(result) == 3, "result should have length 3");
-    ASSERT(memcmp(CHR_PTR(result), "cba", 3) == 0, "result should be \"cba\"");
-    unref(result);
+    K r = eval(kcstr("\"abc\" 2 1 0"));
+    ASSERT(r && !IS_TAG(r), "indexing with list should return list");
+    ASSERT(HDR_TYPE(r) == KChrType, "result should be KChrType");
+    ASSERT(HDR_COUNT(r) == 3, "result should have length 3");
+    ASSERT(memcmp(CHR_PTR(r), "cba", 3) == 0, "result should be \"cba\"");
+    unref(r);
     PASS();
 }
 
 TEST(index_int_with_list){
-    const char *src = "3 2 1@0";
-    K result = eval(kcstr(src));
-    ASSERT(result && IS_TAG(result), "indexing at 0 should return atom");
-    ASSERT(TAG_TYPE(result) == KIntType, "result should be KIntType");
-    ASSERT(TAG_VAL(result) == 3, "first element should be 3");
-    unref(result);
+    K r = eval(kcstr("3 2 1@0"));
+    ASSERT(r && IS_TAG(r), "indexing at 0 should return atom");
+    ASSERT(TAG_TYPE(r) == KIntType, "result should be KIntType");
+    ASSERT(TAG_VAL(r) == 3, "first element should be 3");
     PASS();
 }
 
 TEST(index_int_out_of_bounds){
-    const char *src = "1 2@3";
-    K result = eval(kcstr(src));
-    ASSERT(result && IS_TAG(result), "out of bounds index should return atom");
-    ASSERT(TAG_TYPE(result) == KIntType, "result should be KIntType");
-    ASSERT(TAG_VAL(result) == 0, "out of bounds int index should return 0");
-    unref(result);
+    K r = eval(kcstr("1 2@3"));
+    ASSERT(r && IS_TAG(r), "out of bounds index should return atom");
+    ASSERT(TAG_TYPE(r) == KIntType, "result should be KIntType");
+    ASSERT(TAG_VAL(r) == 0, "out of bounds int index should return 0");
     PASS();
 }
 
 TEST(index_str_out_of_bounds){
-    const char *src = "\"ab\"@3";
-    K result = eval(kcstr(src));
-    ASSERT(result && IS_TAG(result), "out of bounds index should return atom");
-    ASSERT(TAG_TYPE(result) == KChrType, "result should be KChrType");
-    ASSERT(TAG_VAL(result) == ' ', "out of bounds string index should return space");
-    unref(result);
+    K r = eval(kcstr("\"ab\"@3"));
+    ASSERT(r && IS_TAG(r), "out of bounds index should return atom");
+    ASSERT(TAG_TYPE(r) == KChrType, "result should be KChrType");
+    ASSERT(TAG_VAL(r) == ' ', "out of bounds string index should return space");
     PASS();
 }
 
 TEST(index_postfix_two_args){
-    const char *src = "(1 2;3 4)[1;0]";
-    K result = eval(kcstr(src));
-    ASSERT(result && IS_TAG(result), "result should be an atom");
-    ASSERT(TAG_TYPE(result) == KIntType, "result should be KIntType");
-    ASSERT(TAG_VAL(result) == 3, "result should be 3");
+    K r = eval(kcstr("(1 2;3 4)[1;0]"));
+    ASSERT(r && IS_TAG(r), "result should be an atom");
+    ASSERT(TAG_TYPE(r) == KIntType, "result should be KIntType");
+    ASSERT(TAG_VAL(r) == 3, "result should be 3");
     PASS();
 }
 
@@ -704,6 +621,12 @@ TEST(index_postfix_three_args){
 TEST(index_postfix_single_arg){
     K r = eval(kcstr("1 2 3[0]"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 1, "should be 1");
+    PASS();
+}
+
+TEST(lambda_postfix_eval){
+    K r = eval(kcstr("{[x]x+1}[6]"));
+    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 7, "{[x]x+1}[6] should be 7");
     PASS();
 }
 
@@ -787,49 +710,42 @@ TEST(lambda_apply_empty_body) {
 TEST(lambda_apply_identity) {
     K r = eval(kcstr("{[x]x}@42"));
     ASSERT(r && TAG_VAL(r) == 42, "{[x]x}@42 should be 42");
-    unref(r);
     PASS();
 }
 
 TEST(lambda_apply_add) {
     K r = eval(kcstr("{[x]x+1}@2"));
     ASSERT(r && TAG_VAL(r) == 3, "{[x]x+1}@2 should be 3");
-    unref(r);
     PASS();
 }
 
 TEST(lambda_apply_multiply) {
     K r = eval(kcstr("{[x]x*2}@10"));
     ASSERT(r && TAG_VAL(r) == 20, "{[x]x*2}@10 should be 20");
-    unref(r);
     PASS();
 }
 
 TEST(lambda_apply_with_local) {
     K r = eval(kcstr("{[x]y:x+1}@6"));
     ASSERT(r && TAG_VAL(r) == 7, "lambda with local: {[x]y:x+1;y}@5 should be 6");
-    unref(r);
     PASS();
 }
 
 TEST(lambda_apply_multiple_locals) {
     K r = eval(kcstr("{[x]z:y:x+1}@6"));
     ASSERT(r && TAG_VAL(r) == 7, "multiple locals: (5+1)*2=12");
-    unref(r);
     PASS();
 }
 
 TEST(lambda_apply_local_and_param) {
     K r = eval(kcstr("{[x]x+y:x+1}@5"));
     ASSERT(r && TAG_VAL(r) == 11, "local+param: (5+1)+5=11");
-    unref(r);
     PASS();
 }
 
 TEST(lambda_apply_nested) {
     K r = eval(kcstr("{[x]x+{[y]y*2}@3}@5"));
     ASSERT(r && TAG_VAL(r) == 11, "nested lambda: 5+(3*2)=11");
-    unref(r);
     PASS();
 }
 
@@ -894,31 +810,26 @@ TEST(paren_eval_multiple) {
 }
 
 TEST(semicolon_terminated_expr) {
-
     K r = eval(kcstr("1 2;"));
     ASSERT(r == knull(), "semicolon-terminated expression should return knull");
     PASS();
 }
 
 TEST(multiexpr_basic) {
-
     K r = eval(kcstr("1 2;2"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 2, "should return 2");
     PASS();
 }
 
 TEST(subexpr_with_ops) {
-
     K r = eval(kcstr("1+2;3*4"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 12, "1+2;3*4 should return 12");
     PASS();
 }
 
 TEST(subexpr_assignment) {
-    const char *src = "x:1;x+2";
-    K result = eval(kcstr(src));
-    ASSERT(result && IS_TAG(result) && TAG_VAL(result) == 3, "x:1;x+2 should return 3");
-    unref(result);
+    K r = eval(kcstr("x:1;x+2"));
+    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 3, "x:1;x+2 should return 3");
     PASS();
 }
 
@@ -950,76 +861,52 @@ TEST(fenced_subexpr_heterogeneous) {
 
 // Error tests
 TEST(unclosed_string) {
-
-    const char *src = "\"hello";
-    K x = kcstr(src);
-    K vars = 0, consts = 0;
-    K r = token(x, &vars, &consts);
-    ASSERT(r == 0, "unclosed string should fail");
+    K r = tokenize("\"hello");
+    ASSERT(!r, "unclosed string should fail");
     ASSERT(kerrno == KERR_PARSE, "unclosed string should raise parse error");
-    unref(x), unref(vars); unref(consts);
     PASS();
 }
 
 TEST(parse_unclosed_string_in_expr) {
-
-    const char *src = "1+2+\"hello";
-    K x = kcstr(src);
-    K vars = 0, consts = 0;
-    K r = token(x, &vars, &consts);
-    ASSERT(r == 0, "unclosed string in expression should fail");
+    K r = tokenize("1+2+\"hello");
+    ASSERT(!r, "unclosed string in expression should fail");
     ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
-    unref(x), unref(vars); unref(consts);
     PASS();
 }
 
 TEST(parse_invalid_token_in_expr) {
-
-    const char *src = "1+£+2";
-    K x = kcstr(src);
-    K vars = 0, consts = 0;
-    K r = token(x, &vars, &consts);
-    ASSERT(r == 0, "invalid token in expression should fail");
+    K r = tokenize("1+£+2");
+    ASSERT(!r, "invalid token in expression should fail");
     ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
-    unref(x), unref(vars); unref(consts);
     PASS();
 }
 
 TEST(parse_single_quote) {
-
-    const char *src = "\"";
-    K x = kcstr(src);
-    K vars = 0, consts = 0;
-    K r = token(x, &vars, &consts);
-    ASSERT(r == 0, "single quote should fail");
+    K r = tokenize("\"");
+    ASSERT(!r, "single quote should fail");
     ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
-    unref(x), unref(vars); unref(consts);
     PASS();
 }
 
 TEST(empty_string_literal) {
-
-    const char *src = "\"\"";
-    K result = eval(kcstr(src));
-    ASSERT(result != 0, "empty string should be valid");
-    ASSERT(HDR_TYPE(result) == KChrType, "should be KChrType");
-    ASSERT(HDR_COUNT(result) == 0, "should have length 0");
-    unref(result);
+    K r = eval(kcstr("\"\""));
+    ASSERT(r != 0, "empty string should be valid");
+    ASSERT(HDR_TYPE(r) == KChrType, "should be KChrType");
+    ASSERT(HDR_COUNT(r) == 0, "should have length 0");
+    unref(r);
     PASS();
 }
 
 TEST(value_undefined_in_expr) {
-    const char *src = "1+foo+2";
-    K result = eval(kcstr(src));
-    ASSERT(result == 0, "undefined variable in expression should fail");
+    K r = eval(kcstr("1+foo+2"));
+    ASSERT(!r, "undefined variable in expression should fail");
     ASSERT(kerrno == KERR_VALUE, "should raise KERR_VALUE");
     PASS();
 }
 
 TEST(vm_undefined_variable) {
-    const char *src = "foo";
-    K result = eval(kcstr(src));
-    ASSERT(result == 0, "undefined variable should return error");
+    K r = eval(kcstr("foo"));
+    ASSERT(!r, "undefined variable should return error");
     ASSERT(kerrno == KERR_VALUE, "undefined variable should raise value error");
     PASS();
 }
@@ -1093,6 +980,7 @@ void run_tests() {
     RUN_TEST(single_integer);
     RUN_TEST(integer_list);
     RUN_TEST(string_literal);
+    RUN_TEST(char_literal);
     RUN_TEST(trailing_whitespace);
     RUN_TEST(lambda_simple);
     RUN_TEST(lambda_stores_full_src);
@@ -1121,7 +1009,7 @@ void run_tests() {
     RUN_TEST(vm_simple_add);
     RUN_TEST(vm_simple_multiply);
     RUN_TEST(vm_sub_atom);
-    //RUN_TEST(vm_sub_list_list);
+    RUN_TEST(vm_sub_list_list);
     RUN_TEST(vm_sub_list_atom);
     RUN_TEST(add_lists_1);
     RUN_TEST(add_lists_2);
@@ -1139,6 +1027,7 @@ void run_tests() {
     RUN_TEST(index_postfix_two_args);
     RUN_TEST(index_postfix_three_args);
     RUN_TEST(index_postfix_single_arg);
+    RUN_TEST(lambda_postfix_eval);
     RUN_TEST(apply_oob_multi_arg);
     RUN_TEST(lambda_eval_returns_lambda);
     RUN_TEST(lambda_eval_no_params);
