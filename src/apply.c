@@ -16,7 +16,7 @@ K applyLambda(K x, int n, K *args){
     K locals[vn];
     for (int i = 0; i < vn; i++)
         locals[i] = i < HDR_ARGC(x) ? args[i] : 0;
-    K r = vm(OBJ_PTR(x)[0], OBJ_PTR(x)[1], OBJ_PTR(x)[2], GLOBALS, vn, locals);
+    K r = vm(OBJ_PTR(x)[0], OBJ_PTR(x)[1], OBJ_PTR(x)[2], vn, locals);
     while (vn--) unref(locals[vn]);
     return r;
 }

@@ -361,7 +361,7 @@ cleanup:
     return 0;
 }
 
-K getGlobal(K GLOBALS, K_sym var){
+K getGlobal(K_sym var){
     K keys = KEYS(GLOBALS);
     K_int i = findSym(keys, var);
     VALUE_ERROR(i==HDR_COUNT(keys), "undefined variable: ", var, )
@@ -374,7 +374,7 @@ K getGlobal(K GLOBALS, K_sym var){
 // - 32 constants per expression
 // - 32 variables per expression (incl. args/locals/globals)
 // TODO: multi-byte encoding
-K vm(K x, K vars, K consts, K GLOBALS, K_char varc, K*args){
+K vm(K x, K vars, K consts, K_char varc, K*args){
     K_sym *v = SYM_PTR(vars);
     K_char *ip = CHR_PTR(x), *e = ip + HDR_COUNT(x);
     K stack[STACK_SIZE], *top = stack+STACK_SIZE, *base = top, a; // stack grows down
@@ -385,7 +385,7 @@ K vm(K x, K vars, K consts, K GLOBALS, K_char varc, K*args){
         case 1: a=*top++; *top=binary_op[i](a,*top); if (!*top) goto bail; break;
         case 2: a=*top++; *top=apply(a,i,top); unref(a); if (!*top) goto bail; break;
         case 3: *--top=ref(OBJ_PTR(consts)[i]); break;
-        case 4: *--top=i<varc?ref(args[i]):getGlobal(GLOBALS,v[i]); if (!*top) goto bail; break;
+        case 4: *--top=i<varc?ref(args[i]):getGlobal(v[i]); if (!*top) goto bail; break;
         case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;
         case 7: switch(i){ // special ops 0:pop 1:enlist
                 case 0: unref(*top++); break;
@@ -415,8 +415,7 @@ void strip(K x){
 }
 
 // evaluate a K-string
-K eval(K x, K GLOBALS_param){
-    GLOBALS = GLOBALS_param;  // Set global for access by apply()
+K eval(K x){
 
     // early exits
     if (HDR_COUNT(x) == 0) return UNREF_X(knull());
@@ -436,6 +435,6 @@ K eval(K x, K GLOBALS_param){
     bool returnNull = lastOp == OP_POP || ISCLASS(OP_SET_VAR, lastOp); // is last op assignment or OP_POP?
     
     // call VM
-    r = UNREF_R(vm(bytecode, OBJ_PTR(r)[1], OBJ_PTR(r)[2], GLOBALS, 0, 0));
+    r = UNREF_R(vm(bytecode, OBJ_PTR(r)[1], OBJ_PTR(r)[2], 0, 0));
     return r && returnNull ? UNREF_R(knull()) : r; // don't print if last op is assignment
 }

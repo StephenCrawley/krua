@@ -13,13 +13,13 @@ static int tests_failed = 0;
 
 #ifdef TRACK_REFS
 // With tracking: automatic GLOBALS creation and leak checking
-#define TEST(name) static void test_##name(K GLOBALS)
+#define TEST(name) static void test_##name(void)
 
 #define RUN_TEST(name) do { \
     printf("  %-30s", #name); \
     reset(); \
-    K GLOBALS = ksymdict(); \
-    test_##name(GLOBALS); \
+    GLOBALS = ksymdict(); \
+    test_##name(); \
     int leaks = check_leaks(GLOBALS); \
     unref(GLOBALS); \
     leaks += check_leaks((K)0); \
@@ -36,12 +36,12 @@ static int tests_failed = 0;
 
 #else
 // Without tracking: original behavior
-#define TEST(name) static void test_##name(K GLOBALS)
+#define TEST(name) static void test_##name(void)
 
 #define RUN_TEST(name) do { \
     printf("  %-30s", #name); \
-    K GLOBALS = ksymdict(); \
-    test_##name(GLOBALS); \
+    GLOBALS = ksymdict(); \
+    test_##name(); \
     unref(GLOBALS); \
     tests_run++; \
 } while(0)
@@ -60,9 +60,6 @@ static int tests_failed = 0;
  * - Keep tests simple and direct - no frameworks, just ASSERT and PASS
  * - Error tests will print to stdout (messy output) - this is expected and proves errors are caught
  * - Each test should clean up its allocations with unref()
- * - GLOBALS is now passed as parameter - use it for eval() calls
- * - This allows both tracked and untracked builds to work from same source
- * - Tests that don't use GLOBALS should have (void)GLOBALS; to suppress warnings
  * - RUN_TEST macro handles GLOBALS creation automatically
  * 
  * - Test are logically grouped in the test runner to test:
@@ -108,7 +105,7 @@ static int is_valid_lambda(K x) {
 
 // Strip/sanitization tests
 TEST(strip_leading_comment) {
-    (void)GLOBALS;  // Unused in this test
+
     const char *src = "/ comment";
     K x = kcstr(src);
     strip(x);
@@ -118,7 +115,7 @@ TEST(strip_leading_comment) {
 }
 
 TEST(strip_trailing_comment) {
-    (void)GLOBALS;
+
     const char *src = "1+2 / comment";
     K x = kcstr(src);
     strip(x);
@@ -129,7 +126,7 @@ TEST(strip_trailing_comment) {
 }
 
 TEST(strip_trailing_whitespace) {
-    (void)GLOBALS;
+
     const char *src = "abc   ";
     K x = kcstr(src);
     strip(x);
@@ -140,7 +137,7 @@ TEST(strip_trailing_whitespace) {
 }
 
 TEST(strip_both) {
-    (void)GLOBALS;
+
     const char *src = "x:1 / assign   ";
     K x = kcstr(src);
     strip(x);
@@ -150,16 +147,16 @@ TEST(strip_both) {
 }
 
 TEST(only_whitespace) {
-    (void)GLOBALS;
+
     const char *src = "   ";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result != 0, "whitespace-only string should be valid");
     ASSERT(result == knull(), "whitespace-only string should return K generic null");
     PASS();
 }
 
 /*TEST(ignore_quoted_slash){
-    (void)GLOBALS;
+
     const char *src = "\"ignore / in quotes\"";
     K x = kcstr(src);
     strip(x);
@@ -170,7 +167,7 @@ TEST(only_whitespace) {
 
 // Basic tokenization tests
 TEST(empty_input) {
-    (void)GLOBALS;
+
     K r = tokenize("");
     ASSERT(r && HDR_COUNT(r) == 0, "empty should produce 0 tokens");
     unref(r);
@@ -178,7 +175,7 @@ TEST(empty_input) {
 }
 
 TEST(invalid_token) {
-    (void)GLOBALS;
+
     // just test a token we don't handle
     K vars = 0, consts = 0;
     const char *src = "£";
@@ -191,7 +188,7 @@ TEST(invalid_token) {
 }
 
 TEST(single_variable) {
-    (void)GLOBALS;
+
     K r = tokenize("abc");
     ASSERT(r && HDR_COUNT(r) == 1, "single var should produce 1 token");
     ASSERT(ISCLASS(OP_GET_VAR, CHR_PTR(r)[0]), "variable should be in GET_VAR range");
@@ -200,7 +197,7 @@ TEST(single_variable) {
 }
 
 TEST(single_integer) {
-    (void)GLOBALS;
+
     K r = tokenize("123");
     ASSERT(r && HDR_COUNT(r) == 1, "single int should produce 1 token");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(r)[0]), "int should be in CONST range");
@@ -209,7 +206,7 @@ TEST(single_integer) {
 }
 
 TEST(integer_list) {
-    (void)GLOBALS;
+
     K r = tokenize("123 456 789");
     ASSERT(r && HDR_COUNT(r) == 1, "int list should produce 1 token");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(r)[0]), "list should be in CONST range");
@@ -218,7 +215,7 @@ TEST(integer_list) {
 }
 
 TEST(string_literal) {
-    (void)GLOBALS;
+
     K r = tokenize("\"hello\"");
     ASSERT(r && HDR_COUNT(r) == 1, "string should produce 1 token");
     ASSERT(ISCLASS(OP_CONST, CHR_PTR(r)[0]), "string should be in CONST range");
@@ -227,7 +224,7 @@ TEST(string_literal) {
 }
 
 TEST(trailing_whitespace) {
-    (void)GLOBALS;
+
     K r = tokenize("123   ");
     ASSERT(r && HDR_COUNT(r) == 1, "should ignore trailing whitespace");
     unref(r);
@@ -235,7 +232,7 @@ TEST(trailing_whitespace) {
 }
 
 TEST(lambda_simple) {
-    (void)GLOBALS;
+
     K x = kcstr("{[x]x+1}");
     K vars = 0, consts = 0;
     K r = token(x, &vars, &consts);
@@ -249,7 +246,7 @@ TEST(lambda_simple) {
 }
 
 TEST(lambda_stores_full_src) {
-    (void)GLOBALS;
+
     const char *src = "{[x]x+1}";
     K x = kcstr(src);
     K vars = 0, consts = 0;
@@ -265,7 +262,7 @@ TEST(lambda_stores_full_src) {
 }
 
 TEST(lambda_nested) {
-    (void)GLOBALS;
+
     const char *src = "{[x;y]y+{[a]a+1}x}";
     K x = kcstr(src);
     K vars = 0, consts = 0;
@@ -294,7 +291,7 @@ TEST(lambda_nested) {
 }
 
 TEST(empty_parens_token) {
-    (void)GLOBALS;
+
     K vars = 0, consts = 0;
     K x = kcstr("()");
     K r = token(x, &vars, &consts);
@@ -309,7 +306,7 @@ TEST(empty_parens_token) {
 
 // Expression tokenization tests
 TEST(binary_add) {
-    (void)GLOBALS;
+
     K r = tokenize("123+456");
     ASSERT(r && HDR_COUNT(r) == 3, "binary op should produce 3 tokens");
     ASSERT(CHR_PTR(r)[1] == 1, "+ should be operator 1 (OPS[:+-*...])");
@@ -318,7 +315,7 @@ TEST(binary_add) {
 }
 
 TEST(unary_plus) {
-    (void)GLOBALS;
+
     K r = tokenize("+123");
     ASSERT(r && HDR_COUNT(r) == 2, "unary op should produce 2 tokens");
     ASSERT(CHR_PTR(r)[0] == 1, "+ should be operator 1");
@@ -327,7 +324,7 @@ TEST(unary_plus) {
 }
 
 TEST(assignment) {
-    (void)GLOBALS;
+
     K r = tokenize("a:42");
     ASSERT(r && HDR_COUNT(r) == 3, "assignment should produce 3 tokens");
     ASSERT(CHR_PTR(r)[1] == 0, ": should be operator 0");
@@ -336,7 +333,7 @@ TEST(assignment) {
 }
 
 TEST(multiple_variables) {
-    (void)GLOBALS;
+
     K r = tokenize("x y z");
     ASSERT(r && HDR_COUNT(r) == 3, "should produce 3 variable tokens");
     unref(r);
@@ -344,7 +341,7 @@ TEST(multiple_variables) {
 }
 
 TEST(paren_token_passthrough) {
-    (void)GLOBALS;
+
     K r = tokenize("(1)");
     ASSERT(r && HDR_COUNT(r) == 3, "should produce 3 tokens");
     ASSERT(CHR_PTR(r)[0] == '(', "first should be literal (");
@@ -356,7 +353,7 @@ TEST(paren_token_passthrough) {
 
 // Compilation tests
 TEST(compile_empty) {
-    (void)GLOBALS;
+
     K tokens = tokenize("");
     K bytecode = compile_tokens(tokens);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 0, "empty should compile to empty");
@@ -365,7 +362,7 @@ TEST(compile_empty) {
 }
 
 TEST(compile_constant) {
-    (void)GLOBALS;
+
     K tokens = tokenize("42");
     K bytecode = compile_tokens(tokens);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "constant should compile to 1 byte");
@@ -375,7 +372,7 @@ TEST(compile_constant) {
 }
 
 TEST(compile_binary_op) {
-    (void)GLOBALS;
+
     K tokens = tokenize("1+2");
     K bytecode = compile_tokens(tokens);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 3, "binary op should compile to 3 bytes");
@@ -387,7 +384,7 @@ TEST(compile_binary_op) {
 }
 
 TEST(compile_unary_op) {
-    (void)GLOBALS;
+
     K tokens = tokenize("+5");
     K bytecode = compile_tokens(tokens);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 2, "unary op should compile to 2 bytes");
@@ -398,7 +395,7 @@ TEST(compile_unary_op) {
 }
 
 TEST(compile_assignment) {
-    (void)GLOBALS;
+
     K vars = 0, consts = 0;
     const char *src = "a:42";
     K x = kcstr(src);
@@ -411,7 +408,7 @@ TEST(compile_assignment) {
 }
 
 TEST(compile_application) {
-    (void)GLOBALS;
+
     K tokens = tokenize("f x");
     K bytecode = compile_tokens(tokens);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 3, "application should compile");
@@ -423,7 +420,7 @@ TEST(compile_application) {
 }
 
 TEST(compile_application2) {
-    (void)GLOBALS;
+
     K tokens = tokenize("\"abc\" 0");
     K bytecode = compile_tokens(tokens);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 3, "application should compile");
@@ -435,7 +432,7 @@ TEST(compile_application2) {
 }
 
 TEST(lambda_postfix_single_arg) {
-    (void)GLOBALS;
+
     const char *src = "{[x]x+1}[6]";
     K x = kcstr(src);
     K vars = 0, consts = 0;
@@ -458,7 +455,7 @@ TEST(lambda_postfix_single_arg) {
 }
 
 TEST(lambda_postfix_two_args) {
-    (void)GLOBALS;
+
     const char *src = "{[x;y]x+y}[1;6]";
     K x = kcstr(src);
     K vars = 0, consts = 0;
@@ -482,7 +479,7 @@ TEST(lambda_postfix_two_args) {
 }
 
 TEST(paren_compile_simple) {
-    (void)GLOBALS;
+
     K tokens = tokenize("(1)");
     K bytecode = compile_tokens(tokens);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "should compile to 1 byte");
@@ -492,7 +489,7 @@ TEST(paren_compile_simple) {
 }
 
 TEST(paren_compile_nested) {
-    (void)GLOBALS;
+
     K tokens = tokenize("((1))");
     K bytecode = compile_tokens(tokens);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "nested parens should compile to 1 byte");
@@ -502,7 +499,7 @@ TEST(paren_compile_nested) {
 }
 
 TEST(paren_compile_with_op) {
-    (void)GLOBALS;
+
     K tokens = tokenize("(1+2)*3");
     K bytecode = compile_tokens(tokens);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 5, "should compile to 5 bytes");
@@ -516,7 +513,7 @@ TEST(paren_compile_with_op) {
 // VM execution tests
 TEST(vm_simple_add) {
     const char *src = "1+2";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result && IS_TAG(result), "result should be a tag");
     ASSERT(TAG_VAL(result) == 3, "1+2 should evaluate to 3");
     unref(result);
@@ -525,7 +522,7 @@ TEST(vm_simple_add) {
 
 TEST(vm_simple_multiply) {
     const char *src = "3*4";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result && IS_TAG(result), "result should be a tag");
     ASSERT(TAG_VAL(result) == 12, "3*4 should evaluate to 12");
     unref(result);
@@ -533,14 +530,14 @@ TEST(vm_simple_multiply) {
 }
 
 TEST(vm_sub_atom) {
-    K r = eval(kcstr("1-2"), GLOBALS);
+    K r = eval(kcstr("1-2"));
     ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType, "1-2 should return int atom");
     ASSERT(TAG_VAL(r) == -1, "1-2 should be -1");
     PASS();
 }
 
 /*TEST(vm_sub_list_list) { // TODO: BINARY_OP doesn't handle list-list yet
-    K r = eval(kcstr("1 2-3 4"), GLOBALS);
+    K r = eval(kcstr("1 2-3 4"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "1 2-3 4 should return int list");
     ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
     ASSERT(INT_PTR(r)[0] == -2 && INT_PTR(r)[1] == -2, "1 2-3 4 should be -2 -2");
@@ -549,7 +546,7 @@ TEST(vm_sub_atom) {
 }*/
 
 TEST(vm_sub_list_atom) {
-    K r = eval(kcstr("1 2 3-1"), GLOBALS);
+    K r = eval(kcstr("1 2 3-1"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "1 2 3-1 should return int list");
     ASSERT(HDR_COUNT(r) == 3, "result should have 3 elements");
     ASSERT(INT_PTR(r)[0] == 0 && INT_PTR(r)[1] == 1 && INT_PTR(r)[2] == 2, "1 2 3-1 should be 0 1 2");
@@ -560,7 +557,7 @@ TEST(vm_sub_list_atom) {
 TEST(add_lists_1) {
     // (1 2;3 4) + 1 1 -> (2 3;4 5)
     const char *src = "(1 2;3 4)+1 1";
-    K r = eval(kcstr(src), GLOBALS);
+    K r = eval(kcstr(src));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+1 1 should return obj list");
     ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
     K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
@@ -575,7 +572,7 @@ TEST(add_lists_1) {
 TEST(add_lists_2) {
     // (1 2;3 4) + (1 2;3 4) -> (2 4;6 8)
     const char *src = "(1 2;3 4)+(1 2;3 4)";
-    K r = eval(kcstr(src), GLOBALS);
+    K r = eval(kcstr(src));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+(1 2;3 4) should return obj list");
     ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
     K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
@@ -590,7 +587,7 @@ TEST(add_lists_2) {
 TEST(add_lists_obj_atom) {
     // (1 2;3 4) + 1 -> (2 3;4 5)
     const char *src = "(1 2;3 4)+1";
-    K r = eval(kcstr(src), GLOBALS);
+    K r = eval(kcstr(src));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+1 should return obj list");
     ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
     K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
@@ -603,14 +600,14 @@ TEST(add_lists_obj_atom) {
 }
 
 TEST(vm_neg_atom) {
-    K r = eval(kcstr("- 1"), GLOBALS);
+    K r = eval(kcstr("- 1"));
     ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType, "- 1 should return int atom");
     ASSERT(TAG_VAL(r) == -1, "- 1 should be -1");
     PASS();
 }
 
 TEST(vm_neg_list) {
-    K r = eval(kcstr("- 1 2 3"), GLOBALS);
+    K r = eval(kcstr("- 1 2 3"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "- 1 2 3 should return int list");
     ASSERT(HDR_COUNT(r) == 3, "result should have 3 elements");
     ASSERT(INT_PTR(r)[0] == -1 && INT_PTR(r)[1] == -2 && INT_PTR(r)[2] == -3, "- 1 2 3 should be -1 -2 -3");
@@ -620,29 +617,29 @@ TEST(vm_neg_list) {
 
 TEST(vm_assignment) {
     const char *src = "x:42";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result == knull(), "assignment as final op should return knull");
     // Check that x was actually assigned
-    K x_val = getGlobal(GLOBALS, encodeSym("x", 1));
+    K x_val = getGlobal(encodeSym("x", 1));
     ASSERT(x_val && TAG_VAL(x_val) == 42, "x should be assigned 42");
     unref(x_val);
     PASS();
 }
 TEST(vm_assignment_2) {
     const char *src = "x:42+1";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result == knull(), "assignment as final op should return knull");
     // Check that x was actually assigned
-    K x_val = getGlobal(GLOBALS, encodeSym("x", 1));
+    K x_val = getGlobal(encodeSym("x", 1));
     ASSERT(x_val && TAG_VAL(x_val) == 43, "x should be assigned 43");
     unref(x_val);
     PASS();
 }
 
 TEST(index_str_with_atom){
-    //(void)GLOBALS;
+    
     const char *src = "\"abc\" 0";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result && IS_TAG(result) && TAG_TYPE(result) == KChrType, "string index should return KChrType atom");
     ASSERT(TAG_VAL(result) == 'a', "string index should return 'a'");
     PASS();
@@ -650,7 +647,7 @@ TEST(index_str_with_atom){
 
 TEST(index_str_with_list){
     const char *src = "\"abc\" 2 1 0";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result && !IS_TAG(result), "indexing with list should return list");
     ASSERT(HDR_TYPE(result) == KChrType, "result should be KChrType");
     ASSERT(HDR_COUNT(result) == 3, "result should have length 3");
@@ -661,7 +658,7 @@ TEST(index_str_with_list){
 
 TEST(index_int_with_list){
     const char *src = "3 2 1@0";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result && IS_TAG(result), "indexing at 0 should return atom");
     ASSERT(TAG_TYPE(result) == KIntType, "result should be KIntType");
     ASSERT(TAG_VAL(result) == 3, "first element should be 3");
@@ -671,7 +668,7 @@ TEST(index_int_with_list){
 
 TEST(index_int_out_of_bounds){
     const char *src = "1 2@3";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result && IS_TAG(result), "out of bounds index should return atom");
     ASSERT(TAG_TYPE(result) == KIntType, "result should be KIntType");
     ASSERT(TAG_VAL(result) == 0, "out of bounds int index should return 0");
@@ -681,7 +678,7 @@ TEST(index_int_out_of_bounds){
 
 TEST(index_str_out_of_bounds){
     const char *src = "\"ab\"@3";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result && IS_TAG(result), "out of bounds index should return atom");
     ASSERT(TAG_TYPE(result) == KChrType, "result should be KChrType");
     ASSERT(TAG_VAL(result) == ' ', "out of bounds string index should return space");
@@ -691,7 +688,7 @@ TEST(index_str_out_of_bounds){
 
 TEST(index_postfix_two_args){
     const char *src = "(1 2;3 4)[1;0]";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result && IS_TAG(result), "result should be an atom");
     ASSERT(TAG_TYPE(result) == KIntType, "result should be KIntType");
     ASSERT(TAG_VAL(result) == 3, "result should be 3");
@@ -699,56 +696,56 @@ TEST(index_postfix_two_args){
 }
 
 TEST(index_postfix_three_args){
-    K r = eval(kcstr("((1 2;3 4);(5 6;7 8))[1;0;1]"), GLOBALS);
+    K r = eval(kcstr("((1 2;3 4);(5 6;7 8))[1;0;1]"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 6, "should be 6");
     PASS();
 }
 
 TEST(index_postfix_single_arg){
-    K r = eval(kcstr("1 2 3[0]"), GLOBALS);
+    K r = eval(kcstr("1 2 3[0]"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 1, "should be 1");
     PASS();
 }
 
 TEST(apply_oob_multi_arg){
-    K r = eval(kcstr("(1;\"ab\")[1;5]"), GLOBALS);
+    K r = eval(kcstr("(1;\"ab\")[1;5]"));
     ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KChrType, "should be char");
     ASSERT(TAG_VAL(r) == ' ', "OOB string index should be space");
     PASS();
 }
 
 TEST(apply_atom_rank_error){
-    K r = eval(kcstr("42[0]"), GLOBALS);
+    K r = eval(kcstr("42[0]"));
     ASSERT(!r && kerrno == KERR_RANK, "atom apply should be rank error");
     PASS();
 }
 
 TEST(apply_cascade_rank_error){
-    K r = eval(kcstr("1 2 3[0;0]"), GLOBALS);
+    K r = eval(kcstr("1 2 3[0;0]"));
     ASSERT(!r && kerrno == KERR_RANK, "indexing atom should be rank error");
     PASS();
 }
 
 TEST(apply_string_cascade_rank_error){
-    K r = eval(kcstr("\"abc\"[1;0]"), GLOBALS);
+    K r = eval(kcstr("\"abc\"[1;0]"));
     ASSERT(!r && kerrno == KERR_RANK, "indexing char atom should be rank error");
     PASS();
 }
 
 TEST(apply_too_many_args_rank_error){
-    K r = eval(kcstr("(1 2;3 4)[0;0;0]"), GLOBALS);
+    K r = eval(kcstr("(1 2;3 4)[0;0;0]"));
     ASSERT(!r && kerrno == KERR_RANK, "3 args on 2-deep should be rank error");
     PASS();
 }
 
 TEST(apply_chained_bracket_rank_error){
-    K r = eval(kcstr("{[x]x+1}[2][0]"), GLOBALS);
+    K r = eval(kcstr("{[x]x+1}[2][0]"));
     ASSERT(!r && kerrno == KERR_RANK, "indexing lambda result atom should be rank error");
     PASS();
 }
 
 TEST(lambda_eval_returns_lambda) {
-    K r = eval(kcstr("{[x]x+1}"), GLOBALS);
+    K r = eval(kcstr("{[x]x+1}"));
     ASSERT(r, "eval should succeed");
     ASSERT(!IS_TAG(r) && HDR_TYPE(r) == KLambdaType, "should return KLambdaType");
     unref(r);
@@ -756,7 +753,7 @@ TEST(lambda_eval_returns_lambda) {
 }
 
 TEST(lambda_eval_no_params) {
-    K r = eval(kcstr("{[]1}"), GLOBALS);
+    K r = eval(kcstr("{[]1}"));
     ASSERT(r, "eval should succeed");
     ASSERT(!IS_TAG(r) && HDR_TYPE(r) == KLambdaType, "should return KLambdaType");
     unref(r);
@@ -764,7 +761,7 @@ TEST(lambda_eval_no_params) {
 }
 
 TEST(lambda_eval_single_param) {
-    K r = eval(kcstr("{[x]x}"), GLOBALS);
+    K r = eval(kcstr("{[x]x}"));
     ASSERT(is_valid_lambda(r), "should be valid lambda");
     ASSERT(HDR_COUNT(OBJ_PTR(r)[1]) == 1, "should have 1 param");
     unref(r);
@@ -772,7 +769,7 @@ TEST(lambda_eval_single_param) {
 }
 
 TEST(lambda_eval_multi_params) {
-    K r = eval(kcstr("{[a;b;c]a+b+c}"), GLOBALS);
+    K r = eval(kcstr("{[a;b;c]a+b+c}"));
     ASSERT(r, "eval should succeed");
     ASSERT(!IS_TAG(r) && HDR_TYPE(r) == KLambdaType, "should return KLambdaType");
     ASSERT(HDR_COUNT(OBJ_PTR(r)[1]) == 3, "should have 3 params");
@@ -782,69 +779,69 @@ TEST(lambda_eval_multi_params) {
 
 // Lambda application tests
 TEST(lambda_apply_empty_body) {
-    K r = eval(kcstr("{[x]}@42"), GLOBALS);
+    K r = eval(kcstr("{[x]}@42"));
     ASSERT(r == knull(), "lambda with empty body should return knull");
     PASS();
 }
 
 TEST(lambda_apply_identity) {
-    K r = eval(kcstr("{[x]x}@42"), GLOBALS);
+    K r = eval(kcstr("{[x]x}@42"));
     ASSERT(r && TAG_VAL(r) == 42, "{[x]x}@42 should be 42");
     unref(r);
     PASS();
 }
 
 TEST(lambda_apply_add) {
-    K r = eval(kcstr("{[x]x+1}@2"), GLOBALS);
+    K r = eval(kcstr("{[x]x+1}@2"));
     ASSERT(r && TAG_VAL(r) == 3, "{[x]x+1}@2 should be 3");
     unref(r);
     PASS();
 }
 
 TEST(lambda_apply_multiply) {
-    K r = eval(kcstr("{[x]x*2}@10"), GLOBALS);
+    K r = eval(kcstr("{[x]x*2}@10"));
     ASSERT(r && TAG_VAL(r) == 20, "{[x]x*2}@10 should be 20");
     unref(r);
     PASS();
 }
 
 TEST(lambda_apply_with_local) {
-    K r = eval(kcstr("{[x]y:x+1}@6"), GLOBALS);
+    K r = eval(kcstr("{[x]y:x+1}@6"));
     ASSERT(r && TAG_VAL(r) == 7, "lambda with local: {[x]y:x+1;y}@5 should be 6");
     unref(r);
     PASS();
 }
 
 TEST(lambda_apply_multiple_locals) {
-    K r = eval(kcstr("{[x]z:y:x+1}@6"), GLOBALS);
+    K r = eval(kcstr("{[x]z:y:x+1}@6"));
     ASSERT(r && TAG_VAL(r) == 7, "multiple locals: (5+1)*2=12");
     unref(r);
     PASS();
 }
 
 TEST(lambda_apply_local_and_param) {
-    K r = eval(kcstr("{[x]x+y:x+1}@5"), GLOBALS);
+    K r = eval(kcstr("{[x]x+y:x+1}@5"));
     ASSERT(r && TAG_VAL(r) == 11, "local+param: (5+1)+5=11");
     unref(r);
     PASS();
 }
 
 TEST(lambda_apply_nested) {
-    K r = eval(kcstr("{[x]x+{[y]y*2}@3}@5"), GLOBALS);
+    K r = eval(kcstr("{[x]x+{[y]y*2}@3}@5"));
     ASSERT(r && TAG_VAL(r) == 11, "nested lambda: 5+(3*2)=11");
     unref(r);
     PASS();
 }
 
 TEST(lambda_apply_no_params) {
-    K r = eval(kcstr("{[]42}"), GLOBALS);
+    K r = eval(kcstr("{[]42}"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KLambdaType, "{[]42} should eval to lambda");
     unref(r);
     PASS();
 }
 
 TEST(lambda_reassign_param) {
-    K r = eval(kcstr("{[x]x:\"new\"}@\"old\""), GLOBALS);
+    K r = eval(kcstr("{[x]x:\"new\"}@\"old\""));
     // If double-free, likely crashes or fails leak test
     unref(r);
     PASS();
@@ -852,81 +849,81 @@ TEST(lambda_reassign_param) {
 
 TEST(lambda_error) {
     // runtime error inside lambda is handled correctly
-    K r = eval(kcstr("{[x]. x}@1"), GLOBALS);
+    K r = eval(kcstr("{[x]. x}@1"));
     ASSERT(!r, "applying lambda to string should fail");
     ASSERT(kerrno == KERR_TYPE, "should raise type error");
     PASS();
 }
 
 TEST(lambda_error_undefined_var) {
-    K r = eval(kcstr("{[x]x+z}@5"), GLOBALS);
+    K r = eval(kcstr("{[x]x+z}@5"));
     ASSERT(!r, "referencing undefined variable in lambda body should return error");
     ASSERT(kerrno == KERR_VALUE, "should raise value error");
     PASS();
 }
 
 TEST(paren_eval_simple) {
-    K r = eval(kcstr("(42)"), GLOBALS);
+    K r = eval(kcstr("(42)"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 42, "(42) should be 42");
     PASS();
 }
 
 TEST(paren_eval_grouping) {
-    K r = eval(kcstr("(1+2)*3"), GLOBALS);
+    K r = eval(kcstr("(1+2)*3"));
     ASSERT(r && IS_TAG(r), "result should be a tag");
     ASSERT(TAG_VAL(r) == 9, "(1+2)*3 should be 9");
     PASS();
 }
 
 TEST(paren_eval_nested) {
-    K r = eval(kcstr("((1+2))"), GLOBALS);
+    K r = eval(kcstr("((1+2))"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 3, "((1+2)) should be 3");
     PASS();
 }
 
 TEST(paren_eval_deep) {
-    K r = eval(kcstr("(((1+2)))"), GLOBALS);
+    K r = eval(kcstr("(((1+2)))"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 3, "(((1+2))) should be 3");
     PASS();
 }
 
 TEST(paren_eval_multiple) {
-    K r = eval(kcstr("(1+2)+(3+4)"), GLOBALS);
+    K r = eval(kcstr("(1+2)+(3+4)"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 10, "(1+2)+(3+4) should be 10");
     PASS();
 }
 
 TEST(semicolon_terminated_expr) {
-    (void)GLOBALS;
-    K r = eval(kcstr("1 2;"), GLOBALS);
+
+    K r = eval(kcstr("1 2;"));
     ASSERT(r == knull(), "semicolon-terminated expression should return knull");
     PASS();
 }
 
 TEST(multiexpr_basic) {
-    (void)GLOBALS;
-    K r = eval(kcstr("1 2;2"), GLOBALS);
+
+    K r = eval(kcstr("1 2;2"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 2, "should return 2");
     PASS();
 }
 
 TEST(subexpr_with_ops) {
-    (void)GLOBALS;
-    K r = eval(kcstr("1+2;3*4"), GLOBALS);
+
+    K r = eval(kcstr("1+2;3*4"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 12, "1+2;3*4 should return 12");
     PASS();
 }
 
 TEST(subexpr_assignment) {
     const char *src = "x:1;x+2";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result && IS_TAG(result) && TAG_VAL(result) == 3, "x:1;x+2 should return 3");
     unref(result);
     PASS();
 }
 
 TEST(fenced_subexpr_basic) {
-    K r = eval(kcstr("(1;2)"), GLOBALS);
+    K r = eval(kcstr("(1;2)"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "(1;2) should return int array");
     ASSERT(HDR_COUNT(r) == 2 && INT_PTR(r)[0] == 1 && INT_PTR(r)[1] == 2, "(1;2) should be 1 2");
     unref(r);
@@ -934,7 +931,7 @@ TEST(fenced_subexpr_basic) {
 }
 
 TEST(fenced_subexpr_with_ops) {
-    K r = eval(kcstr("(1;2+3)"), GLOBALS);
+    K r = eval(kcstr("(1;2+3)"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "(1;2+3) should return int array");
     ASSERT(HDR_COUNT(r) == 2 && INT_PTR(r)[0] == 1 && INT_PTR(r)[1] == 5, "(1;2+3) should be 1 5");
     unref(r);
@@ -942,7 +939,7 @@ TEST(fenced_subexpr_with_ops) {
 }
 
 TEST(fenced_subexpr_heterogeneous) {
-    K r = eval(kcstr("(1;\"a\")"), GLOBALS);
+    K r = eval(kcstr("(1;\"a\")"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1;\"a\") should return generic list");
     ASSERT(HDR_COUNT(r) == 2, "(1;\"a\") should have 2 elements");
     ASSERT(TAG_VAL(OBJ_PTR(r)[0]) == 1, "first element should be 1");
@@ -953,7 +950,7 @@ TEST(fenced_subexpr_heterogeneous) {
 
 // Error tests
 TEST(unclosed_string) {
-    (void)GLOBALS;
+
     const char *src = "\"hello";
     K x = kcstr(src);
     K vars = 0, consts = 0;
@@ -965,7 +962,7 @@ TEST(unclosed_string) {
 }
 
 TEST(parse_unclosed_string_in_expr) {
-    (void)GLOBALS;
+
     const char *src = "1+2+\"hello";
     K x = kcstr(src);
     K vars = 0, consts = 0;
@@ -977,7 +974,7 @@ TEST(parse_unclosed_string_in_expr) {
 }
 
 TEST(parse_invalid_token_in_expr) {
-    (void)GLOBALS;
+
     const char *src = "1+£+2";
     K x = kcstr(src);
     K vars = 0, consts = 0;
@@ -989,7 +986,7 @@ TEST(parse_invalid_token_in_expr) {
 }
 
 TEST(parse_single_quote) {
-    (void)GLOBALS;
+
     const char *src = "\"";
     K x = kcstr(src);
     K vars = 0, consts = 0;
@@ -1001,9 +998,9 @@ TEST(parse_single_quote) {
 }
 
 TEST(empty_string_literal) {
-    (void)GLOBALS;
+
     const char *src = "\"\"";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result != 0, "empty string should be valid");
     ASSERT(HDR_TYPE(result) == KChrType, "should be KChrType");
     ASSERT(HDR_COUNT(result) == 0, "should have length 0");
@@ -1013,7 +1010,7 @@ TEST(empty_string_literal) {
 
 TEST(value_undefined_in_expr) {
     const char *src = "1+foo+2";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result == 0, "undefined variable in expression should fail");
     ASSERT(kerrno == KERR_VALUE, "should raise KERR_VALUE");
     PASS();
@@ -1021,35 +1018,35 @@ TEST(value_undefined_in_expr) {
 
 TEST(vm_undefined_variable) {
     const char *src = "foo";
-    K result = eval(kcstr(src), GLOBALS);
+    K result = eval(kcstr(src));
     ASSERT(result == 0, "undefined variable should return error");
     ASSERT(kerrno == KERR_VALUE, "undefined variable should raise value error");
     PASS();
 }
 
 TEST(lambda_error_missing_bracket) {
-    K r = eval(kcstr("{x}"), GLOBALS);
+    K r = eval(kcstr("{x}"));
     ASSERT(!r, "should error: lambda must have params");
     ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
     PASS();
 }
 
 TEST(lambda_error_unclosed_params) {
-    K r = eval(kcstr("{[x"), GLOBALS);
+    K r = eval(kcstr("{[x"));
     ASSERT(!r, "should error: unclosed param list");
     ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
     PASS();
 }
 
 TEST(lambda_error_unclosed_lambda) {
-    K r = eval(kcstr("{[x]x+1"), GLOBALS);
+    K r = eval(kcstr("{[x]x+1"));
     ASSERT(!r, "should error: unclosed lambda");
     ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
     PASS();
 }
 
 TEST(error_unmatched_paren) {
-    K r = eval(kcstr("(1+2"), GLOBALS);
+    K r = eval(kcstr("(1+2"));
     ASSERT(!r, "unmatched paren should error");
     ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
     PASS();
@@ -1057,7 +1054,7 @@ TEST(error_unmatched_paren) {
 
 // Monad tests
 TEST(unary_value_basic) {
-    K r = eval(kcstr(".\"tests/read.txt\""), GLOBALS);
+    K r = eval(kcstr(".\"tests/read.txt\""));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "should read file as KChrType");
     ASSERT(HDR_COUNT(r) == 5, "file should have 5 chars");
     ASSERT(memcmp(CHR_PTR(r), "hello", 5) == 0, "content should be 'hello'");
@@ -1066,14 +1063,14 @@ TEST(unary_value_basic) {
 }
 
 TEST(unary_value_file_not_found) {
-    K r = eval(kcstr(".\"nonexistent_file_12345.txt\""), GLOBALS);
+    K r = eval(kcstr(".\"nonexistent_file_12345.txt\""));
     ASSERT(!r, "missing file should fail");
     ASSERT(kerrno == KERR_VALUE, "should raise KERR_VALUE");
     PASS();
 }
 
 TEST(unary_value_type_error) {
-    K r = eval(kcstr(". 123"), GLOBALS);
+    K r = eval(kcstr(". 123"));
     ASSERT(!r, "value on integer should fail");
     ASSERT(kerrno == KERR_TYPE, "should raise KERR_TYPE");
     PASS();

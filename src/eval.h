@@ -28,9 +28,9 @@ extern K GLOBALS;
 
 K token(K,K*,K*);
 K compile(K, K, int);
-K getGlobal(K, K_sym);
-K vm(K x, K vars, K consts, K GLOBALS, K_char localc, K*args);
+K getGlobal(K_sym);
+K vm(K x, K vars, K consts, K_char localc, K*args);
 void strip(K);
-K eval(K,K);
+K eval(K);
 
 #endif

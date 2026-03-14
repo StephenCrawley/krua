@@ -5,7 +5,7 @@
 int main(){
     printf("krua. mit license. "__DATE__".\n\n");
     
-    K GLOBALS = ksymdict();
+    GLOBALS = ksymdict();
 
     // repl
     char buf[LINE_LEN];
@@ -20,7 +20,7 @@ int main(){
         if (nl) *nl = 0;
 
         // eval + print 
-        K r = eval(kcstr(buf), GLOBALS);
+        K r = eval(kcstr(buf));
         r ? kprint(r) : kperror(buf);
     }
 }
