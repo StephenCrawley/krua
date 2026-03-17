@@ -18,15 +18,14 @@ static K nyi1(K x){NYI_ERROR(1, "unary operator", unref(x);)}
 F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, nyi1, value, nyi1, nyi1, nyi1, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1};
 
 K neg(K x){
-    if (TAG_TYPE(x)){
-        if (TAG_TYPE(x) == KIntType) return TAG(KIntType, -TAG_VAL(x));
-    } else {
-        if (HDR_TYPE(x) == KObjType) return _each1(neg, x);
-        if (HDR_TYPE(x) == KIntType){
-            K r = knew(KIntType, HDR_COUNT(x));
-            FOR_EACH(x) INT_PTR(r)[i] = -INT_PTR(x)[i];
-            return UNREF_X(r);
-        }
+    if (TAG_TYPE(x) == KIntType){
+        return TAG(KIntType, -TAG_VAL(x));
+    } else if (HDR_TYPE(x) == KObjType){
+        return _each1(neg, x);
+    } else if (HDR_TYPE(x) == KIntType){
+        K r = knew(KIntType, HDR_COUNT(x));
+        FOR_EACH(x) INT_PTR(r)[i] = -INT_PTR(x)[i];
+        return UNREF_X(r);
     }
     TYPE_ERROR(1, "-x must be int", unref(x));
 }
