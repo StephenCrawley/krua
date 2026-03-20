@@ -303,11 +303,9 @@ static void _kprint(K x){
             printf("%d", TAG_VAL(x));
         } else if (type == KSymType){
             printf("`%.4s", (char*)&x);
-        } else if (type == KMonadType) {
-            return;
-        } else {
-            printf("'print not supported for type: %d", type);
-            exit(1);
+        } else if (type == KOpType){
+            if (TAG_VAL(x) == 0) return;
+            putchar(OPS[TAG_VAL(x)]);
         }
         return;
     }
@@ -341,9 +339,9 @@ static void _kprint(K x){
         }
     } else if (type == KLambdaType) {
         _kprint(OBJ_PTR(x)[n - 1]); // last object in KLambdaType is a K string of the lambda
-    } else { // TODO: remove
-        printf("print not supported for type: %d", type);
-        exit(1);
+    } else if (type == KAdverbType) {
+        _kprint(OBJ_PTR(x)[0]);
+        putchar("'/\\"[HDR_ARGC(x)]);
     }
 }
 

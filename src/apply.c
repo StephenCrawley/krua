@@ -21,6 +21,10 @@ K applyLambda(K x, int n, K *args){
     return r;
 }
 
+K applyAdverb(K x, int n, K *args){
+    NYI_ERROR(1, "adverb", while(n--) unref(args[n]));
+}
+
 K applyOver(K x, int n, K *args){
     if (n == 1) return index(x, *args);
     ref(x);
@@ -36,7 +40,7 @@ K applyOver(K x, int n, K *args){
 // generic apply
 K apply(K x, int n, K *args){
     RANK_ERROR(IS_TAG(x), "can't apply atom to argument", while(n--) unref(args[n]));
-    K r = (HDR_TYPE(x) == KLambdaType ? applyLambda : applyOver)(x, n, args);
+    K r = (HDR_TYPE(x) == KLambdaType ? applyLambda : HDR_TYPE(x) == KAdverbType ? applyAdverb : applyOver)(x, n, args);
     return r;
 }
 

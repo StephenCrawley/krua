@@ -54,7 +54,7 @@ static int tests_failed = 0;
 
 /* Testing Practices:
  * - Use kcstr(s) to create KChrType from null-terminated C strings
- * - Use ISCLASS(class, byte) macro for bytecode range checks, not manual arithmetic
+ * - Use IS_CLASS(class, byte) macro for bytecode range checks, not manual arithmetic
  * - Keep tests simple and direct - no frameworks, just ASSERT and PASS
  * - Error tests will print to stdout (messy output) - this is expected and proves errors are caught
  * - Each test should clean up heap allocations with unref() (tags don't need unref)
@@ -163,7 +163,7 @@ TEST(invalid_token) {
 TEST(single_variable) {
     K r = tokenize("abc");
     ASSERT(r && HDR_COUNT(r) == 1, "single var should produce 1 token");
-    ASSERT(ISCLASS(OP_GET_VAR, CHR_PTR(r)[0]), "variable should be in GET_VAR range");
+    ASSERT(IS_CLASS(OP_GET_VAR, CHR_PTR(r)[0]), "variable should be in GET_VAR range");
     unref(r);
     PASS();
 }
@@ -171,7 +171,7 @@ TEST(single_variable) {
 TEST(single_integer) {
     K r = tokenize("123");
     ASSERT(r && HDR_COUNT(r) == 1, "single int should produce 1 token");
-    ASSERT(ISCLASS(OP_CONST, CHR_PTR(r)[0]), "int should be in CONST range");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "int should be in CONST range");
     unref(r);
     PASS();
 }
@@ -179,7 +179,7 @@ TEST(single_integer) {
 TEST(integer_list) {
     K r = tokenize("123 456 789");
     ASSERT(r && HDR_COUNT(r) == 1, "int list should produce 1 token");
-    ASSERT(ISCLASS(OP_CONST, CHR_PTR(r)[0]), "list should be in CONST range");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "list should be in CONST range");
     unref(r);
     PASS();
 }
@@ -187,7 +187,7 @@ TEST(integer_list) {
 TEST(string_literal) {
     K r = tokenize("\"hello\"");
     ASSERT(r && HDR_COUNT(r) == 1, "string should produce 1 token");
-    ASSERT(ISCLASS(OP_CONST, CHR_PTR(r)[0]), "string should be in CONST range");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "string should be in CONST range");
     unref(r);
     PASS();
 }
@@ -217,7 +217,7 @@ TEST(lambda_simple) {
     K r = token(x, &vars, &consts);
     ASSERT(r, "tokenization should succeed");
     ASSERT(!IS_TAG(r) && HDR_TYPE(r) == KChrType && HDR_COUNT(r) == 1, "should produce 1 token");
-    ASSERT(ISCLASS(OP_CONST, CHR_PTR(r)[0]), "list should be in CONST range");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "list should be in CONST range");
     ASSERT(consts && HDR_COUNT(consts) == 1, "should add lambda to consts");
     ASSERT(HDR_TYPE(OBJ_PTR(consts)[0]) == KLambdaType, "const should be KLambdaType");
     unref(x); unref(r); unref(vars); unref(consts);
@@ -314,7 +314,7 @@ TEST(paren_token_passthrough) {
     K r = tokenize("(1)");
     ASSERT(r && HDR_COUNT(r) == 3, "should produce 3 tokens");
     ASSERT(CHR_PTR(r)[0] == '(', "first should be literal (");
-    ASSERT(ISCLASS(OP_CONST, CHR_PTR(r)[1]), "second should be CONST");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[1]), "second should be CONST");
     ASSERT(CHR_PTR(r)[2] == ')', "third should be literal )");
     unref(r);
     PASS();
@@ -333,7 +333,7 @@ TEST(compile_constant) {
     K tokens = tokenize("42");
     K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "constant should compile to 1 byte");
-    ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST instruction");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST instruction");
     unref(bytecode);
     PASS();
 }
@@ -342,8 +342,8 @@ TEST(compile_binary_op) {
     K tokens = tokenize("1+2");
     K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 3, "binary op should compile to 3 bytes");
-    ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be PUSH const");
-    ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[1]), "second should be PUSH const");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be PUSH const");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[1]), "second should be PUSH const");
     ASSERT(CHR_PTR(bytecode)[2] == (OP_BINARY + 1), "third should be BINARY ADD");
     unref(bytecode);
     PASS();
@@ -353,7 +353,7 @@ TEST(compile_unary_op) {
     K tokens = tokenize("+5");
     K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 2, "unary op should compile to 2 bytes");
-    ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be PUSH const");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be PUSH const");
     ASSERT(CHR_PTR(bytecode)[1] == (OP_UNARY + 1), "second should be UNARY ADD");
     unref(bytecode);
     PASS();
@@ -365,7 +365,7 @@ TEST(compile_assignment) {
     K tokens = token(x, &vars, &consts);
     K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode, "assignment should compile");
-    ASSERT(ISCLASS(OP_SET_VAR, CHR_PTR(bytecode)[HDR_COUNT(bytecode)-1]), "last instruction should be SET_VAR class");
+    ASSERT(IS_CLASS(OP_SET_VAR, CHR_PTR(bytecode)[HDR_COUNT(bytecode)-1]), "last instruction should be SET_VAR class");
     unref(x), unref(bytecode); unref(vars); unref(consts);
     PASS();
 }
@@ -374,8 +374,8 @@ TEST(compile_application) {
     K tokens = tokenize("f x");
     K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 3, "application should compile");
-    ASSERT(ISCLASS(OP_GET_VAR, CHR_PTR(bytecode)[0]), "first should be GET var");
-    ASSERT(ISCLASS(OP_GET_VAR, CHR_PTR(bytecode)[1]), "second should be GET var");
+    ASSERT(IS_CLASS(OP_GET_VAR, CHR_PTR(bytecode)[0]), "first should be GET var");
+    ASSERT(IS_CLASS(OP_GET_VAR, CHR_PTR(bytecode)[1]), "second should be GET var");
     ASSERT(CHR_PTR(bytecode)[2] == (OP_BINARY + 5), "third should be BINARY @ (apply)");
     unref(bytecode);
     PASS();
@@ -385,8 +385,8 @@ TEST(compile_application2) {
     K tokens = tokenize("\"abc\" 0");
     K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 3, "application should compile");
-    ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be PUSH const");
-    ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[1]), "second should PUSH const");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be PUSH const");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[1]), "second should PUSH const");
     ASSERT(CHR_PTR(bytecode)[2] == (OP_BINARY + 5), "third should be BINARY @ (apply)");
     unref(bytecode);
     PASS();
@@ -401,8 +401,8 @@ TEST(lambda_postfix_single_arg) {
     ASSERT(bytecode && !IS_TAG(bytecode), "compilation should succeed");
     K_char *bc = CHR_PTR(bytecode);
     ASSERT(HDR_COUNT(bytecode) == 3, "bytecode should have 3 instructions");
-    ASSERT(ISCLASS(OP_CONST, bc[0]), "first should load lambda");
-    ASSERT(ISCLASS(OP_CONST, bc[1]), "second should load arg 6");
+    ASSERT(IS_CLASS(OP_CONST, bc[0]), "first should load lambda");
+    ASSERT(IS_CLASS(OP_CONST, bc[1]), "second should load arg 6");
     ASSERT(bc[2] == OP_N_ARY + 1, "third should be N_ARY apply with 1 arg");
     unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
@@ -417,9 +417,9 @@ TEST(lambda_postfix_two_args) {
     ASSERT(bytecode, "compilation should succeed");
     K_char *bc = CHR_PTR(bytecode);
     ASSERT(HDR_COUNT(bytecode) == 4, "bytecode should have 4 instructions");
-    ASSERT(ISCLASS(OP_CONST, bc[0]), "first should load lambda");
-    ASSERT(ISCLASS(OP_CONST, bc[1]), "second should load arg 1");
-    ASSERT(ISCLASS(OP_CONST, bc[2]), "third should load arg 6");
+    ASSERT(IS_CLASS(OP_CONST, bc[0]), "first should load lambda");
+    ASSERT(IS_CLASS(OP_CONST, bc[1]), "second should load arg 1");
+    ASSERT(IS_CLASS(OP_CONST, bc[2]), "third should load arg 6");
     ASSERT(bc[3] == OP_N_ARY + 2, "fourth should be N_ARY apply with 2 args");
     unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
@@ -429,7 +429,7 @@ TEST(paren_compile_simple) {
     K tokens = tokenize("(1)");
     K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "should compile to 1 byte");
-    ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
     unref(bytecode);
     PASS();
 }
@@ -438,7 +438,7 @@ TEST(paren_compile_nested) {
     K tokens = tokenize("((1))");
     K bytecode = compile(0, tokens, 0);
     ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "nested parens should compile to 1 byte");
-    ASSERT(ISCLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
     unref(bytecode);
     PASS();
 }
@@ -963,6 +963,100 @@ TEST(unary_value_type_error) {
     PASS();
 }
 
+// Adverb compilation tests
+TEST(adverb_each_infix) {
+    // x f'y → [load_y, load_x, load_f, OP_VERB+20, OP_N_ARY+2]
+    K x = kcstr("x f'y");
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode, "compilation should succeed");
+    K_char *bc = CHR_PTR(bytecode);
+    ASSERT(HDR_COUNT(bytecode) == 5, "should be 5 bytes");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load y");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[1]), "load x");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[2]), "load f");
+    ASSERT(bc[3] == OP_VERB + 20, "each wrap");
+    ASSERT(bc[4] == OP_N_ARY + 2, "apply 2");
+    unref(x), unref(bytecode), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(adverb_each_postfix_bracket) {
+    // x f'[y] → [load_y, load_f, OP_VERB+20, OP_N_ARY+1, load_x, OP_BINARY+5]
+    K x = kcstr("x f'[y]");
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode, "compilation should succeed");
+    K_char *bc = CHR_PTR(bytecode);
+    ASSERT(HDR_COUNT(bytecode) == 6, "should be 6 bytes");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load y");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[1]), "load f");
+    ASSERT(bc[2] == OP_VERB + 20, "each wrap");
+    ASSERT(bc[3] == OP_N_ARY + 1, "apply 1");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[4]), "load x");
+    ASSERT(bc[5] == OP_BINARY + 5, "binary apply");
+    unref(x), unref(bytecode), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(adverb_bare_op_unary) {
+    // +'x → [load_x, OP_VERB+1, OP_VERB+20, OP_N_ARY+1]
+    K x = kcstr("+'x");
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode, "compilation should succeed");
+    K_char *bc = CHR_PTR(bytecode);
+    ASSERT(HDR_COUNT(bytecode) == 4, "should be 4 bytes");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load x");
+    ASSERT(bc[1] == OP_VERB + 1, "push + verb");
+    ASSERT(bc[2] == OP_VERB + 20, "each wrap");
+    ASSERT(bc[3] == OP_N_ARY + 1, "apply 1");
+    unref(x), unref(bytecode), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(adverb_bare_op_infix) {
+    // x+'y → [load_y, load_x, OP_VERB+1, OP_VERB+20, OP_N_ARY+2]
+    K x = kcstr("x+'y");
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode, "compilation should succeed");
+    K_char *bc = CHR_PTR(bytecode);
+    ASSERT(HDR_COUNT(bytecode) == 5, "should be 5 bytes");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load y");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[1]), "load x");
+    ASSERT(bc[2] == OP_VERB + 1, "push + verb");
+    ASSERT(bc[3] == OP_VERB + 20, "each wrap");
+    ASSERT(bc[4] == OP_N_ARY + 2, "apply 2");
+    unref(x), unref(bytecode), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(adverb_bare_no_args) {
+    // g:f' → [load_f, OP_VERB+20, OP_SET_VAR+g]
+    K x = kcstr("g:f'");
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode, "compilation should succeed");
+    K_char *bc = CHR_PTR(bytecode);
+    ASSERT(HDR_COUNT(bytecode) == 3, "should be 3 bytes");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load f");
+    ASSERT(bc[1] == OP_VERB + 20, "each wrap");
+    ASSERT(IS_CLASS(OP_SET_VAR, bc[2]), "set g");
+    unref(x), unref(bytecode), unref(vars), unref(consts);
+    PASS();
+}
+
 // Test runner
 void run_tests() {
     printf("\nPreprocessing:\n");
@@ -1075,6 +1169,13 @@ void run_tests() {
     RUN_TEST(apply_string_cascade_rank_error);
     RUN_TEST(apply_too_many_args_rank_error);
     RUN_TEST(apply_chained_bracket_rank_error);
+
+    printf("\nAdverbs:\n");
+    RUN_TEST(adverb_each_infix);
+    RUN_TEST(adverb_each_postfix_bracket);
+    RUN_TEST(adverb_bare_op_unary);
+    RUN_TEST(adverb_bare_op_infix);
+    RUN_TEST(adverb_bare_no_args);
 
     printf("\nMonads:\n");
     RUN_TEST(unary_value_basic);

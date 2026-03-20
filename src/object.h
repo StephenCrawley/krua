@@ -11,7 +11,8 @@
 
 static inline K kchr(K_char c) { return TAG(KChrType, c); }
 static inline K kint(K_int  i) { return TAG(KIntType, i); }
-static inline K knull()        { return TAG(KMonadType,0); }
+static inline K kop(K_int   i) { return TAG(KOpType, i); }
+#define knull() kop(0)
 
 K ref(K);
 void _unref(K);

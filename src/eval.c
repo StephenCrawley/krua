@@ -6,7 +6,10 @@
 #define ISDIGIT(c) isdigit((int)(c))
 #define ISALNUM(c) isalnum((int)(c))
 
-const K_char OPS[] = ":+-*%@.!,<>?#_~&|=$^";
+const K_char OPS[] = ":+-*%@.!,<>?#_~&|=$^'/\\";
+
+#define IS_ADVERB(x) (x-20 < 3u)
+#define IS_POSTFIX_ADVERB(x) ({K_char _p=(x); IS_CLASS(TOK_POSTFIX, _p) && HDR_ARGC(OBJ_PTR(postfix)[_p & 31]);})
 
 // Global interpreter state (for lambda application in apply.c)
 K GLOBALS = 0;
@@ -201,41 +204,51 @@ static void reverseChr(K r){
 static K expandPostfix(K x, K fenced, K postfix);
 
 static K expandSwitch(K_char c, K fenced, K postfix){
-    if (ISCLASS(TOK_PAREN, c)) return compile(0, ref(OBJ_PTR(fenced)[c & 31]), 1);
-    if (ISCLASS(TOK_POSTFIX, c)) return expandPostfix(OBJ_PTR(postfix)[c & 31], fenced, postfix);
+    if (IS_CLASS(TOK_PAREN, c)) return compile(0, ref(OBJ_PTR(fenced)[c & 31]), 1);
+    if (IS_CLASS(TOK_POSTFIX, c)) return expandPostfix(OBJ_PTR(postfix)[c & 31], fenced, postfix);
     return kc1(c);
 }
 
 static K expandPostfix(K x, K fenced, K postfix){
     K_char *b = CHR_PTR(x);
-    K r = expandSwitch(*b, fenced, postfix);
+    K r = (*b < 20) ? kc1(OP_VERB + *b) : expandSwitch(*b, fenced, postfix);
     if (!r) return 0;
     for (K_int i = 1, n = HDR_COUNT(x); i < n; i++) {
-        r = compile(r, ref(OBJ_PTR(fenced)[b[i]&31]), 2);
+        if (IS_ADVERB(b[i])) {
+            r = joinTag(r, OP_VERB + b[i]);
+        } else {
+            r = compile(r, ref(OBJ_PTR(fenced)[b[i]&31]), 2);
+        }
         if (!r) return UNREF_R(0);
     }
+    if (HDR_ARGC(x)) r = joinTag(r, OP_N_ARY + HDR_ARGC(x));
     return r;
 }
 
-static K rpn(K x){
+static K rpn(K x, K postfix){
     K_int i = 0, j = 0, n = HDR_COUNT(x);
     K r = knew(KChrType, n * 2);
     K_char *xp = CHR_PTR(x), *rp = CHR_PTR(r);
-    while (i < n){
-        if (i+1 == n || xp[i] < 20){
-            rp[j++] = xp[i++];
-        } else if (xp[i+1] < 20){
-            if (!xp[i+1] && ISCLASS(OP_GET_VAR, xp[i])){
-                rp[j++] = OP_SET_VAR + xp[i]%32;
-            } else {
-                rp[j++] = OP_BINARY + xp[i+1];
-                rp[j++] = xp[i]; 
-            }
+    while (i + 1 < n){
+        K_char x = xp[i], y = xp[i+1];
+        if (x < 20 || IS_POSTFIX_ADVERB(x)){
+            rp[j++] = x; i++;
+        } else if (y < 20 || IS_POSTFIX_ADVERB(y)){
+            int adverb = y >= 20;
+            if (adverb) HDR_ARGC(OBJ_PTR(postfix)[y&31])++;
+            if (!y && IS_CLASS(OP_GET_VAR, x))
+                rp[j++] = OP_SET_VAR + x % 32;
+            else
+                rp[j++] = adverb ? y : OP_BINARY + y, rp[j++] = x;
             i += 2;
         } else {
-            rp[j++] = OP_BINARY + 5;
-            rp[j++] = xp[i++];
+            rp[j++] = OP_BINARY + 5, rp[j++] = x; i++;
         }
+    }
+    if (i < n){
+        K_char c = xp[i];
+        if (IS_POSTFIX_ADVERB(c)) HDR_ARGC(OBJ_PTR(postfix)[c&31])--;
+        rp[j++] = (c < 20) ? OP_VERB + c : c;
     }
     HDR_COUNT(r) = j;
     reverseChr(r);
@@ -275,10 +288,11 @@ static K reducePostfix(K x, K *postfix){
     K_int j = 0;
     K_char *tok = CHR_PTR(x);
     for (K_int i = 0, n = HDR_COUNT(x); i < n; ){
-        if (i < n-1 && ISCLASS(TOK_BRACKET, tok[i+1])){
+        if (i < n-1 && (IS_CLASS(TOK_BRACKET, tok[i+1]) || IS_ADVERB(tok[i+1]))){
             K_int start = i++;
-            do ++i; while (i<n && ISCLASS(TOK_BRACKET, tok[i]));
+            do ++i; while (i<n && (IS_CLASS(TOK_BRACKET, tok[i]) || IS_ADVERB(tok[i])));
             K body = knewcopy(KChrType, i - start, (K)(tok + start));
+            HDR_ARGC(body) = IS_ADVERB(tok[i-1]);
             *postfix = *postfix ? joinObj(*postfix, body) : k1(body);
             tok[j++] = TOK_POSTFIX + HDR_COUNT(*postfix) - 1;
         } else {
@@ -309,7 +323,7 @@ K compile(K f, K x, int mode) {
     r = knew(KObjType, n);
     K *ret = OBJ_PTR(r), *expr = OBJ_PTR(x);
     FOR_EACH(x){
-        ret[i] = expandTokens(rpn(expr[i]), fenced, postfix); 
+        ret[i] = expandTokens(rpn(expr[i], postfix), fenced, postfix);
         if(!ret[i]) goto cleanup;
     }
     if (mode) reverse(r);
@@ -387,10 +401,10 @@ K vm(K x, K vars, K consts, K_char varc, K*args){
         case 3: *--top=ref(OBJ_PTR(consts)[i]); break;
         case 4: *--top=i<varc?ref(args[i]):getGlobal(v[i]); if (!*top) goto bail; break;
         case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;
+        case 6: if (i<20) *--top=kop(i); else a=k1(*top),HDR_TYPE(a)=KAdverbType,HDR_ARGC(a)=i-20,*top=a; break;
         case 7: switch(i){ // special ops 0:pop 1:enlist
                 case 0: unref(*top++); break;
                 case 1: a=knew(KObjType,*ip++); FOR_EACH(a)OBJ_PTR(a)[i]=*top++; *--top=squeeze(a); break;
-                default: NYI_ERROR(1, "vm: OP_SPECIAL", goto bail);
                 } 
         }
     }
@@ -432,7 +446,7 @@ K eval(K x){
     // check bytecode for OP_SET_VAR or OP_POP as final byte. if yes, return null
     K bytecode = OBJ_PTR(r)[0];
     K_char lastOp = CHR_PTR(bytecode)[HDR_COUNT(bytecode)-1];
-    bool returnNull = lastOp == OP_POP || ISCLASS(OP_SET_VAR, lastOp); // is last op assignment or OP_POP?
+    bool returnNull = lastOp == OP_POP || IS_CLASS(OP_SET_VAR, lastOp); // is last op assignment or OP_POP?
     
     // call VM
     r = UNREF_R(vm(bytecode, OBJ_PTR(r)[1], OBJ_PTR(r)[2], 0, 0));

@@ -16,12 +16,13 @@ enum {
     OP_CONST   = 0x60,
     OP_GET_VAR = 0x80,
     OP_SET_VAR = 0xa0,
+    OP_VERB    = 0xc0, // push operatory / adverb wrap
     OP_SPECIAL = 0xe0, // special op codes
     OP_POP     = OP_SPECIAL + 0,
     OP_ENLIST  = OP_SPECIAL + 1,
 };
 
-#define ISCLASS(class, b) ({uint32_t _b=(b); _b-class < 32u;})
+#define IS_CLASS(class, b) (b-class < 32u)
 
 // Global interpreter state
 extern K GLOBALS;

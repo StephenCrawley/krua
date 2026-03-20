@@ -48,9 +48,13 @@ enum {
     KChrType,
     KIntType,
     KSymType,
-    KMonadType,
+    KOpType,
+    // only nested K type from here
     K_GENERIC_TYPES_START,
-    KLambdaType = K_GENERIC_TYPES_START,
+    // only atomic from here too. must be careful
+    K_ATOMIC_GENERICS_TYPE_START = K_GENERIC_TYPES_START,
+    KLambdaType = K_ATOMIC_GENERICS_TYPE_START,
+    KAdverbType, // k1() wrapper; hdr.a encodes which: 0=each 1=over 2=scan
 };
 
 // when K is a pointer, it points to the start of a heap-allocated list
@@ -77,6 +81,7 @@ typedef struct {
 #define INT_PTR(x)    (( K_int*)(x))
 #define LNG_PTR(x)    ((K_long*)(x))
 #define SYM_PTR(x)    INT_PTR(x)
+// set header data with these
 
 // we inspect and access tagged K objects with:
 #define IS_TAG(x)   ((x) >> 56)
@@ -92,7 +97,7 @@ typedef struct {
 #define MEMCPY(d, s, n) (K)memcpy((void*)(d), (void*)(s), n)
 #define WIDTH_OF(x)     KWIDTHS[HDR_TYPE(x)]
 #define PTR_TO(x, i)    ({ K _x=(x); _x + (i)*WIDTH_OF(_x); })
-#define IS_ATOM(x)      ({ K _x=(x); IS_TAG(_x)||HDR_TYPE(_x)==KLambdaType ;}) //TODO: can we group type enums so atomics are contiguous?
+#define IS_ATOM(x)      ({ K _x=(x); IS_TAG(_x)||HDR_TYPE(_x)>=K_ATOMIC_GENERICS_TYPE_START ;}) // can we group type enums so atomics are contiguous?
 #define IS_NESTED(x)    ({ K_char _t=HDR_TYPE(x); !_t || _t>=K_GENERIC_TYPES_START ;})
 #define OOB(i, n)       ((uint32_t)(i) >= (uint32_t)(n))
 #define MIN(x, y)       ({typeof(x)_x=(x); typeof(y)_y=(y); _x<_y?_x:_y;})
@@ -102,8 +107,11 @@ typedef struct {
 // some useful global data is here:
 
 // width of each type's items
-//                      Obj, Chr, Int, Sym, Monad, Lambda
-static int KWIDTHS[] = {  8,   1,   4,   4,     8,      8};
+//                      Obj, Chr, Int, Sym, Monad, Op, Lambda, Adverb
+static int KWIDTHS[] = {  8,   1,   4,   4,     8,  8,      8,      8};
+
+// operators string, where index encodes the operators value
+extern const K_char OPS[];
 
 // some useful macros are here:
 
