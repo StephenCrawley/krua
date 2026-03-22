@@ -60,7 +60,7 @@ enum {
 // when K is a pointer, it points to the start of a heap-allocated list
 // directly ahead of this list is the array header, which contains some metadata (type, refcount, membucket, listcount, etc)
 typedef struct {
-    K_char  a;  // a(attribute/argcount. for lists/lambdas respectively)
+    K_char  a;  // a(attribute/argcount/adverb type. for lists/lambdas/adverbs respectively)
     K_char  m;  // count of locals
     K_char  b;  // memory bucket
     K_char  t;  // type
@@ -71,6 +71,7 @@ typedef struct {
 // we access heap-allocated K arrays with the following:
 #define K_HDR(x)      ((K_hdr*)(x))[-1]
 #define HDR_ARGC(x)   K_HDR(x).a
+#define HDR_ADVERB(x) K_HDR(x).a
 #define HDR_VARC(x)   K_HDR(x).m
 #define HDR_BUCKET(x) K_HDR(x).b
 #define HDR_TYPE(x)   K_HDR(x).t

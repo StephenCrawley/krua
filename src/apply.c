@@ -21,8 +21,26 @@ K applyLambda(K x, int n, K *args){
     return r;
 }
 
+K each1(K f, K x){
+    RANK_ERROR(IS_ATOM(x), "f'atom", unref(x));
+    K r = knew(KObjType, HDR_COUNT(x));
+    FOR_EACH(x){
+        K t = item(i, x);
+        t = apply(f, 1, &t);
+        if (!t) { HDR_COUNT(r)=i; unref(r); return UNREF_X(0); }
+        OBJ_PTR(r)[i] = t;
+    }
+    return UNREF_X( squeeze(r) );
+}
+
+K applyOperator(K x, int n, K *args){
+    NYI_ERROR(n > 2, "applyOperator n>2", while(n--) unref(args[n]));
+    return n == 1 ? unary_op[TAG_VAL(x)](*args) : binary_op[TAG_VAL(x)](*args, args[1]);
+}
+
 K applyAdverb(K x, int n, K *args){
-    NYI_ERROR(1, "adverb", while(n--) unref(args[n]));
+    NYI_ERROR(n != 1 || HDR_ADVERB(x) != 0, "adverb", while(n--) unref(args[n]));
+    return each1(OBJ_PTR(x)[0], args[0]);
 }
 
 K applyOver(K x, int n, K *args){
@@ -38,7 +56,9 @@ K applyOver(K x, int n, K *args){
 }
 
 // generic apply
+// borrows argument x, should not housekeep
 K apply(K x, int n, K *args){
+    if (TAG_TYPE(x) == KOpType) return applyOperator(x, n, args);
     RANK_ERROR(IS_TAG(x), "can't apply atom to argument", while(n--) unref(args[n]));
     K r = (HDR_TYPE(x) == KLambdaType ? applyLambda : HDR_TYPE(x) == KAdverbType ? applyAdverb : applyOver)(x, n, args);
     return r;

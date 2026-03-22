@@ -235,7 +235,7 @@ static K rpn(K x, K postfix){
             rp[j++] = x; i++;
         } else if (y < 20 || IS_POSTFIX_ADVERB(y)){
             int adverb = y >= 20;
-            if (adverb) HDR_ARGC(OBJ_PTR(postfix)[y&31])++;
+            if (adverb) HDR_ADVERB(OBJ_PTR(postfix)[y&31])++;
             if (!y && IS_CLASS(OP_GET_VAR, x))
                 rp[j++] = OP_SET_VAR + x % 32;
             else
@@ -247,7 +247,7 @@ static K rpn(K x, K postfix){
     }
     if (i < n){
         K_char c = xp[i];
-        if (IS_POSTFIX_ADVERB(c)) HDR_ARGC(OBJ_PTR(postfix)[c&31])--;
+        if (IS_POSTFIX_ADVERB(c)) HDR_ADVERB(OBJ_PTR(postfix)[c&31])--;
         rp[j++] = (c < 20) ? OP_VERB + c : c;
     }
     HDR_COUNT(r) = j;
@@ -401,7 +401,7 @@ K vm(K x, K vars, K consts, K_char varc, K*args){
         case 3: *--top=ref(OBJ_PTR(consts)[i]); break;
         case 4: *--top=i<varc?ref(args[i]):getGlobal(v[i]); if (!*top) goto bail; break;
         case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;
-        case 6: if (i<20) *--top=kop(i); else a=k1(*top),HDR_TYPE(a)=KAdverbType,HDR_ARGC(a)=i-20,*top=a; break;
+        case 6: if (i<20) *--top=kop(i); else a=k1(*top),HDR_TYPE(a)=KAdverbType,HDR_ADVERB(a)=i-20,*top=a; break;
         case 7: switch(i){ // special ops 0:pop 1:enlist
                 case 0: unref(*top++); break;
                 case 1: a=knew(KObjType,*ip++); FOR_EACH(a)OBJ_PTR(a)[i]=*top++; *--top=squeeze(a); break;

@@ -1057,7 +1057,55 @@ TEST(adverb_bare_no_args) {
     PASS();
 }
 
+TEST(each_lambda_count) {
+    K r = eval(kcstr("{[x]#x}'(1 2;3 4 5)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "should return int list");
+    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
+    ASSERT(INT_PTR(r)[0] == 2 && INT_PTR(r)[1] == 3, "{[x]#x}'(1 2;3 4 5) should be 2 3");
+    unref(r);
+    PASS();
+}
+
+TEST(each_bare_op_count) {
+    K r = eval(kcstr("#'(1 2;3 4 5)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "should return int list");
+    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
+    ASSERT(INT_PTR(r)[0] == 2 && INT_PTR(r)[1] == 3, "#'(1 2;3 4 5) should be 2 3");
+    unref(r);
+    PASS();
+}
+
+TEST(each_atom_rank_error) {
+    K r = eval(kcstr("#'1"));
+    ASSERT(!r && kerrno == KERR_RANK, "each on atom should be rank error");
+    PASS();
+}
+
 // Test runner
+TEST(bare_op_bracket_compile) {
+    // +[1;2] → [const_2, const_1, OP_VERB+1, OP_N_ARY+2]
+    K x = kcstr("+[1;2]");
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode, "compilation should succeed");
+    K_char *bc = CHR_PTR(bytecode);
+    ASSERT(HDR_COUNT(bytecode) == 4, "should be 4 bytes");
+    ASSERT(IS_CLASS(OP_CONST, bc[0]), "const 2");
+    ASSERT(IS_CLASS(OP_CONST, bc[1]), "const 1");
+    ASSERT(bc[2] == OP_VERB + 1, "push + verb");
+    ASSERT(bc[3] == OP_N_ARY + 2, "apply 2");
+    unref(x), unref(bytecode), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(bare_op_bracket_eval) {
+    K r = eval(kcstr("+[1;2]"));
+    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 3, "+[1;2] should be 3");
+    PASS();
+}
+
 void run_tests() {
     printf("\nPreprocessing:\n");
     RUN_TEST(strip_leading_comment);
@@ -1176,6 +1224,11 @@ void run_tests() {
     RUN_TEST(adverb_bare_op_unary);
     RUN_TEST(adverb_bare_op_infix);
     RUN_TEST(adverb_bare_no_args);
+    RUN_TEST(each_lambda_count);
+    RUN_TEST(each_bare_op_count);
+    RUN_TEST(each_atom_rank_error);
+    RUN_TEST(bare_op_bracket_compile);
+    RUN_TEST(bare_op_bracket_eval);
 
     printf("\nMonads:\n");
     RUN_TEST(unary_value_basic);
