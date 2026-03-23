@@ -280,10 +280,9 @@ K item(K_int i, K x){
 
 // promote x to type t. widens if smaller than target. error if non-numeric type
 K promote(int t, K x){
-    K r;
     TYPE_ERROR(HDR_TYPE(x) > KIntType, "", unref(x));
     return t == HDR_TYPE(x) ? x :
-        UNREF_X( ({r = knew(t, HDR_COUNT(x)); FOR_EACH(r) INT_PTR(r)[i] = CHR_PTR(x)[i]; r;}) );
+        UNREF_X( ({K r = knew(t, HDR_COUNT(x)); FOR_EACH(r) INT_PTR(r)[i] = CHR_PTR(x)[i]; r;}) );
 }
 
 // ** K object print ** //
