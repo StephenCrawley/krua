@@ -6,7 +6,7 @@
 #define ISDIGIT(c) isdigit((int)(c))
 #define ISALNUM(c) isalnum((int)(c))
 
-const K_char OPS[] = ":+-*%@.!,<>?#_~&|=$^'/\\";
+const K_char OPS[] = ":+-*%&|<>=@.!,?#_~$^'/\\";
 
 #define IS_ADVERB(x) (x-20 < 3u)
 #define IS_POSTFIX_ADVERB(x) ({K_char _p=(x); IS_CLASS(TOK_POSTFIX, _p) && HDR_ARGC(OBJ_PTR(postfix)[_p & 31]);})
@@ -242,7 +242,7 @@ static K rpn(K x, K postfix){
                 rp[j++] = adverb ? y : OP_BINARY + y, rp[j++] = x;
             i += 2;
         } else {
-            rp[j++] = OP_BINARY + 5, rp[j++] = x; i++;
+            rp[j++] = OP_BINARY + 10, rp[j++] = x; i++;
         }
     }
     if (i < n){

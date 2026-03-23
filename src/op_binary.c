@@ -29,8 +29,8 @@ static K _eachleft(F2 f, K x, K y){
 
 K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
 
-//                :    +    -    *    %    @   .    !    ,    <    >    ?    #    _    ~    &    |    =    $    ^
-F2 binary_op[] = {nyi, add, sub, mlt, nyi, at, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, min, max, eql, nyi, nyi};
+//                :    +    -    *    %    &    |    <    >    =    @   .    !    ,    ?    #    _    ~    $    ^
+F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi};
 
 #define BINARY_OP(f,op) \
 K f(K x, K y){ \

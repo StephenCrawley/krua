@@ -376,7 +376,7 @@ TEST(compile_application) {
     ASSERT(bytecode && HDR_COUNT(bytecode) == 3, "application should compile");
     ASSERT(IS_CLASS(OP_GET_VAR, CHR_PTR(bytecode)[0]), "first should be GET var");
     ASSERT(IS_CLASS(OP_GET_VAR, CHR_PTR(bytecode)[1]), "second should be GET var");
-    ASSERT(CHR_PTR(bytecode)[2] == (OP_BINARY + 5), "third should be BINARY @ (apply)");
+    ASSERT(CHR_PTR(bytecode)[2] == (OP_BINARY + 10), "third should be BINARY @ (apply)");
     unref(bytecode);
     PASS();
 }
@@ -387,7 +387,7 @@ TEST(compile_application2) {
     ASSERT(bytecode && HDR_COUNT(bytecode) == 3, "application should compile");
     ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be PUSH const");
     ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[1]), "second should PUSH const");
-    ASSERT(CHR_PTR(bytecode)[2] == (OP_BINARY + 5), "third should be BINARY @ (apply)");
+    ASSERT(CHR_PTR(bytecode)[2] == (OP_BINARY + 10), "third should be BINARY @ (apply)");
     unref(bytecode);
     PASS();
 }
@@ -998,7 +998,7 @@ TEST(adverb_each_postfix_bracket) {
     ASSERT(bc[2] == OP_VERB + 20, "each wrap");
     ASSERT(bc[3] == OP_N_ARY + 1, "apply 1");
     ASSERT(IS_CLASS(OP_GET_VAR, bc[4]), "load x");
-    ASSERT(bc[5] == OP_BINARY + 5, "binary apply");
+    ASSERT(bc[5] == OP_BINARY + 10, "binary apply");
     unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
 }

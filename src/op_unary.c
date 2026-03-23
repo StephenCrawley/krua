@@ -15,7 +15,8 @@ K _each1(F1 f, K x){
 
 static K nyi1(K x){NYI_ERROR(1, "unary operator", unref(x);)}
 
-F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, nyi1, value, nyi1, nyi1, nyi1, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1};
+//               :     +     -    *     %     &     |     <     >     =     @     .      !     ,     ?     #      _     ~     $     ^
+F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, value, nyi1, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1};
 
 K neg(K x){
     if (TAG_TYPE(x) == KIntType){
