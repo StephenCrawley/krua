@@ -16,7 +16,7 @@ K _each1(F1 f, K x){
 static K nyi1(K x){NYI_ERROR(1, "unary operator", unref(x);)}
 
 //               :     +     -    *     %     &     |     <     >     =     @     .      !     ,     ?     #      _     ~     $     ^
-F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, value, nyi1, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1};
+F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, value, til, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1};
 
 K neg(K x){
     if (TAG_TYPE(x) == KIntType){
@@ -51,6 +51,13 @@ K readFile(K path) {
 K value(K x){
     TYPE_ERROR(TAG_TYPE(x) || HDR_TYPE(x) != KChrType, ". x", unref(x));
     return readFile(x);
+}
+
+K til(K x){
+    TYPE_ERROR(TAG_TYPE(x) != KIntType, "!x must provide int atom", unref(x));
+    K r = knew(KIntType, TAG_VAL(x));
+    FOR_EACH(r) INT_PTR(r)[i] = i;
+    return r;
 }
 
 K count(K x){
