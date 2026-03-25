@@ -451,7 +451,7 @@ K timeExpr(K x){
     K r = load(knewcopy(KChrType, HDR_COUNT(x)-(i+1), (K)(CHR_PTR(x)+i+1)), 0);
     if (!r) return 0;
 
-                                                                                                                                                                                               
+    // measure nanos, report millis                                                                                 
     struct timespec t0, t1;
     clock_gettime(CLOCK_MONOTONIC, &t0);                                                                                                                                                         
     for (int j = 0; j < n; j++) unref(vm(OBJ_PTR(r)[0], OBJ_PTR(r)[1], OBJ_PTR(r)[2], 0, 0));
