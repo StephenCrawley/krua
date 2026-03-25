@@ -428,16 +428,53 @@ void strip(K x){
     HDR_COUNT(x) = i;
 }
 
+#include <time.h>
+
+// \t:N expr
+K timeExpr(K x){
+    // default 1 iteration
+    int n = 1;
+
+    // find beginning of the expression to time
+    int i = 2; // skip "\t"
+    for (int m = HDR_COUNT(x); i<m; i++) if (CHR_PTR(x)[i] == ' ') break;
+    PARSE_ERROR(i == HDR_COUNT(x), i, "'\t:N expr' must have a space between N and expr", unref(x));
+
+    // get the iteration count if specified
+    if (CHR_PTR(x)[2] == ':'){
+        CHR_PTR(x)[i] = 0; // breaks any logic trying to print source? 
+        n = strtol(3+CHR_PTR(x), NULL, 10); // factor out logic from 'numbers' tokenizer and avoid strtol?
+    }
+
+    // extract + load expression
+    K r = load(knewcopy(KChrType, HDR_COUNT(x)-(i+1), (K)(CHR_PTR(x)+i+1)), 0);
+    if (!r) return 0;
+
+                                                                                                                                                                                               
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);                                                                                                                                                         
+    for (int j = 0; j < n; j++) unref(vm(OBJ_PTR(r)[0], OBJ_PTR(r)[1], OBJ_PTR(r)[2], 0, 0));
+    clock_gettime(CLOCK_MONOTONIC, &t1);                                                                                                                                                         
+                                                                                                                                                                                               
+    unref(r);                                                                                                                                                                                    
+    return kint((t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_nsec - t0.tv_nsec) / 1000000);
+}
+
 // evaluate a K-string
 K eval(K x){
 
-    // early exits
+    // nothing to eval
     if (HDR_COUNT(x) == 0) return UNREF_X(knull());
-    if (CHR_PTR(x)[0] == '\\') exit(0);
-
     // strip comments
     strip(x);
     if (HDR_COUNT(x) == 0) return UNREF_X(knull());
+
+    // parse \cmd
+    if (CHR_PTR(x)[0] == '\\')
+        switch (CHR_PTR(x)[1]){
+        case 't': return timeExpr(x);
+        default: exit(0);
+        }
 
     // load source for execution on VM
     K r = load(x, 0);
