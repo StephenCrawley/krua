@@ -431,6 +431,7 @@ void strip(K x){
 #include <time.h>
 
 // \t:N expr
+// times the vm evaluation. load(src) token+compile is not timed
 K timeExpr(K x){
     // default 1 iteration
     int n = 1;
