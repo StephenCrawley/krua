@@ -47,7 +47,8 @@ enum {
     KObjType = 0,
     KChrType,
     KIntType,
-    KSymType,
+    KNumericEndType,
+    KSymType = KNumericEndType,
     KOpType,
     // only nested K type from here
     K_GENERIC_TYPES_START,
