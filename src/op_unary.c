@@ -19,7 +19,8 @@ static K nyi1(K x){NYI_ERROR(1, "unary operator", unref(x);)}
 F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, value, til, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1};
 
 K neg(K x){
-    if (TAG_TYPE(x) == KIntType){
+    if (IS_TAG(x)){
+        TYPE_ERROR(TAG_TYPE(x) != KIntType, "-x must be int", );
         return TAG(KIntType, -TAG_VAL(x));
     } else if (HDR_TYPE(x) == KObjType){
         return _each1(neg, x);
