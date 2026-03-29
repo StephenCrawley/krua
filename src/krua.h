@@ -45,6 +45,7 @@ typedef int64_t  K_long;
 // K type enum (remember: update KWIDTHS after adding a type)
 enum {
     KObjType = 0,
+    KBoolType,
     KChrType,
     KIntType,
     KNumericEndType,
@@ -109,8 +110,8 @@ typedef struct {
 // some useful global data is here:
 
 // width of each type's items
-//                      Obj, Chr, Int, Sym, Monad, Op, Lambda, Adverb
-static int KWIDTHS[] = {  8,   1,   4,   4,     8,  8,      8,      8};
+//                      Obj, Bool, Chr, Int, Sym, Op, Lambda, Adverb
+static int KWIDTHS[] = {  8,    1,   1,   4,   4,  8,      8,      8};
 
 // operators string, where index encodes the operators value
 extern const K_char OPS[];

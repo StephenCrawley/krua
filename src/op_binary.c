@@ -40,17 +40,31 @@ F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
 // list-list loop
 #define LL(T, E) { \
     T *rp=(T*)r, *xp=(T*)x, *yp=(T*)y; \
-    for (int i=0; i<n; i++) rp[i] = E(xp[i], yp[i]); } \
+    for (K_int i=0; i<n; i++) rp[i] = E(xp[i], yp[i]); } \
 
 // list-atom loop
 #define LA(T, E) { \
     T *rp=(T*)r, *xp=(T*)x; T b=TAG_VAL(y); \
-    for (int i=0; i<n; i++) rp[i] = E(xp[i], b); } \
+    for (K_int i=0; i<n; i++) rp[i] = E(xp[i], b); } \
+
+// comparison list-list (returns KBoolType)
+#define CL(T, E) { \
+    K_char *rp=(K_char*)r; T *xp=(T*)x, *yp=(T*)y; \
+    for (K_int i=0; i<n; i++) rp[i] = E(xp[i], yp[i]); \
+    if (n&7) {uint64_t *p = (uint64_t*)r; p[n>>3] &= (1ULL << ((n & 7) << 3)) - 1;}} /* mask the last word to 0 the tail */ \
+
+// comparison list-atom loop (returns KBoolType)
+#define CA(T, E) { \
+    K_char *rp=(K_char*)r; T *xp=(T*)x; T b=TAG_VAL(y); \
+    for (K_int i=0; i<n; i++) rp[i] = E(xp[i], b); \
+    if (n&7) {uint64_t *p = (uint64_t*)r; p[n>>3] &= (1ULL << ((n & 7) << 3)) - 1;}} /* mask the last word to 0 the tail */ \
 
 // dispatch LL-LA
 #define LY(T, E) { if (IS_TAG(y)) LA(T, E) else LL(T, E) }
+// dispatch CL-CA
+#define CY(T, E) { if (IS_TAG(y)) CA(T, E) else CL(T, E) }
 
-#define LX(T) switch(op){case 1: LY(T,ADD);break; case 3:LY(T,MLT);break; case 5:LY(T,MIN);break; case 6:LY(T,MAX); break; case 9:LY(T,EQL);break;}
+#define LX(T) switch(op){case 1: LY(T,ADD);break; case 3:LY(T,MLT);break; case 5:LY(T,MIN);break; case 6:LY(T,MAX); break; case 9:CY(T,EQL);break;}
 
 #define VSWITCH() LX(K_int)
 
@@ -63,7 +77,8 @@ static K binaryDispatch(int op, K x, K y){
     }
     if (!(x = promote(t, x))){ unref(y); return 0; }
     K_int n = HDR_COUNT(x);
-    K r = knew(t, n);
+    // op < 7 is arithmetic. 7-9 is comparison
+    K r = knew(op < 7 ? t : KBoolType, n);
     VSWITCH();
     return UNREF_XY(r);
 }
@@ -73,7 +88,7 @@ K f(K x, K y){ \
     if (IS_TAG(x)){ \
         if (IS_TAG(y)){ \
             TYPE_ERROR(MAX(TAG_TYPE(x),TAG_TYPE(y)) >= KNumericEndType, "", ); \
-            return TAG(KIntType, g(TAG_VAL(x), TAG_VAL(y))); \
+            return TAG(op < 7 ? KIntType : KBoolType, g(TAG_VAL(x), TAG_VAL(y))); \
         } \
         return f(y, x); /* swap means op must be commutative! */ \
     } \

@@ -296,7 +296,10 @@ static void _kprint(K x){
 
     if (IS_TAG(x)){
         type = TAG_TYPE(x);
-        if (type == KChrType){
+        if (type == KBoolType){
+            putchar('0' + TAG_VAL(x));
+            putchar('b');
+        } else if (type == KChrType){
             printf("\"%c\"", TAG_VAL(x));
         } else if (type == KIntType){
             printf("%d", TAG_VAL(x));
@@ -312,7 +315,7 @@ static void _kprint(K x){
     K_int n = HDR_COUNT(x);
 
     if (n == 0){
-        char *empty[] = {"()", "\"\"", "0#0"};
+        char *empty[] = {"()", "0#0b", "\"\"", "0#0"};
         printf("%s", empty[HDR_TYPE(x)]);
         return;
     }
@@ -327,6 +330,9 @@ static void _kprint(K x){
             _kprint(OBJ_PTR(x)[i]);
         }
         if (n != 1) putchar(')');
+    } else if (type == KBoolType){
+        FOR_EACH(x) putchar('0' + CHR_PTR(x)[i]);
+        putchar('b');
     } else if (type == KChrType){
         printf("\"%.*s\"", n, (K_char*)x);
     } else if (type == KIntType) {

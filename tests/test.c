@@ -766,7 +766,7 @@ TEST(lambda_reassign_param) {
 TEST(lambda_error) {
     // runtime error inside lambda is handled correctly
     K r = eval(kcstr("{[x]. x}@1"));
-    ASSERT(!r, "applying lambda to string should fail");
+    ASSERT(!r, "error while evaluating lambda body returns error");
     ASSERT(kerrno == KERR_TYPE, "should raise type error");
     PASS();
 }
@@ -859,6 +859,49 @@ TEST(fenced_subexpr_heterogeneous) {
     PASS();
 }
 
+TEST(int_atom_comparison_true) {
+    K r = eval(kcstr("1=1"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KBoolType, "1=1 should return KBoolType atom");
+    ASSERT(TAG_VAL(r) == 1, "1=1 should return 1b (True)");
+    PASS();
+}
+
+TEST(int_atom_atom_comparison_false) {
+    K r = eval(kcstr("1=2"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KBoolType, "1=2 should return KBoolType atom");
+    ASSERT(TAG_VAL(r) == 0, "1=2 should return 0b (False)");
+    PASS();
+}
+
+TEST(int_atom_list_comparison) {
+    K r = eval(kcstr("1=1 2 3"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType, "1=1 2 3 returns KBoolType list");
+    ASSERT(CHR_PTR(r)[0] == 1, "(1=1 2 3)[0] == 1");
+    ASSERT(CHR_PTR(r)[1] == 0, "(1=1 2 3)[1] == 0");
+    ASSERT(CHR_PTR(r)[2] == 0, "(1=1 2 3)[2] == 0");
+    unref(r);
+    PASS();
+}
+
+TEST(int_list_list_comparison) {
+    K r = eval(kcstr("1 1=1 2"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType, "1 1=1 2 should return KBoolType list");
+    ASSERT(CHR_PTR(r)[0] == 1, "(1 1=1 2)[0] == 1");
+    ASSERT(CHR_PTR(r)[1] == 0, "(1 1=1 2)[1] == 0");
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_ok) {
+    // last word gets zeroed after compare... make sure trailing bools are ok
+    K r = eval(kcstr("(!10)=!10"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType, "(!10)=!10 should return KBoolType list");
+    ASSERT(CHR_PTR(r)[8] == 1, "((!10)=!10)[8] == 1");
+    ASSERT(CHR_PTR(r)[9] == 1, "((!10)=!10)[9] == 1");
+    unref(r);
+    PASS();
+}
+
 // Error tests
 TEST(unclosed_string) {
     K r = tokenize("\"hello");
@@ -939,7 +982,7 @@ TEST(error_unmatched_paren) {
     PASS();
 }
 
-// Monad tests
+// Unary tests
 TEST(unary_value_basic) {
     K r = eval(kcstr(".\"tests/read.txt\""));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "should read file as KChrType");
@@ -1199,6 +1242,11 @@ void run_tests() {
     RUN_TEST(fenced_subexpr_basic);
     RUN_TEST(fenced_subexpr_with_ops);
     RUN_TEST(fenced_subexpr_heterogeneous);
+    RUN_TEST(int_atom_comparison_true);
+    RUN_TEST(int_atom_atom_comparison_false);
+    RUN_TEST(int_atom_list_comparison);
+    RUN_TEST(int_list_list_comparison);
+    RUN_TEST(comparison_tail_ok);
 
     printf("\nError Handling:\n");
     RUN_TEST(invalid_token);
