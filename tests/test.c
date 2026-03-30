@@ -902,6 +902,25 @@ TEST(comparison_tail_ok) {
     PASS();
 }
 
+TEST(bool_where_single) {
+    K r = eval(kcstr("&1=!3"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "&1=!3 should return KIntType list");
+    ASSERT(HDR_COUNT(r) == 1, "&1=!3 should have 1 element");
+    ASSERT(INT_PTR(r)[0] == 1, "(&1=!3)[0] == 1");
+    unref(r);
+    PASS();
+}
+
+TEST(bool_where_multiple) {
+    K r = eval(kcstr("&1=0 1 2 1 0 0"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "&1=0 1 2 1 0 0 should return KIntType list");
+    ASSERT(HDR_COUNT(r) == 2, "&1=0 1 2 1 0 0 should have 2 elements");
+    ASSERT(INT_PTR(r)[0] == 1, "(&1=0 1 2 1 0 0)[0] == 1");
+    ASSERT(INT_PTR(r)[1] == 3, "(&1=0 1 2 1 0 0)[1] == 3");
+    unref(r);
+    PASS();
+}
+
 // Error tests
 TEST(unclosed_string) {
     K r = tokenize("\"hello");
@@ -1247,6 +1266,8 @@ void run_tests() {
     RUN_TEST(int_atom_list_comparison);
     RUN_TEST(int_list_list_comparison);
     RUN_TEST(comparison_tail_ok);
+    RUN_TEST(bool_where_single);
+    RUN_TEST(bool_where_multiple);
 
     printf("\nError Handling:\n");
     RUN_TEST(invalid_token);

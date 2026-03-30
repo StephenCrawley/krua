@@ -10,6 +10,7 @@ extern F1 unary_op[20];
 
 K neg(K);
 K value(K);
+K where(K);
 K til(K);
 K count(K);
 

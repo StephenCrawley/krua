@@ -15,9 +15,10 @@ K _each1(F1 f, K x){
 
 static K nyi1(K x){NYI_ERROR(1, "unary operator", unref(x);)}
 
-//               :     +     -    *     %     &     |     <     >     =     @     .      !     ,     ?     #      _     ~     $     ^
-F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, nyi1, value, til, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1};
+//               :     +     -    *     %     &      |     <     >     =     @     .      !     ,     ?     #      _     ~     $     ^
+F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, where, nyi1, nyi1, nyi1, nyi1, nyi1, value, til, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1};
 
+// -x
 K neg(K x){
     if (IS_TAG(x)){
         TYPE_ERROR(TAG_TYPE(x) != KIntType, "-x must be int", );
@@ -30,6 +31,31 @@ K neg(K x){
         return UNREF_X(r);
     }
     TYPE_ERROR(1, "-x must be int", unref(x));
+}
+
+// &x
+K where(K x){
+    TYPE_ERROR(IS_TAG(x) || HDR_TYPE(x) != KBoolType, "&x must be bool", unref(x));
+    // over-read in both loops depends on zeroed last word beyond logical length n
+    K_int n = 0, m = (HDR_COUNT(x)+7)/8;
+    for (K_int i = 0; i < m; i++){
+        n += __builtin_popcountll(((uint64_t*)(x))[i]);
+    }
+    K r = knew(KIntType, n);
+    K_int idx = 0;
+    for (K_int i = 0, o = 0; i < m; i++, o += 8){
+        uint64_t word = ((uint64_t*)x)[i];
+        // special-case packed word
+        if (word == 0x0101010101010101UL){
+            for (int j = 0; j < 8; j++) INT_PTR(r)[idx++] = o + j;
+            continue;
+        }
+        while (word){
+            INT_PTR(r)[idx++] = o + __builtin_ctzll(word)/8;
+            word &= word - 1;
+        }
+    }
+    return UNREF_X(r);
 }
 
 K readFile(K path) {
@@ -49,11 +75,13 @@ K readFile(K path) {
     return r;
 }
 
+// .x
 K value(K x){
     TYPE_ERROR(TAG_TYPE(x) || HDR_TYPE(x) != KChrType, ". x", unref(x));
     return readFile(x);
 }
 
+// !x
 K til(K x){
     TYPE_ERROR(TAG_TYPE(x) != KIntType, "!x must provide int atom", unref(x));
     K r = knew(KIntType, TAG_VAL(x));
@@ -61,6 +89,7 @@ K til(K x){
     return r;
 }
 
+// #x
 K count(K x){
     return UNREF_X(TAG(KIntType, IS_ATOM(x) ? 1 : HDR_COUNT(x)));
 }
