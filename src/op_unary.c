@@ -39,7 +39,7 @@ K where(K x){
     // over-read in both loops depends on zeroed last word beyond logical length n
     K_int n = 0, m = (HDR_COUNT(x)+7)/8;
     for (K_int i = 0; i < m; i++){
-        n += __builtin_popcountll(((uint64_t*)(x))[i]);
+        n += stdc_count_ones(((uint64_t*)x)[i]);
     }
     K r = knew(KIntType, n);
     K_int idx = 0;
@@ -47,11 +47,11 @@ K where(K x){
         uint64_t word = ((uint64_t*)x)[i];
         // special-case packed word
         if (word == 0x0101010101010101UL){
-            for (int j = 0; j < 8; j++) INT_PTR(r)[idx++] = o + j;
+            for (int j = 0; j < 8; j++) INT_PTR(r)[idx++] = o+j;
             continue;
         }
         while (word){
-            INT_PTR(r)[idx++] = o + __builtin_ctzll(word)/8;
+            INT_PTR(r)[idx++] = o + stdc_trailing_zeros(word)/8;
             word &= word - 1;
         }
     }
