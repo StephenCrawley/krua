@@ -8,6 +8,7 @@
 #include "limits.h"
 #include "op_unary.h"
 #include "op_binary.h"
+#include "file.h"
 
 enum {
     OP_UNARY   = 0x00,

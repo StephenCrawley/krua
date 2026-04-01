@@ -2,9 +2,9 @@
 CC = clang
 CFLAGS = -O3 -Wall -Wextra -std=c2x -march=native -Isrc -Wno-pointer-sign -Wno-unused-variable -D_POSIX_C_SOURCE=199309L -g
 RELEASE_CFLAGS = -O3 -std=c2x -march=native -flto -DNDEBUG -Isrc -Wno-pointer-sign -Wno-unused-variable -D_POSIX_C_SOURCE=199309L
-SOURCES = src/object.c src/eval.c src/op_unary.c src/op_binary.c src/error.c src/apply.c
-OBJECTS = src/object.o src/eval.o src/op_unary.o src/op_binary.o src/error.o src/apply.o
-HEADERS = src/krua.h src/object.h src/eval.h src/limits.h src/op_unary.h src/op_binary.h src/error.h src/apply.h
+SOURCES = src/object.c src/eval.c src/op_unary.c src/op_binary.c src/error.c src/apply.c src/file.c
+OBJECTS = src/object.o src/eval.o src/op_unary.o src/op_binary.o src/error.o src/apply.o src/file.o
+HEADERS = src/krua.h src/object.h src/eval.h src/limits.h src/op_unary.h src/op_binary.h src/error.h src/apply.h src/file.h
 
 # Default target - build main interpreter
 all: krua

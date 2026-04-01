@@ -439,7 +439,7 @@ K timeExpr(K x){
     // find beginning of the expression to time
     int i = 2; // skip "\t"
     for (int m = HDR_COUNT(x); i<m; i++) if (CHR_PTR(x)[i] == ' ') break;
-    PARSE_ERROR(i == HDR_COUNT(x), i, "'\t:N expr' must have a space between N and expr", unref(x));
+    PARSE_ERROR(i == HDR_COUNT(x), i, "'\\t:N expr' must have a space between N and expr", unref(x));
 
     // get the iteration count if specified
     if (CHR_PTR(x)[2] == ':'){
@@ -461,6 +461,14 @@ K timeExpr(K x){
     return kint((t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_nsec - t0.tv_nsec) / 1000000);
 }
 
+K evalFile(K x){
+    K_int i = 2;
+    PARSE_ERROR(HDR_COUNT(x)<4 || CHR_PTR(x)[2] != ' ', i, "'\\l file.k' expected", unref(x)); // TODO: what is the check needed here?
+    // consume whitespace till filename
+    while (i < HDR_COUNT(x) && CHR_PTR(x)[i] == ' ') ++i;
+    return UNREF_X(kfile(knewcopy(KChrType, HDR_COUNT(x)-i, (K)(CHR_PTR(x)+i))));
+}
+
 // evaluate a K-string
 K eval(K x){
 
@@ -473,6 +481,7 @@ K eval(K x){
     // parse \cmd
     if (CHR_PTR(x)[0] == '\\')
         switch (CHR_PTR(x)[1]){
+        case 'l': return evalFile(x);
         case 't': return timeExpr(x);
         default: exit(0);
         }
