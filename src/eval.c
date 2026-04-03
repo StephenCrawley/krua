@@ -39,13 +39,17 @@ static K_char addConst(K *consts, K x){
     return OP_CONST + HDR_COUNT(*consts)-1;
 }
 
+static K_int c2i(K_char *src, K_char *end){
+    K_int j = 0;
+    do j = j*10 + (*src++ - '0'); while (src < end && ISDIGIT(*src));
+    return j;
+}
+
 static K numbers(char *src, K_int len, K_int count){
     K r;
     char *end = src + len;
     if (count == 1){
-        K_int j = 0;
-        do j = j*10 + (*src++ - '0'); while (src < end && ISDIGIT(*src));
-        r = kint(j);
+        r = kint(c2i(src, end));
     } else {
         r = knew(KIntType, count);
         K_int *ints = INT_PTR(r);
@@ -443,8 +447,8 @@ K timeExpr(K x){
 
     // get the iteration count if specified
     if (CHR_PTR(x)[2] == ':'){
-        CHR_PTR(x)[i] = 0; // breaks any logic trying to print source? 
-        n = strtol(3+CHR_PTR(x), NULL, 10); // factor out logic from 'numbers' tokenizer and avoid strtol?
+        CHR_PTR(x)[i] = 0; 
+        n = c2i(CHR_PTR(x)+3, CHR_PTR(x)+i);
     }
 
     // extract + load expression
