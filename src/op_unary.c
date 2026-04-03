@@ -21,7 +21,7 @@ F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, where, nyi1, nyi1, nyi1, nyi1, nyi
 // -x
 K neg(K x){
     if (IS_TAG(x)){
-        TYPE_ERROR(TAG_TYPE(x) != KIntType, "-x must be int", );
+        TYPE_ERROR(TAG_TYPE(x) != KIntType, "-x expects int", );
         return TAG(KIntType, -TAG_VAL(x));
     } else if (HDR_TYPE(x) == KObjType){
         return _each1(neg, x);
@@ -30,12 +30,12 @@ K neg(K x){
         FOR_EACH(x) INT_PTR(r)[i] = -INT_PTR(x)[i];
         return UNREF_X(r);
     }
-    TYPE_ERROR(1, "-x must be int", unref(x));
+    TYPE_ERROR(1, "-x expects int", unref(x));
 }
 
 // &x
 K where(K x){
-    TYPE_ERROR(IS_TAG(x) || HDR_TYPE(x) != KBoolType, "&x must be bool", unref(x));
+    TYPE_ERROR(IS_TAG(x) || HDR_TYPE(x) != KBoolType, "&x expects bool", unref(x));
     // over-read in both loops depends on zeroed last word beyond logical length n
     K_int n = 0, m = (HDR_COUNT(x)+7)/8;
     for (K_int i = 0; i < m; i++){
@@ -66,7 +66,7 @@ K value(K x){
 
 // !x
 K til(K x){
-    TYPE_ERROR(TAG_TYPE(x) != KIntType, "!x must provide int atom", unref(x));
+    TYPE_ERROR(TAG_TYPE(x) != KIntType, "!x expects int atom", unref(x));
     K r = knew(KIntType, TAG_VAL(x));
     FOR_EACH(r) INT_PTR(r)[i] = i;
     return r;
