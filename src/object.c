@@ -3,7 +3,7 @@
 #include "object.h"
 
 #define MIN_ALLOC 32UL  // minimum bytes per object
-#define BUCKET_SHIFT 6  // log2(MIN_ALLOC)
+#define BUCKET_SHIFT 5  // log2(MIN_ALLOC)
 #define BUCKET_SIZEOF(x) (MIN_ALLOC << HDR_BUCKET(x))  // size of the bucket that x is in
 #define NUM_BUCKETS 25
 #define HEAP_SIZE   (1ULL << 29) // 512MiB
@@ -39,7 +39,7 @@ void _unref(K x){
 K kalloc(K_int n){
     K x, r;
 
-    // minimum allocation is 32 bytes. subtract from 59 so bucket 0 contains 32 bytes 
+    // minimum allocation is 32 bytes. bucket 0 = 32B, bucket 1 = 64B, etc.
     K_int b, bucket = (64 - BUCKET_SHIFT) - __builtin_clzll(n + MIN_ALLOC - 1);
     b = bucket;
 
