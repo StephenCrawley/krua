@@ -44,13 +44,22 @@ void track_unref(K x, const char *file, int line) {
     for (int i = tracker.count - 1; i >= 0; i--) {
         if (tracker.obj[i] == x) {
             if (!tracker.alive[i]) {
-                fprintf(stderr, 
+                fprintf(stderr,
                     "ERROR: use-after-free at %s:%d\n"
                     "  object #%d was allocated at %s:%d\n"
-                    "  but already freed at %s:%d\n",
+                    "  but already freed at %s:%d\n"
+                    "  tracker.count=%d, addr=%p, refcount=%d\n"
+                    "  all entries for this addr:\n",
                     file, line, i,
                     tracker.alloc_file[i], tracker.alloc_line[i],
-                    tracker.free_file[i], tracker.free_line[i]);
+                    tracker.free_file[i], tracker.free_line[i],
+                    tracker.count, (void*)x, HDR_REFC(x));
+                for (int j = 0; j < tracker.count; j++)
+                    if (tracker.obj[j] == x)
+                        fprintf(stderr, "    #%d alive=%d alloc=%s:%d free=%s:%d\n",
+                            j, tracker.alive[j],
+                            tracker.alloc_file[j], tracker.alloc_line[j],
+                            tracker.free_file[j] ? tracker.free_file[j] : "(none)", tracker.free_line[j]);
                 abort();
             }
             
