@@ -6,13 +6,14 @@
 #define ISDIGIT(c) isdigit((int)(c))
 #define ISALNUM(c) isalnum((int)(c))
 
-const K_char OPS[] = ":+-*%&|<>=@.!,?#_~$^'/\\";
+const K_char OPS[] = ":+-*%&|<>=@.!,?#_~$^         '/\\";
+K_char KEYWORDS_STRING[] = ": flip neg first % where | < > group type value til , ? count _ not $ ^";
 
-#define IS_ADVERB(x) (x-20 < 3u)
+#define IS_ADVERB(x) (x-ADVERB_START < 3u)
 #define IS_POSTFIX_ADVERB(x) ({K_char _p=(x); IS_CLASS(TOK_POSTFIX, _p) && HDR_ARGC(OBJ_PTR(postfix)[_p & 31]);})
 
-// Global interpreter state (for lambda application in apply.c)
 K GLOBALS = 0;
+K KEYWORDS = 0;
 
 // forwards declarations
 K load(K, K);
@@ -39,7 +40,7 @@ static K_char addConst(K *consts, K x){
     return OP_CONST + HDR_COUNT(*consts)-1;
 }
 
-static K_int c2i(K_char *src, K_char *end){
+static K_int int4chr(K_char *src, K_char *end){
     K_int j = 0;
     do j = j*10 + (*src++ - '0'); while (src < end && ISDIGIT(*src));
     return j;
@@ -49,7 +50,7 @@ static K numbers(char *src, K_int len, K_int count){
     K r;
     char *end = src + len;
     if (count == 1){
-        r = kint(c2i(src, end));
+        r = kint(int4chr(src, end));
     } else {
         r = knew(KIntType, count);
         K_int *ints = INT_PTR(r);
@@ -145,9 +146,11 @@ K token(K x, K *vars, K *consts){
         K_int t0 = i;
 
         if (ISALPHA(src[i])){
-            // variables
+            // variables + keywords
             do ++i; while (i < n && ISALNUM(src[i]));
-            *tok++ = addVar(vars, encodeSym(src+t0, i-t0));
+            K_int j;
+            K_sym sym = encodeSym(src+t0, i-t0);
+            *tok++ = (j=findSym(KEYWORDS, sym)) < HDR_COUNT(KEYWORDS) ? j : addVar(vars, sym);
         } else if (ISDIGIT(src[i])){
             // numbers
             K_int count = 1;
@@ -215,7 +218,7 @@ static K expandSwitch(K_char c, K fenced, K postfix){
 
 static K expandPostfix(K x, K fenced, K postfix){
     K_char *b = CHR_PTR(x);
-    K r = (*b < 20) ? kc1(OP_VERB + *b) : expandSwitch(*b, fenced, postfix);
+    K r = IS_PRIMITIVE(*b) ? kc1(OP_VERB + *b) : expandSwitch(*b, fenced, postfix);
     if (!r) return 0;
     for (K_int i = 1, n = HDR_COUNT(x); i < n; i++) {
         if (IS_ADVERB(b[i])) {
@@ -235,24 +238,24 @@ static K rpn(K x, K postfix){
     K_char *xp = CHR_PTR(x), *rp = CHR_PTR(r);
     while (i + 1 < n){
         K_char x = xp[i], y = xp[i+1];
-        if (x < 20 || IS_POSTFIX_ADVERB(x)){
+        if (IS_PRIMITIVE(x) || IS_POSTFIX_ADVERB(x)){ // +x
             rp[j++] = x; i++;
-        } else if (y < 20 || IS_POSTFIX_ADVERB(y)){
-            int adverb = y >= 20;
+        } else if (IS_OPERATOR(y) || IS_POSTFIX_ADVERB(y)){ // x+
+            int adverb = !IS_OPERATOR(y);
             if (adverb) HDR_ADVERB(OBJ_PTR(postfix)[y&31])++;
             if (!y && IS_CLASS(OP_GET_VAR, x))
                 rp[j++] = OP_SET_VAR + x % 32;
             else
                 rp[j++] = adverb ? y : OP_BINARY + y, rp[j++] = x;
             i += 2;
-        } else {
+        } else { // x y
             rp[j++] = OP_BINARY + 10, rp[j++] = x; i++;
         }
     }
     if (i < n){
         K_char c = xp[i];
         if (IS_POSTFIX_ADVERB(c)) HDR_ADVERB(OBJ_PTR(postfix)[c&31])--;
-        rp[j++] = (c < 20) ? OP_VERB + c : c;
+        rp[j++] = IS_PRIMITIVE(c) ? OP_VERB + c : c;
     }
     HDR_COUNT(r) = j;
     reverseChr(r);
@@ -405,11 +408,11 @@ K vm(K x, K vars, K consts, K_char varc, K*args){
         case 3: *--top=ref(OBJ_PTR(consts)[i]); break;
         case 4: *--top=i<varc?ref(args[i]):getGlobal(v[i]); if (!*top) goto bail; break;
         case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;
-        case 6: if (i<20) *--top=kop(i); else a=k1(*top),HDR_TYPE(a)=KAdverbType,HDR_ADVERB(a)=i-20,*top=a; break;
+        case 6: if (IS_PRIMITIVE(i)) *--top=kop(i); else a=k1(*top),HDR_TYPE(a)=KAdverbType,HDR_ADVERB(a)=i-ADVERB_START,*top=a; break;
         case 7: switch(i){ // special ops 0:pop 1:enlist
                 case 0: unref(*top++); break;
                 case 1: a=knew(KObjType,*ip++); FOR_EACH(a)OBJ_PTR(a)[i]=*top++; *--top=squeeze(a); break;
-                } 
+                }
         }
     }
     return top == base ? knull() : *top;
@@ -448,7 +451,7 @@ K timeExpr(K x){
     // get the iteration count if specified
     if (CHR_PTR(x)[2] == ':'){
         CHR_PTR(x)[i] = 0; 
-        n = c2i(CHR_PTR(x)+3, CHR_PTR(x)+i);
+        n = int4chr(CHR_PTR(x)+3, CHR_PTR(x)+i);
     }
 
     // extract + load expression

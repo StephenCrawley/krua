@@ -35,6 +35,7 @@ K each1(K f, K x){
 
 K applyOperator(K x, int n, K *args){
     NYI_ERROR(n > 2, "applyOperator n>2", while(n--) unref(args[n]));
+    RANK_ERROR(n != 1 && !IS_OPERATOR((unsigned)TAG_VAL(x)), "keywords are unary only", while(n--) unref(args[n]));
     return n == 1 ? unary_op[TAG_VAL(x)](*args) : binary_op[TAG_VAL(x)](*args, args[1]);
 }
 

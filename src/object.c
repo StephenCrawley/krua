@@ -153,6 +153,14 @@ K_sym encodeSym(K_char *src, int n){
     return sym;
 }
 
+K syms4chrs(K x){
+    K r = knew(KSymType, HDR_COUNT(x)), *xobj = OBJ_PTR(x);
+    FOR_EACH(x){
+        SYM_PTR(r)[i] = encodeSym(CHR_PTR(xobj[i]), HDR_COUNT(xobj[i]));
+    }
+    return UNREF_X(r);
+}
+
 K_char addSym(K *syms, K_sym x){
     // first var name encountered
     if (*syms == 0){

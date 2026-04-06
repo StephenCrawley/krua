@@ -24,9 +24,13 @@ enum {
 };
 
 #define IS_CLASS(class, b) (b-class < 32u)
+#define IS_OPERATOR(x) ((x) < 20u)  // raw operators. see OPS
+#define IS_PRIMITIVE(x) ((x) < ADVERB_START) // operator + keywords
+#define ADVERB_START 29u
 
-// Global interpreter state
-extern K GLOBALS;
+extern K GLOBALS; // global interpreter state
+extern K_char KEYWORDS_STRING[]; // unary primitive keywords string
+extern K KEYWORDS; // unary primitive keywords symlist
 
 K token(K,K*,K*);
 K compile(K, K, int);

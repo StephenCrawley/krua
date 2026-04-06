@@ -19,7 +19,9 @@ static int tests_failed = 0;
     printf("  %-30s", #name); \
     reset(); \
     GLOBALS = ksymdict(); \
+    KEYWORDS = syms4chrs(cutStr(kcstr(KEYWORDS_STRING), ' ')); \
     test_##name(); \
+    unref(KEYWORDS); \
     int leaks = check_leaks(GLOBALS); \
     unref(GLOBALS); \
     leaks += check_leaks((K)0); \
@@ -41,8 +43,10 @@ static int tests_failed = 0;
 #define RUN_TEST(name) do { \
     printf("  %-30s", #name); \
     GLOBALS = ksymdict(); \
+    KEYWORDS = syms4chrs(cutStr(kcstr(KEYWORDS_STRING), ' ')); \
     test_##name(); \
     unref(GLOBALS); \
+    unref(KEYWORDS); \
     tests_run++; \
 } while(0)
 
@@ -1039,7 +1043,7 @@ TEST(adverb_each_infix) {
     ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load y");
     ASSERT(IS_CLASS(OP_GET_VAR, bc[1]), "load x");
     ASSERT(IS_CLASS(OP_GET_VAR, bc[2]), "load f");
-    ASSERT(bc[3] == OP_VERB + 20, "each wrap");
+    ASSERT(bc[3] == OP_VERB + ADVERB_START, "each wrap");
     ASSERT(bc[4] == OP_N_ARY + 2, "apply 2");
     unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
@@ -1057,7 +1061,7 @@ TEST(adverb_each_postfix_bracket) {
     ASSERT(HDR_COUNT(bytecode) == 6, "should be 6 bytes");
     ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load y");
     ASSERT(IS_CLASS(OP_GET_VAR, bc[1]), "load f");
-    ASSERT(bc[2] == OP_VERB + 20, "each wrap");
+    ASSERT(bc[2] == OP_VERB + ADVERB_START, "each wrap");
     ASSERT(bc[3] == OP_N_ARY + 1, "apply 1");
     ASSERT(IS_CLASS(OP_GET_VAR, bc[4]), "load x");
     ASSERT(bc[5] == OP_BINARY + 10, "binary apply");
@@ -1077,7 +1081,7 @@ TEST(adverb_bare_op_unary) {
     ASSERT(HDR_COUNT(bytecode) == 4, "should be 4 bytes");
     ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load x");
     ASSERT(bc[1] == OP_VERB + 1, "push + verb");
-    ASSERT(bc[2] == OP_VERB + 20, "each wrap");
+    ASSERT(bc[2] == OP_VERB + ADVERB_START, "each wrap");
     ASSERT(bc[3] == OP_N_ARY + 1, "apply 1");
     unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
@@ -1096,7 +1100,7 @@ TEST(adverb_bare_op_infix) {
     ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load y");
     ASSERT(IS_CLASS(OP_GET_VAR, bc[1]), "load x");
     ASSERT(bc[2] == OP_VERB + 1, "push + verb");
-    ASSERT(bc[3] == OP_VERB + 20, "each wrap");
+    ASSERT(bc[3] == OP_VERB + ADVERB_START, "each wrap");
     ASSERT(bc[4] == OP_N_ARY + 2, "apply 2");
     unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
@@ -1113,7 +1117,7 @@ TEST(adverb_bare_no_args) {
     K_char *bc = CHR_PTR(bytecode);
     ASSERT(HDR_COUNT(bytecode) == 3, "should be 3 bytes");
     ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load f");
-    ASSERT(bc[1] == OP_VERB + 20, "each wrap");
+    ASSERT(bc[1] == OP_VERB + ADVERB_START, "each wrap");
     ASSERT(IS_CLASS(OP_SET_VAR, bc[2]), "set g");
     unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
