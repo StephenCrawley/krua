@@ -56,6 +56,27 @@ static int tests_failed = 0;
 
 #define ASSERT(cond, msg) do { if (!(cond)) { printf("FAIL: %s\n", msg); tests_failed++; return; } } while(0)
 
+#define ASSERT_INT_ATOM(expr, expected) do { \
+    K _r = eval(kcstr(expr)); \
+    ASSERT(_r && IS_TAG(_r) && TAG_TYPE(_r) == KIntType, expr " should return int atom"); \
+    ASSERT(TAG_VAL(_r) == (expected), expr " value mismatch"); \
+} while(0)
+
+#define ASSERT_INT_LIST(expr, n, vals) do { \
+    K _r = eval(kcstr(expr)); \
+    ASSERT(_r && !IS_TAG(_r) && HDR_TYPE(_r) == KIntType, expr " should return int list"); \
+    ASSERT(HDR_COUNT(_r) == (n), expr " count mismatch"); \
+    for (int _i = 0; _i < (n); _i++) \
+        ASSERT(INT_PTR(_r)[_i] == (vals)[_i], expr " element mismatch"); \
+    unref(_r); \
+} while(0)
+
+#define ASSERT_ERROR(expr, err) do { \
+    K _r = eval(kcstr(expr)); \
+    ASSERT(!_r, expr " should fail"); \
+    ASSERT(kerrno == (err), expr " wrong error type"); \
+} while(0)
+
 /* Testing Practices:
  * - Use kcstr(s) to create KChrType from null-terminated C strings
  * - Use IS_CLASS(class, byte) macro for bytecode range checks, not manual arithmetic
@@ -536,18 +557,45 @@ TEST(add_lists_obj_atom) {
 }
 
 TEST(vm_neg_atom) {
-    K r = eval(kcstr("- 1"));
-    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType, "- 1 should return int atom");
-    ASSERT(TAG_VAL(r) == -1, "- 1 should be -1");
+    ASSERT_INT_ATOM("- 1", -1);
     PASS();
 }
 
 TEST(vm_neg_list) {
-    K r = eval(kcstr("- 1 2 3"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "- 1 2 3 should return int list");
-    ASSERT(HDR_COUNT(r) == 3, "result should have 3 elements");
-    ASSERT(INT_PTR(r)[0] == -1 && INT_PTR(r)[1] == -2 && INT_PTR(r)[2] == -3, "- 1 2 3 should be -1 -2 -3");
+    ASSERT_INT_LIST("- 1 2 3", 3, ((K_int[]){-1, -2, -3}));
+    PASS();
+}
+
+TEST(vm_neg_nested) {
+    K r = eval(kcstr("-(1 2;3 4)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "-(1 2;3 4) should return obj list");
+    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
+    K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
+    ASSERT(!IS_TAG(r0) && HDR_TYPE(r0) == KIntType && HDR_COUNT(r0) == 2, "first should be int list len 2");
+    ASSERT(INT_PTR(r0)[0] == -1 && INT_PTR(r0)[1] == -2, "first should be -1 -2");
+    ASSERT(!IS_TAG(r1) && HDR_TYPE(r1) == KIntType && HDR_COUNT(r1) == 2, "second should be int list len 2");
+    ASSERT(INT_PTR(r1)[0] == -3 && INT_PTR(r1)[1] == -4, "second should be -3 -4");
     unref(r);
+    PASS();
+}
+
+TEST(vm_neg_type_error) {
+    ASSERT_ERROR("- \"abc\"", KERR_TYPE);
+    PASS();
+}
+
+TEST(vm_til) {
+    ASSERT_INT_LIST("!3", 3, ((K_int[]){0, 1, 2}));
+    PASS();
+}
+
+TEST(vm_count_list) {
+    ASSERT_INT_ATOM("#1 2 3", 3);
+    PASS();
+}
+
+TEST(vm_count_atom) {
+    ASSERT_INT_ATOM("#42", 1);
     PASS();
 }
 
@@ -1029,6 +1077,32 @@ TEST(unary_value_type_error) {
     PASS();
 }
 
+// Keyword tests (same assertions as operator forms)
+TEST(keyword_neg_atom) {
+    ASSERT_INT_ATOM("neg 1", -1);
+    PASS();
+}
+
+TEST(keyword_neg_list) {
+    ASSERT_INT_LIST("neg 1 2 3", 3, ((K_int[]){-1, -2, -3}));
+    PASS();
+}
+
+TEST(keyword_til) {
+    ASSERT_INT_LIST("til 3", 3, ((K_int[]){0, 1, 2}));
+    PASS();
+}
+
+TEST(keyword_count_list) {
+    ASSERT_INT_ATOM("count 1 2 3", 3);
+    PASS();
+}
+
+TEST(keyword_count_atom) {
+    ASSERT_INT_ATOM("count 42", 1);
+    PASS();
+}
+
 // Adverb compilation tests
 TEST(adverb_each_infix) {
     // x f'y → [load_y, load_x, load_f, OP_VERB+20, OP_N_ARY+2]
@@ -1224,6 +1298,11 @@ void run_tests() {
     RUN_TEST(add_lists_obj_atom);
     RUN_TEST(vm_neg_atom);
     RUN_TEST(vm_neg_list);
+    RUN_TEST(vm_neg_nested);
+    RUN_TEST(vm_neg_type_error);
+    RUN_TEST(vm_til);
+    RUN_TEST(vm_count_list);
+    RUN_TEST(vm_count_atom);
     RUN_TEST(vm_assignment);
     RUN_TEST(vm_assignment_2);
     RUN_TEST(empty_string_literal);
@@ -1307,6 +1386,13 @@ void run_tests() {
     RUN_TEST(unary_value_basic);
     RUN_TEST(unary_value_file_not_found);
     RUN_TEST(unary_value_type_error);
+
+    printf("\nKeywords:\n");
+    RUN_TEST(keyword_neg_atom);
+    RUN_TEST(keyword_neg_list);
+    RUN_TEST(keyword_til);
+    RUN_TEST(keyword_count_list);
+    RUN_TEST(keyword_count_atom);
 
     printf("\n======================\n");
     printf("Tests run:    %d\n", tests_run);
