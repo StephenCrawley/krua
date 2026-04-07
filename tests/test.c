@@ -16,7 +16,7 @@ static int tests_failed = 0;
 #define TEST(name) static void test_##name(void)
 
 #define RUN_TEST(name) do { \
-    printf("  %-30s", #name); \
+    printf("  %-40s", #name); \
     reset(); \
     GLOBALS = ksymdict(); \
     KEYWORDS = syms4chrs(cutStr(kcstr(KEYWORDS_STRING), ' ')); \
@@ -41,7 +41,7 @@ static int tests_failed = 0;
 #define TEST(name) static void test_##name(void)
 
 #define RUN_TEST(name) do { \
-    printf("  %-30s", #name); \
+    printf("  %-40s", #name); \
     GLOBALS = ksymdict(); \
     KEYWORDS = syms4chrs(cutStr(kcstr(KEYWORDS_STRING), ' ')); \
     test_##name(); \
@@ -78,14 +78,35 @@ static int tests_failed = 0;
 } while(0)
 
 /* Testing Practices:
+ *
+ * Test organization mirrors the interpreter pipeline:
+ *   Preprocessing  → tests strip() directly on K strings
+ *   Tokenization   → tests tokenize()/token() output (token streams, consts, vars)
+ *   Compilation    → tests compile() bytecode output
+ *   Runtime        → tests eval(kcstr("...")) — exercises full pipeline
+ *
+ * When adding or changing a feature, add tests at every pipeline stage it touches.
+ * If token() is updated, add tokenize_* tests. If compile() changes, add compile_*
+ * tests. If a new operator is added end-to-end, add tests at each stage: tokenization
+ * (correct token output), compilation (correct bytecodes), and runtime (correct eval).
+ *
+ * Naming: prefix every test with its category, e.g. unary_neg_atom,
+ * binary_add_obj_list, comparison_int_atom_true, tokenize_string_literal.
+ *
+ * Helpers:
+ *   ASSERT_INT_ATOM(expr, expected)    — eval expr, check int tag with value
+ *   ASSERT_INT_LIST(expr, n, vals)     — eval expr, check int list with elements
+ *   ASSERT_ERROR(expr, KERR_*)         — eval expr, check failure + kerrno
+ *   tokenize(src)                      — tokenize only, discard vars/consts
+ *
+ * General:
  * - Use kcstr(s) to create KChrType from null-terminated C strings
- * - Use IS_CLASS(class, byte) macro for bytecode range checks, not manual arithmetic
- * - Keep tests simple and direct - no frameworks, just ASSERT and PASS
- * - Error tests will print to stdout (messy output) - this is expected and proves errors are caught
+ * - Use IS_CLASS(class, byte) for bytecode range checks, not manual arithmetic
  * - Each test should clean up heap allocations with unref() (tags don't need unref)
- * - RUN_TEST macro handles GLOBALS creation automatically
- * - Use tokenize() helper for tests that only need the token stream
- *   Call token() directly only when you need access to vars or consts
+ * - For lists: always assert HDR_COUNT before checking element values
+ * - RUN_TEST macro handles GLOBALS/KEYWORDS creation automatically
+ * - Call token() directly only when you need access to vars or consts
+ * - Error tests: check kerrno after asserting !r — errors do not print
  */
 
 // Test helpers
@@ -114,8 +135,8 @@ static int is_valid_lambda(K x) {
     return 1;
 }
 
-// Strip/sanitization tests
-TEST(strip_leading_comment) {
+// Preprocessing
+TEST(preprocess_strip_leading_comment) {
     const char *src = "/ comment";
     K x = kcstr(src);
     strip(x);
@@ -124,7 +145,7 @@ TEST(strip_leading_comment) {
     PASS();
 }
 
-TEST(strip_trailing_comment) {
+TEST(preprocess_strip_trailing_comment) {
     const char *src = "1+2 / comment";
     K x = kcstr(src);
     strip(x);
@@ -134,7 +155,7 @@ TEST(strip_trailing_comment) {
     PASS();
 }
 
-TEST(strip_trailing_whitespace) {
+TEST(preprocess_strip_trailing_whitespace) {
     const char *src = "abc   ";
     K x = kcstr(src);
     strip(x);
@@ -144,7 +165,7 @@ TEST(strip_trailing_whitespace) {
     PASS();
 }
 
-TEST(strip_both) {
+TEST(preprocess_strip_both) {
     const char *src = "x:1 / assign   ";
     K x = kcstr(src);
     strip(x);
@@ -153,7 +174,7 @@ TEST(strip_both) {
     PASS();
 }
 
-TEST(only_whitespace) {
+TEST(preprocess_only_whitespace) {
     K r = eval(kcstr("   "));
     ASSERT(r != 0, "whitespace-only string should be valid");
     ASSERT(r == knull(), "whitespace-only string should return K generic null");
@@ -170,30 +191,15 @@ TEST(only_whitespace) {
     PASS();
 }*/
 
-// Basic tokenization tests
-TEST(empty_input) {
+// Tokenization: literals
+TEST(tokenize_empty_input) {
     K r = tokenize("");
     ASSERT(r && HDR_COUNT(r) == 0, "empty should produce 0 tokens");
     unref(r);
     PASS();
 }
 
-TEST(invalid_token) {
-    K r = tokenize("£");
-    ASSERT(!r, "'£' should fail as invalid token");
-    ASSERT(kerrno == KERR_PARSE, "invalid token should raise parse error");
-    PASS();
-}
-
-TEST(single_variable) {
-    K r = tokenize("abc");
-    ASSERT(r && HDR_COUNT(r) == 1, "single var should produce 1 token");
-    ASSERT(IS_CLASS(OP_GET_VAR, CHR_PTR(r)[0]), "variable should be in GET_VAR range");
-    unref(r);
-    PASS();
-}
-
-TEST(single_integer) {
+TEST(tokenize_single_integer) {
     K r = tokenize("123");
     ASSERT(r && HDR_COUNT(r) == 1, "single int should produce 1 token");
     ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "int should be in CONST range");
@@ -201,7 +207,7 @@ TEST(single_integer) {
     PASS();
 }
 
-TEST(integer_list) {
+TEST(tokenize_integer_list) {
     K r = tokenize("123 456 789");
     ASSERT(r && HDR_COUNT(r) == 1, "int list should produce 1 token");
     ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "list should be in CONST range");
@@ -209,7 +215,7 @@ TEST(integer_list) {
     PASS();
 }
 
-TEST(string_literal) {
+TEST(tokenize_string_literal) {
     K r = tokenize("\"hello\"");
     ASSERT(r && HDR_COUNT(r) == 1, "string should produce 1 token");
     ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "string should be in CONST range");
@@ -217,7 +223,7 @@ TEST(string_literal) {
     PASS();
 }
 
-TEST(char_literal) {
+TEST(tokenize_char_literal) {
     K x = kcstr("\"a\"");
     K vars = 0, consts = 0;
     K r = token(x, &vars, &consts);
@@ -229,14 +235,89 @@ TEST(char_literal) {
     PASS();
 }
 
-TEST(trailing_whitespace) {
+TEST(tokenize_empty_string_literal) {
+    K r = eval(kcstr("\"\""));
+    ASSERT(r != 0, "empty string should be valid");
+    ASSERT(HDR_TYPE(r) == KChrType, "should be KChrType");
+    ASSERT(HDR_COUNT(r) == 0, "should have length 0");
+    unref(r);
+    PASS();
+}
+
+TEST(tokenize_trailing_whitespace) {
     K r = tokenize("123   ");
     ASSERT(r && HDR_COUNT(r) == 1, "should ignore trailing whitespace");
     unref(r);
     PASS();
 }
 
-TEST(lambda_simple) {
+// Tokenization: variables
+TEST(tokenize_single_variable) {
+    K r = tokenize("abc");
+    ASSERT(r && HDR_COUNT(r) == 1, "single var should produce 1 token");
+    ASSERT(IS_CLASS(OP_GET_VAR, CHR_PTR(r)[0]), "variable should be in GET_VAR range");
+    unref(r);
+    PASS();
+}
+
+TEST(tokenize_multiple_variables) {
+    K r = tokenize("x y z");
+    ASSERT(r && HDR_COUNT(r) == 3, "should produce 3 variable tokens");
+    unref(r);
+    PASS();
+}
+
+// Tokenization: operators
+TEST(tokenize_binary_add) {
+    K r = tokenize("123+456");
+    ASSERT(r && HDR_COUNT(r) == 3, "binary op should produce 3 tokens");
+    ASSERT(CHR_PTR(r)[1] == 1, "+ should be operator 1 (OPS[:+-*...])");
+    unref(r);
+    PASS();
+}
+
+TEST(tokenize_unary_plus) {
+    K r = tokenize("+123");
+    ASSERT(r && HDR_COUNT(r) == 2, "unary op should produce 2 tokens");
+    ASSERT(CHR_PTR(r)[0] == 1, "+ should be operator 1");
+    unref(r);
+    PASS();
+}
+
+TEST(tokenize_assignment) {
+    K r = tokenize("a:42");
+    ASSERT(r && HDR_COUNT(r) == 3, "assignment should produce 3 tokens");
+    ASSERT(CHR_PTR(r)[1] == 0, ": should be operator 0");
+    unref(r);
+    PASS();
+}
+
+// Tokenization: parens
+TEST(tokenize_paren_passthrough) {
+    K r = tokenize("(1)");
+    ASSERT(r && HDR_COUNT(r) == 3, "should produce 3 tokens");
+    ASSERT(CHR_PTR(r)[0] == '(', "first should be literal (");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[1]), "second should be CONST");
+    ASSERT(CHR_PTR(r)[2] == ')', "third should be literal )");
+    unref(r);
+    PASS();
+}
+
+TEST(tokenize_empty_parens) {
+    K vars = 0, consts = 0;
+    K x = kcstr("()");
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "() should produce 1 token");
+    ASSERT(CHR_PTR(r)[0] == OP_CONST, "should be CONST index 0");
+    ASSERT(consts && HDR_COUNT(consts) == 1, "should have 1 constant");
+    K c = OBJ_PTR(consts)[0];
+    ASSERT(!IS_TAG(c) && HDR_TYPE(c) == KObjType && HDR_COUNT(c) == 0, "const should be empty list");
+    unref(x), unref(r), unref(vars), unref(consts);
+    PASS();
+}
+
+// Tokenization: lambdas
+TEST(tokenize_lambda_simple) {
     K x = kcstr("{[x]x+1}");
     K vars = 0, consts = 0;
     K r = token(x, &vars, &consts);
@@ -249,7 +330,7 @@ TEST(lambda_simple) {
     PASS();
 }
 
-TEST(lambda_stores_full_src) {
+TEST(tokenize_lambda_full_src) {
     const char *src = "{[x]x+1}";
     K x = kcstr(src);
     K vars = 0, consts = 0;
@@ -264,7 +345,7 @@ TEST(lambda_stores_full_src) {
     PASS();
 }
 
-TEST(lambda_nested) {
+TEST(tokenize_lambda_nested) {
     const char *src = "{[x;y]y+{[a]a+1}x}";
     K x = kcstr(src);
     K vars = 0, consts = 0;
@@ -290,62 +371,64 @@ TEST(lambda_nested) {
     PASS();
 }
 
-TEST(empty_parens_token) {
-    K vars = 0, consts = 0;
-    K x = kcstr("()");
-    K r = token(x, &vars, &consts);
-    ASSERT(r && HDR_COUNT(r) == 1, "() should produce 1 token");
-    ASSERT(CHR_PTR(r)[0] == OP_CONST, "should be CONST index 0");
-    ASSERT(consts && HDR_COUNT(consts) == 1, "should have 1 constant");
-    K c = OBJ_PTR(consts)[0];
-    ASSERT(!IS_TAG(c) && HDR_TYPE(c) == KObjType && HDR_COUNT(c) == 0, "const should be empty list");
-    unref(x), unref(r), unref(vars), unref(consts);
+// Tokenization: errors
+TEST(tokenize_error_invalid_token) {
+    K r = tokenize("£");
+    ASSERT(!r, "'£' should fail as invalid token");
+    ASSERT(kerrno == KERR_PARSE, "invalid token should raise parse error");
     PASS();
 }
 
-// Expression tokenization tests
-TEST(binary_add) {
-    K r = tokenize("123+456");
-    ASSERT(r && HDR_COUNT(r) == 3, "binary op should produce 3 tokens");
-    ASSERT(CHR_PTR(r)[1] == 1, "+ should be operator 1 (OPS[:+-*...])");
-    unref(r);
+TEST(tokenize_error_unclosed_string) {
+    K r = tokenize("\"hello");
+    ASSERT(!r, "unclosed string should fail");
+    ASSERT(kerrno == KERR_PARSE, "unclosed string should raise parse error");
     PASS();
 }
 
-TEST(unary_plus) {
-    K r = tokenize("+123");
-    ASSERT(r && HDR_COUNT(r) == 2, "unary op should produce 2 tokens");
-    ASSERT(CHR_PTR(r)[0] == 1, "+ should be operator 1");
-    unref(r);
+TEST(tokenize_error_unclosed_string_in_expr) {
+    K r = tokenize("1+2+\"hello");
+    ASSERT(!r, "unclosed string in expression should fail");
+    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
     PASS();
 }
 
-TEST(assignment) {
-    K r = tokenize("a:42");
-    ASSERT(r && HDR_COUNT(r) == 3, "assignment should produce 3 tokens");
-    ASSERT(CHR_PTR(r)[1] == 0, ": should be operator 0");
-    unref(r);
+TEST(tokenize_error_invalid_token_in_expr) {
+    K r = tokenize("1+£+2");
+    ASSERT(!r, "invalid token in expression should fail");
+    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
     PASS();
 }
 
-TEST(multiple_variables) {
-    K r = tokenize("x y z");
-    ASSERT(r && HDR_COUNT(r) == 3, "should produce 3 variable tokens");
-    unref(r);
+TEST(tokenize_error_single_quote) {
+    K r = tokenize("\"");
+    ASSERT(!r, "single quote should fail");
+    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
     PASS();
 }
 
-TEST(paren_token_passthrough) {
-    K r = tokenize("(1)");
-    ASSERT(r && HDR_COUNT(r) == 3, "should produce 3 tokens");
-    ASSERT(CHR_PTR(r)[0] == '(', "first should be literal (");
-    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[1]), "second should be CONST");
-    ASSERT(CHR_PTR(r)[2] == ')', "third should be literal )");
-    unref(r);
+TEST(tokenize_error_lambda_missing_bracket) {
+    K r = eval(kcstr("{x}"));
+    ASSERT(!r, "should error: lambda must have params");
+    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
     PASS();
 }
 
-// Compilation tests
+TEST(tokenize_error_lambda_unclosed_params) {
+    K r = eval(kcstr("{[x"));
+    ASSERT(!r, "should error: unclosed param list");
+    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
+    PASS();
+}
+
+TEST(tokenize_error_lambda_unclosed) {
+    K r = eval(kcstr("{[x]x+1"));
+    ASSERT(!r, "should error: unclosed lambda");
+    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
+    PASS();
+}
+
+// Compilation
 TEST(compile_empty) {
     K tokens = tokenize("");
     K bytecode = compile(0, tokens, 0);
@@ -384,6 +467,15 @@ TEST(compile_unary_op) {
     PASS();
 }
 
+TEST(compile_variable) {
+    K tokens = tokenize("x");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "variable should compile to 1 byte");
+    ASSERT(IS_CLASS(OP_GET_VAR, CHR_PTR(bytecode)[0]), "should be GET_VAR instruction");
+    unref(bytecode);
+    PASS();
+}
+
 TEST(compile_assignment) {
     K vars = 0, consts = 0;
     K x = kcstr("a:42");
@@ -417,7 +509,91 @@ TEST(compile_application2) {
     PASS();
 }
 
-TEST(lambda_postfix_single_arg) {
+// Compilation: keywords
+TEST(compile_keyword_unary) {
+    // "neg 5" should compile identically to "- 5": [CONST, UNARY+2]
+    K tokens = tokenize("neg 5");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode && HDR_COUNT(bytecode) == 2, "keyword unary should compile to 2 bytes");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be PUSH const");
+    ASSERT(CHR_PTR(bytecode)[1] == (OP_UNARY + 2), "second should be UNARY neg (op 2)");
+    unref(bytecode);
+    PASS();
+}
+
+TEST(compile_keyword_chain_unary) {
+    // "#-!3" and "count neg til 3" should produce identical bytecode
+    // → [CONST, UNARY+12, UNARY+2, UNARY+15]
+    K tok1 = tokenize("#-!3"), tok2 = tokenize("count neg til 3");
+    K bc1 = compile(0, tok1, 0), bc2 = compile(0, tok2, 0);
+    ASSERT(bc1 && HDR_COUNT(bc1) == 4, "op chain should compile to 4 bytes");
+    K_char *b = CHR_PTR(bc1);
+    ASSERT(IS_CLASS(OP_CONST, b[0]), "first should be CONST");
+    ASSERT(b[1] == OP_UNARY + 12, "second should be UNARY til (op 12)");
+    ASSERT(b[2] == OP_UNARY + 2, "third should be UNARY neg (op 2)");
+    ASSERT(b[3] == OP_UNARY + 15, "fourth should be UNARY count (op 15)");
+    ASSERT(HDR_COUNT(bc1) == HDR_COUNT(bc2), "keyword form should have same length");
+    ASSERT(memcmp(CHR_PTR(bc1), CHR_PTR(bc2), HDR_COUNT(bc1)) == 0, "keyword form should produce identical bytecode");
+    unref(bc1), unref(bc2);
+    PASS();
+}
+
+// Compilation: semicolons
+TEST(compile_semicolon) {
+    // "1;2" → [CONST, OP_POP, CONST]
+    K tokens = tokenize("1;2");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode && HDR_COUNT(bytecode) == 3, "semicolon expr should compile to 3 bytes");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be CONST");
+    ASSERT(CHR_PTR(bytecode)[1] == OP_POP, "second should be OP_POP");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[2]), "third should be CONST");
+    unref(bytecode);
+    PASS();
+}
+
+TEST(compile_fenced_semicolon) {
+    // "(1;2)" → [CONST, CONST, OP_ENLIST, 2]
+    K tokens = tokenize("(1;2)");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode && HDR_COUNT(bytecode) == 4, "fenced semicolon should compile to 4 bytes");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "first should be CONST");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[1]), "second should be CONST");
+    ASSERT(CHR_PTR(bytecode)[2] == OP_ENLIST, "third should be OP_ENLIST");
+    ASSERT(CHR_PTR(bytecode)[3] == 2, "fourth should be count 2");
+    unref(bytecode);
+    PASS();
+}
+
+// Compilation: parens
+TEST(compile_paren_simple) {
+    K tokens = tokenize("(1)");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "should compile to 1 byte");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
+    unref(bytecode);
+    PASS();
+}
+
+TEST(compile_paren_nested) {
+    K tokens = tokenize("((1))");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "nested parens should compile to 1 byte");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
+    unref(bytecode);
+    PASS();
+}
+
+TEST(compile_paren_with_op) {
+    K tokens = tokenize("(1+2)*3");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode && HDR_COUNT(bytecode) == 5, "should compile to 5 bytes");
+    ASSERT(CHR_PTR(bytecode)[4] == OP_BINARY + 3, "last should be BINARY *");
+    unref(bytecode);
+    PASS();
+}
+
+// Compilation: lambdas
+TEST(compile_lambda_postfix_single_arg) {
     K x = kcstr("{[x]x+1}[6]");
     K vars = 0, consts = 0;
     K tokens = token(x, &vars, &consts);
@@ -433,7 +609,7 @@ TEST(lambda_postfix_single_arg) {
     PASS();
 }
 
-TEST(lambda_postfix_two_args) {
+TEST(compile_lambda_postfix_two_args) {
     K x = kcstr("{[x;y]x+y}[1;6]");
     K vars = 0, consts = 0;
     K tokens = token(x, &vars, &consts);
@@ -450,123 +626,138 @@ TEST(lambda_postfix_two_args) {
     PASS();
 }
 
-TEST(paren_compile_simple) {
-    K tokens = tokenize("(1)");
+// Compilation: adverbs
+TEST(compile_adverb_each_infix) {
+    // x f'y → [load_y, load_x, load_f, OP_VERB+20, OP_N_ARY+2]
+    K x = kcstr("x f'y");
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
     K bytecode = compile(0, tokens, 0);
-    ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "should compile to 1 byte");
-    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
-    unref(bytecode);
+    ASSERT(bytecode, "compilation should succeed");
+    K_char *bc = CHR_PTR(bytecode);
+    ASSERT(HDR_COUNT(bytecode) == 5, "should be 5 bytes");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load y");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[1]), "load x");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[2]), "load f");
+    ASSERT(bc[3] == OP_VERB + ADVERB_START, "each wrap");
+    ASSERT(bc[4] == OP_N_ARY + 2, "apply 2");
+    unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
 }
 
-TEST(paren_compile_nested) {
-    K tokens = tokenize("((1))");
+TEST(compile_adverb_each_postfix_bracket) {
+    // x f'[y] → [load_y, load_f, OP_VERB+20, OP_N_ARY+1, load_x, OP_BINARY+5]
+    K x = kcstr("x f'[y]");
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
     K bytecode = compile(0, tokens, 0);
-    ASSERT(bytecode && HDR_COUNT(bytecode) == 1, "nested parens should compile to 1 byte");
-    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(bytecode)[0]), "should be CONST");
-    unref(bytecode);
+    ASSERT(bytecode, "compilation should succeed");
+    K_char *bc = CHR_PTR(bytecode);
+    ASSERT(HDR_COUNT(bytecode) == 6, "should be 6 bytes");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load y");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[1]), "load f");
+    ASSERT(bc[2] == OP_VERB + ADVERB_START, "each wrap");
+    ASSERT(bc[3] == OP_N_ARY + 1, "apply 1");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[4]), "load x");
+    ASSERT(bc[5] == OP_BINARY + 10, "binary apply");
+    unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
 }
 
-TEST(paren_compile_with_op) {
-    K tokens = tokenize("(1+2)*3");
+TEST(compile_adverb_bare_op_unary) {
+    // +'x → [load_x, OP_VERB+1, OP_VERB+20, OP_N_ARY+1]
+    K x = kcstr("+'x");
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
     K bytecode = compile(0, tokens, 0);
-    ASSERT(bytecode && HDR_COUNT(bytecode) == 5, "should compile to 5 bytes");
-    ASSERT(CHR_PTR(bytecode)[4] == OP_BINARY + 3, "last should be BINARY *");
-    unref(bytecode);
+    ASSERT(bytecode, "compilation should succeed");
+    K_char *bc = CHR_PTR(bytecode);
+    ASSERT(HDR_COUNT(bytecode) == 4, "should be 4 bytes");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load x");
+    ASSERT(bc[1] == OP_VERB + 1, "push + verb");
+    ASSERT(bc[2] == OP_VERB + ADVERB_START, "each wrap");
+    ASSERT(bc[3] == OP_N_ARY + 1, "apply 1");
+    unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
 }
 
-// VM execution tests
-TEST(vm_simple_add) {
-    K r = eval(kcstr("1+2"));
-    ASSERT(r && IS_TAG(r), "result should be a tag");
-    ASSERT(TAG_VAL(r) == 3, "1+2 should evaluate to 3");
+TEST(compile_adverb_bare_op_infix) {
+    // x+'y → [load_y, load_x, OP_VERB+1, OP_VERB+20, OP_N_ARY+2]
+    K x = kcstr("x+'y");
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode, "compilation should succeed");
+    K_char *bc = CHR_PTR(bytecode);
+    ASSERT(HDR_COUNT(bytecode) == 5, "should be 5 bytes");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load y");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[1]), "load x");
+    ASSERT(bc[2] == OP_VERB + 1, "push + verb");
+    ASSERT(bc[3] == OP_VERB + ADVERB_START, "each wrap");
+    ASSERT(bc[4] == OP_N_ARY + 2, "apply 2");
+    unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
 }
 
-TEST(vm_simple_multiply) {
-    K r = eval(kcstr("3*4"));
-    ASSERT(r && IS_TAG(r), "result should be a tag");
-    ASSERT(TAG_VAL(r) == 12, "3*4 should evaluate to 12");
+TEST(compile_adverb_bare_no_args) {
+    // g:f' → [load_f, OP_VERB+20, OP_SET_VAR+g]
+    K x = kcstr("g:f'");
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode, "compilation should succeed");
+    K_char *bc = CHR_PTR(bytecode);
+    ASSERT(HDR_COUNT(bytecode) == 3, "should be 3 bytes");
+    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load f");
+    ASSERT(bc[1] == OP_VERB + ADVERB_START, "each wrap");
+    ASSERT(IS_CLASS(OP_SET_VAR, bc[2]), "set g");
+    unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
 }
 
-TEST(vm_sub_atom) {
-    K r = eval(kcstr("1-2"));
-    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType, "1-2 should return int atom");
-    ASSERT(TAG_VAL(r) == -1, "1-2 should be -1");
+TEST(compile_bare_op_bracket) {
+    // +[1;2] → [const_2, const_1, OP_VERB+1, OP_N_ARY+2]
+    K x = kcstr("+[1;2]");
+    K vars = 0, consts = 0;
+    K tokens = token(x, &vars, &consts);
+    ASSERT(tokens, "tokenization should succeed");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode, "compilation should succeed");
+    K_char *bc = CHR_PTR(bytecode);
+    ASSERT(HDR_COUNT(bytecode) == 4, "should be 4 bytes");
+    ASSERT(IS_CLASS(OP_CONST, bc[0]), "const 2");
+    ASSERT(IS_CLASS(OP_CONST, bc[1]), "const 1");
+    ASSERT(bc[2] == OP_VERB + 1, "push + verb");
+    ASSERT(bc[3] == OP_N_ARY + 2, "apply 2");
+    unref(x), unref(bytecode), unref(vars), unref(consts);
     PASS();
 }
 
-TEST(vm_sub_list_list) { // TODO: BINARY_OP doesn't handle list-list yet
-    K r = eval(kcstr("1 2-3 4"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "1 2-3 4 should return int list");
-    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
-    ASSERT(INT_PTR(r)[0] == -2 && INT_PTR(r)[1] == -2, "1 2-3 4 should be -2 -2");
-    unref(r);
+// Compilation: errors
+TEST(compile_error_unmatched_paren) {
+    K r = eval(kcstr("(1+2"));
+    ASSERT(!r, "unmatched paren should error");
+    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
     PASS();
 }
 
-TEST(vm_sub_list_atom) {
-    K r = eval(kcstr("1 2 3-1"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "1 2 3-1 should return int list");
-    ASSERT(HDR_COUNT(r) == 3, "result should have 3 elements");
-    ASSERT(INT_PTR(r)[0] == 0 && INT_PTR(r)[1] == 1 && INT_PTR(r)[2] == 2, "1 2 3-1 should be 0 1 2");
-    unref(r);
-    PASS();
-}
-
-TEST(add_lists_1) {
-    K r = eval(kcstr("(1 2;3 4)+1 1"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+1 1 should return obj list");
-    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
-    K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
-    ASSERT(!IS_TAG(r0) && HDR_TYPE(r0) == KIntType && HDR_COUNT(r0) == 2, "first element should be int list of length 2");
-    ASSERT(INT_PTR(r0)[0] == 2 && INT_PTR(r0)[1] == 3, "first element should be 2 3");
-    ASSERT(!IS_TAG(r1) && HDR_TYPE(r1) == KIntType && HDR_COUNT(r1) == 2, "second element should be int list of length 2");
-    ASSERT(INT_PTR(r1)[0] == 4 && INT_PTR(r1)[1] == 5, "second element should be 4 5");
-    unref(r);
-    PASS();
-}
-
-TEST(add_lists_2) {
-    K r = eval(kcstr("(1 2;3 4)+(1 2;3 4)"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+(1 2;3 4) should return obj list");
-    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
-    K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
-    ASSERT(!IS_TAG(r0) && HDR_TYPE(r0) == KIntType && HDR_COUNT(r0) == 2, "first element should be int list of length 2");
-    ASSERT(INT_PTR(r0)[0] == 2 && INT_PTR(r0)[1] == 4, "first element should be 2 4");
-    ASSERT(!IS_TAG(r1) && HDR_TYPE(r1) == KIntType && HDR_COUNT(r1) == 2, "second element should be int list of length 2");
-    ASSERT(INT_PTR(r1)[0] == 6 && INT_PTR(r1)[1] == 8, "second element should be 6 8");
-    unref(r);
-    PASS();
-}
-
-TEST(add_lists_obj_atom) {
-    K r = eval(kcstr("(1 2;3 4)+1"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+1 should return obj list");
-    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
-    K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
-    ASSERT(!IS_TAG(r0) && HDR_TYPE(r0) == KIntType && HDR_COUNT(r0) == 2, "first element should be int list of length 2");
-    ASSERT(INT_PTR(r0)[0] == 2 && INT_PTR(r0)[1] == 3, "first element should be 2 3");
-    ASSERT(!IS_TAG(r1) && HDR_TYPE(r1) == KIntType && HDR_COUNT(r1) == 2, "second element should be int list of length 2");
-    ASSERT(INT_PTR(r1)[0] == 4 && INT_PTR(r1)[1] == 5, "second element should be 4 5");
-    unref(r);
-    PASS();
-}
-
-TEST(vm_neg_atom) {
+// Runtime: unary ops
+TEST(unary_neg_atom) {
     ASSERT_INT_ATOM("- 1", -1);
     PASS();
 }
 
-TEST(vm_neg_list) {
+TEST(unary_neg_list) {
     ASSERT_INT_LIST("- 1 2 3", 3, ((K_int[]){-1, -2, -3}));
     PASS();
 }
 
-TEST(vm_neg_nested) {
+TEST(unary_neg_nested) {
     K r = eval(kcstr("-(1 2;3 4)"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "-(1 2;3 4) should return obj list");
     ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
@@ -579,27 +770,284 @@ TEST(vm_neg_nested) {
     PASS();
 }
 
-TEST(vm_neg_type_error) {
+TEST(unary_keyword_neg_atom) {
+    ASSERT_INT_ATOM("neg 1", -1);
+    PASS();
+}
+
+TEST(unary_keyword_neg_list) {
+    ASSERT_INT_LIST("neg 1 2 3", 3, ((K_int[]){-1, -2, -3}));
+    PASS();
+}
+
+TEST(unary_neg_type_error) {
     ASSERT_ERROR("- \"abc\"", KERR_TYPE);
     PASS();
 }
 
-TEST(vm_til) {
+TEST(unary_til) {
     ASSERT_INT_LIST("!3", 3, ((K_int[]){0, 1, 2}));
     PASS();
 }
 
-TEST(vm_count_list) {
+TEST(unary_keyword_til) {
+    ASSERT_INT_LIST("til 3", 3, ((K_int[]){0, 1, 2}));
+    PASS();
+}
+
+TEST(unary_count_list) {
     ASSERT_INT_ATOM("#1 2 3", 3);
     PASS();
 }
 
-TEST(vm_count_atom) {
+TEST(unary_count_atom) {
     ASSERT_INT_ATOM("#42", 1);
     PASS();
 }
 
-TEST(vm_assignment) {
+TEST(unary_keyword_count_list) {
+    ASSERT_INT_ATOM("count 1 2 3", 3);
+    PASS();
+}
+
+TEST(unary_keyword_count_atom) {
+    ASSERT_INT_ATOM("count 42", 1);
+    PASS();
+}
+
+TEST(unary_value_basic) {
+    K r = eval(kcstr(".\"tests/read.txt\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "should read file as KChrType");
+    ASSERT(HDR_COUNT(r) == 5, "file should have 5 chars");
+    ASSERT(memcmp(CHR_PTR(r), "hello", 5) == 0, "content should be 'hello'");
+    unref(r);
+    PASS();
+}
+
+TEST(unary_value_file_not_found) {
+    K r = eval(kcstr(".\"nonexistent_file_12345.txt\""));
+    ASSERT(!r, "missing file should fail");
+    ASSERT(kerrno == KERR_VALUE, "should raise KERR_VALUE");
+    PASS();
+}
+
+TEST(unary_value_type_error) {
+    K r = eval(kcstr(". 123"));
+    ASSERT(!r, "value on integer should fail");
+    ASSERT(kerrno == KERR_TYPE, "should raise KERR_TYPE");
+    PASS();
+}
+
+TEST(unary_where_single) {
+    K r = eval(kcstr("&1=!3"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "&1=!3 should return KIntType list");
+    ASSERT(HDR_COUNT(r) == 1, "&1=!3 should have 1 element");
+    ASSERT(INT_PTR(r)[0] == 1, "(&1=!3)[0] == 1");
+    unref(r);
+    PASS();
+}
+
+TEST(unary_where_multiple) {
+    K r = eval(kcstr("&1=0 1 2 1 0 0"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "&1=0 1 2 1 0 0 should return KIntType list");
+    ASSERT(HDR_COUNT(r) == 2, "&1=0 1 2 1 0 0 should have 2 elements");
+    ASSERT(INT_PTR(r)[0] == 1, "(&1=0 1 2 1 0 0)[0] == 1");
+    ASSERT(INT_PTR(r)[1] == 3, "(&1=0 1 2 1 0 0)[1] == 3");
+    unref(r);
+    PASS();
+}
+
+// Runtime: binary arithmetic
+TEST(binary_add_atom) {
+    K r = eval(kcstr("1+2"));
+    ASSERT(r && IS_TAG(r), "result should be a tag");
+    ASSERT(TAG_VAL(r) == 3, "1+2 should evaluate to 3");
+    PASS();
+}
+
+TEST(binary_multiply_atom) {
+    K r = eval(kcstr("3*4"));
+    ASSERT(r && IS_TAG(r), "result should be a tag");
+    ASSERT(TAG_VAL(r) == 12, "3*4 should evaluate to 12");
+    PASS();
+}
+
+TEST(binary_sub_atom) {
+    K r = eval(kcstr("1-2"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType, "1-2 should return int atom");
+    ASSERT(TAG_VAL(r) == -1, "1-2 should be -1");
+    PASS();
+}
+
+TEST(binary_sub_list_list) { // TODO: BINARY_OP doesn't handle list-list yet
+    K r = eval(kcstr("1 2-3 4"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "1 2-3 4 should return int list");
+    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
+    ASSERT(INT_PTR(r)[0] == -2 && INT_PTR(r)[1] == -2, "1 2-3 4 should be -2 -2");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_sub_list_atom) {
+    K r = eval(kcstr("1 2 3-1"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "1 2 3-1 should return int list");
+    ASSERT(HDR_COUNT(r) == 3, "result should have 3 elements");
+    ASSERT(INT_PTR(r)[0] == 0 && INT_PTR(r)[1] == 1 && INT_PTR(r)[2] == 2, "1 2 3-1 should be 0 1 2");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_add_obj_list) {
+    K r = eval(kcstr("(1 2;3 4)+1 1"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+1 1 should return obj list");
+    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
+    K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
+    ASSERT(!IS_TAG(r0) && HDR_TYPE(r0) == KIntType && HDR_COUNT(r0) == 2, "first element should be int list of length 2");
+    ASSERT(INT_PTR(r0)[0] == 2 && INT_PTR(r0)[1] == 3, "first element should be 2 3");
+    ASSERT(!IS_TAG(r1) && HDR_TYPE(r1) == KIntType && HDR_COUNT(r1) == 2, "second element should be int list of length 2");
+    ASSERT(INT_PTR(r1)[0] == 4 && INT_PTR(r1)[1] == 5, "second element should be 4 5");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_add_obj_obj) {
+    K r = eval(kcstr("(1 2;3 4)+(1 2;3 4)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+(1 2;3 4) should return obj list");
+    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
+    K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
+    ASSERT(!IS_TAG(r0) && HDR_TYPE(r0) == KIntType && HDR_COUNT(r0) == 2, "first element should be int list of length 2");
+    ASSERT(INT_PTR(r0)[0] == 2 && INT_PTR(r0)[1] == 4, "first element should be 2 4");
+    ASSERT(!IS_TAG(r1) && HDR_TYPE(r1) == KIntType && HDR_COUNT(r1) == 2, "second element should be int list of length 2");
+    ASSERT(INT_PTR(r1)[0] == 6 && INT_PTR(r1)[1] == 8, "second element should be 6 8");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_add_obj_atom) {
+    K r = eval(kcstr("(1 2;3 4)+1"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+1 should return obj list");
+    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
+    K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1];
+    ASSERT(!IS_TAG(r0) && HDR_TYPE(r0) == KIntType && HDR_COUNT(r0) == 2, "first element should be int list of length 2");
+    ASSERT(INT_PTR(r0)[0] == 2 && INT_PTR(r0)[1] == 3, "first element should be 2 3");
+    ASSERT(!IS_TAG(r1) && HDR_TYPE(r1) == KIntType && HDR_COUNT(r1) == 2, "second element should be int list of length 2");
+    ASSERT(INT_PTR(r1)[0] == 4 && INT_PTR(r1)[1] == 5, "second element should be 4 5");
+    unref(r);
+    PASS();
+}
+
+// Runtime: comparison
+TEST(comparison_int_atom_true) {
+    K r = eval(kcstr("1=1"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KBoolType, "1=1 should return KBoolType atom");
+    ASSERT(TAG_VAL(r) == 1, "1=1 should return 1b (True)");
+    PASS();
+}
+
+TEST(comparison_int_atom_false) {
+    K r = eval(kcstr("1=2"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KBoolType, "1=2 should return KBoolType atom");
+    ASSERT(TAG_VAL(r) == 0, "1=2 should return 0b (False)");
+    PASS();
+}
+
+TEST(comparison_int_atom_list) {
+    K r = eval(kcstr("1=1 2 3"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType, "1=1 2 3 returns KBoolType list");
+    ASSERT(CHR_PTR(r)[0] == 1, "(1=1 2 3)[0] == 1");
+    ASSERT(CHR_PTR(r)[1] == 0, "(1=1 2 3)[1] == 0");
+    ASSERT(CHR_PTR(r)[2] == 0, "(1=1 2 3)[2] == 0");
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_int_list_list) {
+    K r = eval(kcstr("1 1=1 2"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType, "1 1=1 2 should return KBoolType list");
+    ASSERT(CHR_PTR(r)[0] == 1, "(1 1=1 2)[0] == 1");
+    ASSERT(CHR_PTR(r)[1] == 0, "(1 1=1 2)[1] == 0");
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_ok) {
+    // last word gets zeroed after compare... make sure trailing bools are ok
+    K r = eval(kcstr("(!10)=!10"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType, "(!10)=!10 should return KBoolType list");
+    ASSERT(CHR_PTR(r)[8] == 1, "((!10)=!10)[8] == 1");
+    ASSERT(CHR_PTR(r)[9] == 1, "((!10)=!10)[9] == 1");
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_min_atom) {
+    K r = eval(kcstr("1&2"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType && TAG_VAL(r) == 1, "should return minimum value 1");
+    PASS();
+}
+
+TEST(comparison_min_atom_2) {
+    K r = eval(kcstr("2&1"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType && TAG_VAL(r) == 1, "should return minimum value 1");
+    PASS();
+}
+
+TEST(comparison_max_atom) {
+    K r = eval(kcstr("1|2"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType && TAG_VAL(r) == 2, "should return maximum value 2");
+    PASS();
+}
+
+TEST(comparison_max_atom_2) {
+    K r = eval(kcstr("2|1"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType && TAG_VAL(r) == 2, "should return maximum value 2");
+    PASS();
+}
+
+TEST(comparison_min_list) {
+    K r = eval(kcstr("1 & 1 0 2 3"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType && HDR_COUNT(r) == 4, "should return 4-element int list");
+    ASSERT(INT_PTR(r)[0] == 1, "element 0 should be 1");
+    ASSERT(INT_PTR(r)[1] == 0, "element 1 should be 0");
+    ASSERT(INT_PTR(r)[2] == 1, "element 2 should be 1");
+    ASSERT(INT_PTR(r)[3] == 1, "element 3 should be 1");
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_max_list) {
+    K r = eval(kcstr("1 | 1 0 2 3"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType && HDR_COUNT(r) == 4, "should return 4-element int list");
+    ASSERT(INT_PTR(r)[0] == 1, "element 0 should be 1");
+    ASSERT(INT_PTR(r)[1] == 1, "element 1 should be 1");
+    ASSERT(INT_PTR(r)[2] == 2, "element 2 should be 2");
+    ASSERT(INT_PTR(r)[3] == 3, "element 3 should be 3");
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_min_bool) {
+    K r = eval(kcstr("(1=1) & (1=1 2 3)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType && HDR_COUNT(r) == 3, "should return 3-element int list");
+    ASSERT(INT_PTR(r)[0] == 1, "element 0 should be 1");
+    ASSERT(INT_PTR(r)[1] == 0, "element 1 should be 0");
+    ASSERT(INT_PTR(r)[2] == 0, "element 2 should be 0");
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_max_bool) {
+    K r = eval(kcstr("(1=1) | (1=1 2 3)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType && HDR_COUNT(r) == 3, "should return 3-element int list");
+    ASSERT(INT_PTR(r)[0] == 1, "element 0 should be 1");
+    ASSERT(INT_PTR(r)[1] == 1, "element 1 should be 1");
+    ASSERT(INT_PTR(r)[2] == 1, "element 2 should be 1");
+    unref(r);
+    PASS();
+}
+
+// Runtime: assignment
+TEST(assignment_basic) {
     K r = eval(kcstr("x:42"));
     ASSERT(r == knull(), "assignment as final op should return knull");
     K x_val = getGlobal(encodeSym("x", 1));
@@ -607,7 +1055,7 @@ TEST(vm_assignment) {
     PASS();
 }
 
-TEST(vm_assignment_2) {
+TEST(assignment_basic_2) {
     K r = eval(kcstr("x:42+1"));
     ASSERT(r == knull(), "assignment as final op should return knull");
     K x_val = getGlobal(encodeSym("x", 1));
@@ -615,6 +1063,33 @@ TEST(vm_assignment_2) {
     PASS();
 }
 
+TEST(assignment_undefined_variable) {
+    K r = eval(kcstr("foo"));
+    ASSERT(!r, "undefined variable should return error");
+    ASSERT(kerrno == KERR_VALUE, "undefined variable should raise value error");
+    PASS();
+}
+
+TEST(assignment_undefined_in_expr) {
+    K r = eval(kcstr("1+foo+2"));
+    ASSERT(!r, "undefined variable in expression should fail");
+    ASSERT(kerrno == KERR_VALUE, "should raise KERR_VALUE");
+    PASS();
+}
+
+TEST(assignment_reassignment) {
+    K r = eval(kcstr("v:9;v:\"a\";v"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KChrType && TAG_VAL(r) == 'a', "should return KChrType atom with value 'a'");
+    PASS();
+}
+
+TEST(assignment_op) {
+    K r = eval(kcstr("f:+; f[1;6]"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType && TAG_VAL(r) == 7, "operator assignment works");
+    PASS();
+}
+
+// Runtime: indexing
 TEST(index_str_with_atom){
     K r = eval(kcstr("\"abc\" 0"));
     ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KChrType, "string index should return KChrType atom");
@@ -676,12 +1151,6 @@ TEST(index_postfix_single_arg){
     PASS();
 }
 
-TEST(lambda_postfix_eval){
-    K r = eval(kcstr("{[x]x+1}[6]"));
-    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 7, "{[x]x+1}[6] should be 7");
-    PASS();
-}
-
 TEST(apply_oob_multi_arg){
     K r = eval(kcstr("(1;\"ab\")[1;5]"));
     ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KChrType, "should be char");
@@ -719,6 +1188,7 @@ TEST(apply_chained_bracket_rank_error){
     PASS();
 }
 
+// Runtime: lambdas
 TEST(lambda_eval_returns_lambda) {
     K r = eval(kcstr("{[x]x+1}"));
     ASSERT(r, "eval should succeed");
@@ -752,7 +1222,6 @@ TEST(lambda_eval_multi_params) {
     PASS();
 }
 
-// Lambda application tests
 TEST(lambda_apply_empty_body) {
     K r = eval(kcstr("{[x]}@42"));
     ASSERT(r == knull(), "lambda with empty body should return knull");
@@ -808,6 +1277,12 @@ TEST(lambda_apply_no_params) {
     PASS();
 }
 
+TEST(lambda_postfix_eval){
+    K r = eval(kcstr("{[x]x+1}[6]"));
+    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 7, "{[x]x+1}[6] should be 7");
+    PASS();
+}
+
 TEST(lambda_reassign_param) {
     K r = eval(kcstr("{[x]x:\"new\"}@\"old\""));
     // If double-free, likely crashes or fails leak test
@@ -830,6 +1305,14 @@ TEST(lambda_error_undefined_var) {
     PASS();
 }
 
+TEST(lambda_set_get) {
+    K r = eval(kcstr("{[x]a:x+1; a+2} 4"));
+    ASSERT(r, "should evaluate without error");
+    ASSERT(IS_TAG(r) && TAG_TYPE(r) == KIntType && TAG_VAL(r) == 7, "should return int-atom with value 7");
+    PASS();
+}
+
+// Runtime: parens / semicolons
 TEST(paren_eval_simple) {
     K r = eval(kcstr("(42)"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 42, "(42) should be 42");
@@ -867,25 +1350,25 @@ TEST(semicolon_terminated_expr) {
     PASS();
 }
 
-TEST(multiexpr_basic) {
+TEST(expr_multiexpr_basic) {
     K r = eval(kcstr("1 2;2"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 2, "should return 2");
     PASS();
 }
 
-TEST(subexpr_with_ops) {
+TEST(expr_subexpr_with_ops) {
     K r = eval(kcstr("1+2;3*4"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 12, "1+2;3*4 should return 12");
     PASS();
 }
 
-TEST(subexpr_assignment) {
+TEST(expr_subexpr_assignment) {
     K r = eval(kcstr("x:1;x+2"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 3, "x:1;x+2 should return 3");
     PASS();
 }
 
-TEST(fenced_subexpr_basic) {
+TEST(expr_fenced_subexpr_basic) {
     K r = eval(kcstr("(1;2)"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "(1;2) should return int array");
     ASSERT(HDR_COUNT(r) == 2 && INT_PTR(r)[0] == 1 && INT_PTR(r)[1] == 2, "(1;2) should be 1 2");
@@ -893,7 +1376,7 @@ TEST(fenced_subexpr_basic) {
     PASS();
 }
 
-TEST(fenced_subexpr_with_ops) {
+TEST(expr_fenced_subexpr_with_ops) {
     K r = eval(kcstr("(1;2+3)"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "(1;2+3) should return int array");
     ASSERT(HDR_COUNT(r) == 2 && INT_PTR(r)[0] == 1 && INT_PTR(r)[1] == 5, "(1;2+3) should be 1 5");
@@ -901,7 +1384,7 @@ TEST(fenced_subexpr_with_ops) {
     PASS();
 }
 
-TEST(fenced_subexpr_heterogeneous) {
+TEST(expr_fenced_subexpr_heterogeneous) {
     K r = eval(kcstr("(1;\"a\")"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1;\"a\") should return generic list");
     ASSERT(HDR_COUNT(r) == 2, "(1;\"a\") should have 2 elements");
@@ -911,293 +1394,8 @@ TEST(fenced_subexpr_heterogeneous) {
     PASS();
 }
 
-TEST(int_atom_comparison_true) {
-    K r = eval(kcstr("1=1"));
-    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KBoolType, "1=1 should return KBoolType atom");
-    ASSERT(TAG_VAL(r) == 1, "1=1 should return 1b (True)");
-    PASS();
-}
-
-TEST(int_atom_atom_comparison_false) {
-    K r = eval(kcstr("1=2"));
-    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KBoolType, "1=2 should return KBoolType atom");
-    ASSERT(TAG_VAL(r) == 0, "1=2 should return 0b (False)");
-    PASS();
-}
-
-TEST(int_atom_list_comparison) {
-    K r = eval(kcstr("1=1 2 3"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType, "1=1 2 3 returns KBoolType list");
-    ASSERT(CHR_PTR(r)[0] == 1, "(1=1 2 3)[0] == 1");
-    ASSERT(CHR_PTR(r)[1] == 0, "(1=1 2 3)[1] == 0");
-    ASSERT(CHR_PTR(r)[2] == 0, "(1=1 2 3)[2] == 0");
-    unref(r);
-    PASS();
-}
-
-TEST(int_list_list_comparison) {
-    K r = eval(kcstr("1 1=1 2"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType, "1 1=1 2 should return KBoolType list");
-    ASSERT(CHR_PTR(r)[0] == 1, "(1 1=1 2)[0] == 1");
-    ASSERT(CHR_PTR(r)[1] == 0, "(1 1=1 2)[1] == 0");
-    unref(r);
-    PASS();
-}
-
-TEST(comparison_tail_ok) {
-    // last word gets zeroed after compare... make sure trailing bools are ok
-    K r = eval(kcstr("(!10)=!10"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType, "(!10)=!10 should return KBoolType list");
-    ASSERT(CHR_PTR(r)[8] == 1, "((!10)=!10)[8] == 1");
-    ASSERT(CHR_PTR(r)[9] == 1, "((!10)=!10)[9] == 1");
-    unref(r);
-    PASS();
-}
-
-TEST(bool_where_single) {
-    K r = eval(kcstr("&1=!3"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "&1=!3 should return KIntType list");
-    ASSERT(HDR_COUNT(r) == 1, "&1=!3 should have 1 element");
-    ASSERT(INT_PTR(r)[0] == 1, "(&1=!3)[0] == 1");
-    unref(r);
-    PASS();
-}
-
-TEST(bool_where_multiple) {
-    K r = eval(kcstr("&1=0 1 2 1 0 0"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "&1=0 1 2 1 0 0 should return KIntType list");
-    ASSERT(HDR_COUNT(r) == 2, "&1=0 1 2 1 0 0 should have 2 elements");
-    ASSERT(INT_PTR(r)[0] == 1, "(&1=0 1 2 1 0 0)[0] == 1");
-    ASSERT(INT_PTR(r)[1] == 3, "(&1=0 1 2 1 0 0)[1] == 3");
-    unref(r);
-    PASS();
-}
-
-// Error tests
-TEST(unclosed_string) {
-    K r = tokenize("\"hello");
-    ASSERT(!r, "unclosed string should fail");
-    ASSERT(kerrno == KERR_PARSE, "unclosed string should raise parse error");
-    PASS();
-}
-
-TEST(parse_unclosed_string_in_expr) {
-    K r = tokenize("1+2+\"hello");
-    ASSERT(!r, "unclosed string in expression should fail");
-    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
-    PASS();
-}
-
-TEST(parse_invalid_token_in_expr) {
-    K r = tokenize("1+£+2");
-    ASSERT(!r, "invalid token in expression should fail");
-    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
-    PASS();
-}
-
-TEST(parse_single_quote) {
-    K r = tokenize("\"");
-    ASSERT(!r, "single quote should fail");
-    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
-    PASS();
-}
-
-TEST(empty_string_literal) {
-    K r = eval(kcstr("\"\""));
-    ASSERT(r != 0, "empty string should be valid");
-    ASSERT(HDR_TYPE(r) == KChrType, "should be KChrType");
-    ASSERT(HDR_COUNT(r) == 0, "should have length 0");
-    unref(r);
-    PASS();
-}
-
-TEST(value_undefined_in_expr) {
-    K r = eval(kcstr("1+foo+2"));
-    ASSERT(!r, "undefined variable in expression should fail");
-    ASSERT(kerrno == KERR_VALUE, "should raise KERR_VALUE");
-    PASS();
-}
-
-TEST(vm_undefined_variable) {
-    K r = eval(kcstr("foo"));
-    ASSERT(!r, "undefined variable should return error");
-    ASSERT(kerrno == KERR_VALUE, "undefined variable should raise value error");
-    PASS();
-}
-
-TEST(lambda_error_missing_bracket) {
-    K r = eval(kcstr("{x}"));
-    ASSERT(!r, "should error: lambda must have params");
-    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
-    PASS();
-}
-
-TEST(lambda_error_unclosed_params) {
-    K r = eval(kcstr("{[x"));
-    ASSERT(!r, "should error: unclosed param list");
-    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
-    PASS();
-}
-
-TEST(lambda_error_unclosed_lambda) {
-    K r = eval(kcstr("{[x]x+1"));
-    ASSERT(!r, "should error: unclosed lambda");
-    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
-    PASS();
-}
-
-TEST(error_unmatched_paren) {
-    K r = eval(kcstr("(1+2"));
-    ASSERT(!r, "unmatched paren should error");
-    ASSERT(kerrno == KERR_PARSE, "should raise KERR_PARSE");
-    PASS();
-}
-
-// Unary tests
-TEST(unary_value_basic) {
-    K r = eval(kcstr(".\"tests/read.txt\""));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "should read file as KChrType");
-    ASSERT(HDR_COUNT(r) == 5, "file should have 5 chars");
-    ASSERT(memcmp(CHR_PTR(r), "hello", 5) == 0, "content should be 'hello'");
-    unref(r);
-    PASS();
-}
-
-TEST(unary_value_file_not_found) {
-    K r = eval(kcstr(".\"nonexistent_file_12345.txt\""));
-    ASSERT(!r, "missing file should fail");
-    ASSERT(kerrno == KERR_VALUE, "should raise KERR_VALUE");
-    PASS();
-}
-
-TEST(unary_value_type_error) {
-    K r = eval(kcstr(". 123"));
-    ASSERT(!r, "value on integer should fail");
-    ASSERT(kerrno == KERR_TYPE, "should raise KERR_TYPE");
-    PASS();
-}
-
-// Keyword tests (same assertions as operator forms)
-TEST(keyword_neg_atom) {
-    ASSERT_INT_ATOM("neg 1", -1);
-    PASS();
-}
-
-TEST(keyword_neg_list) {
-    ASSERT_INT_LIST("neg 1 2 3", 3, ((K_int[]){-1, -2, -3}));
-    PASS();
-}
-
-TEST(keyword_til) {
-    ASSERT_INT_LIST("til 3", 3, ((K_int[]){0, 1, 2}));
-    PASS();
-}
-
-TEST(keyword_count_list) {
-    ASSERT_INT_ATOM("count 1 2 3", 3);
-    PASS();
-}
-
-TEST(keyword_count_atom) {
-    ASSERT_INT_ATOM("count 42", 1);
-    PASS();
-}
-
-// Adverb compilation tests
-TEST(adverb_each_infix) {
-    // x f'y → [load_y, load_x, load_f, OP_VERB+20, OP_N_ARY+2]
-    K x = kcstr("x f'y");
-    K vars = 0, consts = 0;
-    K tokens = token(x, &vars, &consts);
-    ASSERT(tokens, "tokenization should succeed");
-    K bytecode = compile(0, tokens, 0);
-    ASSERT(bytecode, "compilation should succeed");
-    K_char *bc = CHR_PTR(bytecode);
-    ASSERT(HDR_COUNT(bytecode) == 5, "should be 5 bytes");
-    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load y");
-    ASSERT(IS_CLASS(OP_GET_VAR, bc[1]), "load x");
-    ASSERT(IS_CLASS(OP_GET_VAR, bc[2]), "load f");
-    ASSERT(bc[3] == OP_VERB + ADVERB_START, "each wrap");
-    ASSERT(bc[4] == OP_N_ARY + 2, "apply 2");
-    unref(x), unref(bytecode), unref(vars), unref(consts);
-    PASS();
-}
-
-TEST(adverb_each_postfix_bracket) {
-    // x f'[y] → [load_y, load_f, OP_VERB+20, OP_N_ARY+1, load_x, OP_BINARY+5]
-    K x = kcstr("x f'[y]");
-    K vars = 0, consts = 0;
-    K tokens = token(x, &vars, &consts);
-    ASSERT(tokens, "tokenization should succeed");
-    K bytecode = compile(0, tokens, 0);
-    ASSERT(bytecode, "compilation should succeed");
-    K_char *bc = CHR_PTR(bytecode);
-    ASSERT(HDR_COUNT(bytecode) == 6, "should be 6 bytes");
-    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load y");
-    ASSERT(IS_CLASS(OP_GET_VAR, bc[1]), "load f");
-    ASSERT(bc[2] == OP_VERB + ADVERB_START, "each wrap");
-    ASSERT(bc[3] == OP_N_ARY + 1, "apply 1");
-    ASSERT(IS_CLASS(OP_GET_VAR, bc[4]), "load x");
-    ASSERT(bc[5] == OP_BINARY + 10, "binary apply");
-    unref(x), unref(bytecode), unref(vars), unref(consts);
-    PASS();
-}
-
-TEST(adverb_bare_op_unary) {
-    // +'x → [load_x, OP_VERB+1, OP_VERB+20, OP_N_ARY+1]
-    K x = kcstr("+'x");
-    K vars = 0, consts = 0;
-    K tokens = token(x, &vars, &consts);
-    ASSERT(tokens, "tokenization should succeed");
-    K bytecode = compile(0, tokens, 0);
-    ASSERT(bytecode, "compilation should succeed");
-    K_char *bc = CHR_PTR(bytecode);
-    ASSERT(HDR_COUNT(bytecode) == 4, "should be 4 bytes");
-    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load x");
-    ASSERT(bc[1] == OP_VERB + 1, "push + verb");
-    ASSERT(bc[2] == OP_VERB + ADVERB_START, "each wrap");
-    ASSERT(bc[3] == OP_N_ARY + 1, "apply 1");
-    unref(x), unref(bytecode), unref(vars), unref(consts);
-    PASS();
-}
-
-TEST(adverb_bare_op_infix) {
-    // x+'y → [load_y, load_x, OP_VERB+1, OP_VERB+20, OP_N_ARY+2]
-    K x = kcstr("x+'y");
-    K vars = 0, consts = 0;
-    K tokens = token(x, &vars, &consts);
-    ASSERT(tokens, "tokenization should succeed");
-    K bytecode = compile(0, tokens, 0);
-    ASSERT(bytecode, "compilation should succeed");
-    K_char *bc = CHR_PTR(bytecode);
-    ASSERT(HDR_COUNT(bytecode) == 5, "should be 5 bytes");
-    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load y");
-    ASSERT(IS_CLASS(OP_GET_VAR, bc[1]), "load x");
-    ASSERT(bc[2] == OP_VERB + 1, "push + verb");
-    ASSERT(bc[3] == OP_VERB + ADVERB_START, "each wrap");
-    ASSERT(bc[4] == OP_N_ARY + 2, "apply 2");
-    unref(x), unref(bytecode), unref(vars), unref(consts);
-    PASS();
-}
-
-TEST(adverb_bare_no_args) {
-    // g:f' → [load_f, OP_VERB+20, OP_SET_VAR+g]
-    K x = kcstr("g:f'");
-    K vars = 0, consts = 0;
-    K tokens = token(x, &vars, &consts);
-    ASSERT(tokens, "tokenization should succeed");
-    K bytecode = compile(0, tokens, 0);
-    ASSERT(bytecode, "compilation should succeed");
-    K_char *bc = CHR_PTR(bytecode);
-    ASSERT(HDR_COUNT(bytecode) == 3, "should be 3 bytes");
-    ASSERT(IS_CLASS(OP_GET_VAR, bc[0]), "load f");
-    ASSERT(bc[1] == OP_VERB + ADVERB_START, "each wrap");
-    ASSERT(IS_CLASS(OP_SET_VAR, bc[2]), "set g");
-    unref(x), unref(bytecode), unref(vars), unref(consts);
-    PASS();
-}
-
-TEST(each_lambda_count) {
+// Runtime: adverbs
+TEST(adverb_each_lambda_count) {
     K r = eval(kcstr("{[x]#x}'(1 2;3 4 5)"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "should return int list");
     ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
@@ -1206,7 +1404,7 @@ TEST(each_lambda_count) {
     PASS();
 }
 
-TEST(each_bare_op_count) {
+TEST(adverb_each_bare_op_count) {
     K r = eval(kcstr("#'(1 2;3 4 5)"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "should return int list");
     ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
@@ -1215,32 +1413,13 @@ TEST(each_bare_op_count) {
     PASS();
 }
 
-TEST(each_atom_rank_error) {
+TEST(adverb_each_atom_rank_error) {
     K r = eval(kcstr("#'1"));
     ASSERT(!r && kerrno == KERR_RANK, "each on atom should be rank error");
     PASS();
 }
 
-// Test runner
-TEST(bare_op_bracket_compile) {
-    // +[1;2] → [const_2, const_1, OP_VERB+1, OP_N_ARY+2]
-    K x = kcstr("+[1;2]");
-    K vars = 0, consts = 0;
-    K tokens = token(x, &vars, &consts);
-    ASSERT(tokens, "tokenization should succeed");
-    K bytecode = compile(0, tokens, 0);
-    ASSERT(bytecode, "compilation should succeed");
-    K_char *bc = CHR_PTR(bytecode);
-    ASSERT(HDR_COUNT(bytecode) == 4, "should be 4 bytes");
-    ASSERT(IS_CLASS(OP_CONST, bc[0]), "const 2");
-    ASSERT(IS_CLASS(OP_CONST, bc[1]), "const 1");
-    ASSERT(bc[2] == OP_VERB + 1, "push + verb");
-    ASSERT(bc[3] == OP_N_ARY + 2, "apply 2");
-    unref(x), unref(bytecode), unref(vars), unref(consts);
-    PASS();
-}
-
-TEST(bare_op_bracket_eval) {
+TEST(adverb_bare_op_bracket_eval) {
     K r = eval(kcstr("+[1;2]"));
     ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 3, "+[1;2] should be 3");
     PASS();
@@ -1248,64 +1427,127 @@ TEST(bare_op_bracket_eval) {
 
 void run_tests() {
     printf("\nPreprocessing:\n");
-    RUN_TEST(strip_leading_comment);
-    RUN_TEST(strip_trailing_comment);
-    RUN_TEST(strip_trailing_whitespace);
-    RUN_TEST(strip_both);
-    RUN_TEST(only_whitespace);
+    RUN_TEST(preprocess_strip_leading_comment);
+    RUN_TEST(preprocess_strip_trailing_comment);
+    RUN_TEST(preprocess_strip_trailing_whitespace);
+    RUN_TEST(preprocess_strip_both);
+    RUN_TEST(preprocess_only_whitespace);
     //RUN_TEST(ignore_quoted_slash);
 
     printf("\nTokenization:\n");
-    RUN_TEST(empty_input);
-    RUN_TEST(single_variable);
-    RUN_TEST(multiple_variables);
-    RUN_TEST(single_integer);
-    RUN_TEST(integer_list);
-    RUN_TEST(string_literal);
-    RUN_TEST(char_literal);
-    RUN_TEST(trailing_whitespace);
-    RUN_TEST(lambda_simple);
-    RUN_TEST(lambda_stores_full_src);
-    RUN_TEST(lambda_nested);
-    RUN_TEST(binary_add);
-    RUN_TEST(unary_plus);
-    RUN_TEST(assignment);
-    RUN_TEST(paren_token_passthrough);
-    RUN_TEST(empty_parens_token);
+    // literals
+    RUN_TEST(tokenize_empty_input);
+    RUN_TEST(tokenize_single_integer);
+    RUN_TEST(tokenize_integer_list);
+    RUN_TEST(tokenize_string_literal);
+    RUN_TEST(tokenize_char_literal);
+    RUN_TEST(tokenize_empty_string_literal);
+    RUN_TEST(tokenize_trailing_whitespace);
+    // variables
+    RUN_TEST(tokenize_single_variable);
+    RUN_TEST(tokenize_multiple_variables);
+    // operators
+    RUN_TEST(tokenize_binary_add);
+    RUN_TEST(tokenize_unary_plus);
+    RUN_TEST(tokenize_assignment);
+    // parens
+    RUN_TEST(tokenize_paren_passthrough);
+    RUN_TEST(tokenize_empty_parens);
+    // lambdas
+    RUN_TEST(tokenize_lambda_simple);
+    RUN_TEST(tokenize_lambda_full_src);
+    RUN_TEST(tokenize_lambda_nested);
+    // errors
+    RUN_TEST(tokenize_error_invalid_token);
+    RUN_TEST(tokenize_error_unclosed_string);
+    RUN_TEST(tokenize_error_unclosed_string_in_expr);
+    RUN_TEST(tokenize_error_invalid_token_in_expr);
+    RUN_TEST(tokenize_error_single_quote);
+    RUN_TEST(tokenize_error_lambda_missing_bracket);
+    RUN_TEST(tokenize_error_lambda_unclosed_params);
+    RUN_TEST(tokenize_error_lambda_unclosed);
 
     printf("\nCompilation:\n");
     RUN_TEST(compile_empty);
     RUN_TEST(compile_constant);
     RUN_TEST(compile_binary_op);
     RUN_TEST(compile_unary_op);
+    RUN_TEST(compile_variable);
     RUN_TEST(compile_assignment);
     RUN_TEST(compile_application);
     RUN_TEST(compile_application2);
-    RUN_TEST(lambda_postfix_single_arg);
-    RUN_TEST(lambda_postfix_two_args);
-    RUN_TEST(paren_compile_simple);
-    RUN_TEST(paren_compile_nested);
-    RUN_TEST(paren_compile_with_op);
+    RUN_TEST(compile_keyword_unary);
+    RUN_TEST(compile_keyword_chain_unary);
+    // semicolons
+    RUN_TEST(compile_semicolon);
+    RUN_TEST(compile_fenced_semicolon);
+    // parens
+    RUN_TEST(compile_paren_simple);
+    RUN_TEST(compile_paren_nested);
+    RUN_TEST(compile_paren_with_op);
+    // lambdas
+    RUN_TEST(compile_lambda_postfix_single_arg);
+    RUN_TEST(compile_lambda_postfix_two_args);
+    // adverbs
+    RUN_TEST(compile_adverb_each_infix);
+    RUN_TEST(compile_adverb_each_postfix_bracket);
+    RUN_TEST(compile_adverb_bare_op_unary);
+    RUN_TEST(compile_adverb_bare_op_infix);
+    RUN_TEST(compile_adverb_bare_no_args);
+    RUN_TEST(compile_bare_op_bracket);
+    // errors
+    RUN_TEST(compile_error_unmatched_paren);
 
-    printf("\nVM Execution:\n");
-    RUN_TEST(vm_simple_add);
-    RUN_TEST(vm_simple_multiply);
-    RUN_TEST(vm_sub_atom);
-    RUN_TEST(vm_sub_list_list);
-    RUN_TEST(vm_sub_list_atom);
-    RUN_TEST(add_lists_1);
-    RUN_TEST(add_lists_2);
-    RUN_TEST(add_lists_obj_atom);
-    RUN_TEST(vm_neg_atom);
-    RUN_TEST(vm_neg_list);
-    RUN_TEST(vm_neg_nested);
-    RUN_TEST(vm_neg_type_error);
-    RUN_TEST(vm_til);
-    RUN_TEST(vm_count_list);
-    RUN_TEST(vm_count_atom);
-    RUN_TEST(vm_assignment);
-    RUN_TEST(vm_assignment_2);
-    RUN_TEST(empty_string_literal);
+    printf("\nRuntime:\n");
+    // unary ops
+    RUN_TEST(unary_neg_atom);
+    RUN_TEST(unary_neg_list);
+    RUN_TEST(unary_neg_nested);
+    RUN_TEST(unary_keyword_neg_atom);
+    RUN_TEST(unary_keyword_neg_list);
+    RUN_TEST(unary_neg_type_error);
+    RUN_TEST(unary_til);
+    RUN_TEST(unary_keyword_til);
+    RUN_TEST(unary_count_list);
+    RUN_TEST(unary_count_atom);
+    RUN_TEST(unary_keyword_count_list);
+    RUN_TEST(unary_keyword_count_atom);
+    RUN_TEST(unary_value_basic);
+    RUN_TEST(unary_value_file_not_found);
+    RUN_TEST(unary_value_type_error);
+    RUN_TEST(unary_where_single);
+    RUN_TEST(unary_where_multiple);
+    // binary arithmetic
+    RUN_TEST(binary_add_atom);
+    RUN_TEST(binary_multiply_atom);
+    RUN_TEST(binary_sub_atom);
+    RUN_TEST(binary_sub_list_list);
+    RUN_TEST(binary_sub_list_atom);
+    RUN_TEST(binary_add_obj_list);
+    RUN_TEST(binary_add_obj_obj);
+    RUN_TEST(binary_add_obj_atom);
+    // comparison
+    RUN_TEST(comparison_int_atom_true);
+    RUN_TEST(comparison_int_atom_false);
+    RUN_TEST(comparison_int_atom_list);
+    RUN_TEST(comparison_int_list_list);
+    RUN_TEST(comparison_tail_ok);
+    RUN_TEST(comparison_min_atom);
+    RUN_TEST(comparison_min_atom_2);
+    RUN_TEST(comparison_max_atom);
+    RUN_TEST(comparison_max_atom_2);
+    RUN_TEST(comparison_min_list);
+    RUN_TEST(comparison_max_list);
+    RUN_TEST(comparison_min_bool);
+    RUN_TEST(comparison_max_bool);
+    // assignment
+    RUN_TEST(assignment_basic);
+    RUN_TEST(assignment_basic_2);
+    RUN_TEST(assignment_undefined_variable);
+    RUN_TEST(assignment_undefined_in_expr);
+    RUN_TEST(assignment_reassignment);
+    RUN_TEST(assignment_op);
+    // indexing
     RUN_TEST(index_str_with_atom);
     RUN_TEST(index_str_with_list);
     RUN_TEST(index_int_with_list);
@@ -1314,8 +1556,13 @@ void run_tests() {
     RUN_TEST(index_postfix_two_args);
     RUN_TEST(index_postfix_three_args);
     RUN_TEST(index_postfix_single_arg);
-    RUN_TEST(lambda_postfix_eval);
     RUN_TEST(apply_oob_multi_arg);
+    RUN_TEST(apply_atom_rank_error);
+    RUN_TEST(apply_cascade_rank_error);
+    RUN_TEST(apply_string_cascade_rank_error);
+    RUN_TEST(apply_too_many_args_rank_error);
+    RUN_TEST(apply_chained_bracket_rank_error);
+    // lambdas
     RUN_TEST(lambda_eval_returns_lambda);
     RUN_TEST(lambda_eval_no_params);
     RUN_TEST(lambda_eval_single_param);
@@ -1329,70 +1576,29 @@ void run_tests() {
     RUN_TEST(lambda_apply_local_and_param);
     RUN_TEST(lambda_apply_nested);
     RUN_TEST(lambda_apply_no_params);
+    RUN_TEST(lambda_postfix_eval);
     RUN_TEST(lambda_reassign_param);
     RUN_TEST(lambda_error);
     RUN_TEST(lambda_error_undefined_var);
+    RUN_TEST(lambda_set_get);
+    // parens / semicolons
     RUN_TEST(paren_eval_simple);
     RUN_TEST(paren_eval_grouping);
     RUN_TEST(paren_eval_nested);
     RUN_TEST(paren_eval_deep);
     RUN_TEST(paren_eval_multiple);
     RUN_TEST(semicolon_terminated_expr);
-    RUN_TEST(multiexpr_basic);
-    RUN_TEST(subexpr_with_ops);
-    RUN_TEST(subexpr_assignment);
-    RUN_TEST(fenced_subexpr_basic);
-    RUN_TEST(fenced_subexpr_with_ops);
-    RUN_TEST(fenced_subexpr_heterogeneous);
-    RUN_TEST(int_atom_comparison_true);
-    RUN_TEST(int_atom_atom_comparison_false);
-    RUN_TEST(int_atom_list_comparison);
-    RUN_TEST(int_list_list_comparison);
-    RUN_TEST(comparison_tail_ok);
-    RUN_TEST(bool_where_single);
-    RUN_TEST(bool_where_multiple);
-
-    printf("\nError Handling:\n");
-    RUN_TEST(invalid_token);
-    RUN_TEST(unclosed_string);
-    RUN_TEST(parse_unclosed_string_in_expr);
-    RUN_TEST(parse_invalid_token_in_expr);
-    RUN_TEST(parse_single_quote);
-    RUN_TEST(vm_undefined_variable);
-    RUN_TEST(value_undefined_in_expr);
-    RUN_TEST(lambda_error_missing_bracket);
-    RUN_TEST(lambda_error_unclosed_params);
-    RUN_TEST(lambda_error_unclosed_lambda);
-    RUN_TEST(error_unmatched_paren);
-    RUN_TEST(apply_atom_rank_error);
-    RUN_TEST(apply_cascade_rank_error);
-    RUN_TEST(apply_string_cascade_rank_error);
-    RUN_TEST(apply_too_many_args_rank_error);
-    RUN_TEST(apply_chained_bracket_rank_error);
-
-    printf("\nAdverbs:\n");
-    RUN_TEST(adverb_each_infix);
-    RUN_TEST(adverb_each_postfix_bracket);
-    RUN_TEST(adverb_bare_op_unary);
-    RUN_TEST(adverb_bare_op_infix);
-    RUN_TEST(adverb_bare_no_args);
-    RUN_TEST(each_lambda_count);
-    RUN_TEST(each_bare_op_count);
-    RUN_TEST(each_atom_rank_error);
-    RUN_TEST(bare_op_bracket_compile);
-    RUN_TEST(bare_op_bracket_eval);
-
-    printf("\nMonads:\n");
-    RUN_TEST(unary_value_basic);
-    RUN_TEST(unary_value_file_not_found);
-    RUN_TEST(unary_value_type_error);
-
-    printf("\nKeywords:\n");
-    RUN_TEST(keyword_neg_atom);
-    RUN_TEST(keyword_neg_list);
-    RUN_TEST(keyword_til);
-    RUN_TEST(keyword_count_list);
-    RUN_TEST(keyword_count_atom);
+    RUN_TEST(expr_multiexpr_basic);
+    RUN_TEST(expr_subexpr_with_ops);
+    RUN_TEST(expr_subexpr_assignment);
+    RUN_TEST(expr_fenced_subexpr_basic);
+    RUN_TEST(expr_fenced_subexpr_with_ops);
+    RUN_TEST(expr_fenced_subexpr_heterogeneous);
+    // adverbs
+    RUN_TEST(adverb_each_lambda_count);
+    RUN_TEST(adverb_each_bare_op_count);
+    RUN_TEST(adverb_each_atom_rank_error);
+    RUN_TEST(adverb_bare_op_bracket_eval);
 
     printf("\n======================\n");
     printf("Tests run:    %d\n", tests_run);

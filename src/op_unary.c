@@ -18,7 +18,7 @@ static K nyi1(K x){NYI_ERROR(1, "unary operator", unref(x);)}
 //               :     +     -    *     %     &      |     <     >     =     @     .      !     ,     ?     #      _     ~     $     ^
 F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, where, nyi1, nyi1, nyi1, nyi1, nyi1, value, til, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1};
 
-// -x
+// -x / neg x
 K neg(K x){
     if (IS_TAG(x)){
         TYPE_ERROR(TAG_TYPE(x) != KIntType, "-x expects int", );
@@ -33,7 +33,7 @@ K neg(K x){
     TYPE_ERROR(1, "-x expects int", unref(x));
 }
 
-// &x
+// &x / where x
 K where(K x){
     TYPE_ERROR(IS_TAG(x) || HDR_TYPE(x) != KBoolType, "&x expects bool", unref(x));
     // over-read in both loops depends on zeroed last word beyond logical length n
@@ -58,13 +58,13 @@ K where(K x){
     return UNREF_X(r);
 }
 
-// .x
+// .x / value x
 K value(K x){
     TYPE_ERROR(TAG_TYPE(x) || HDR_TYPE(x) != KChrType, ". x", unref(x));
     return readFile(x);
 }
 
-// !x
+// !x / til x
 K til(K x){
     TYPE_ERROR(TAG_TYPE(x) != KIntType, "!x expects int atom", unref(x));
     K r = knew(KIntType, TAG_VAL(x));
@@ -72,7 +72,7 @@ K til(K x){
     return r;
 }
 
-// #x
+// #x / count x
 K count(K x){
     return UNREF_X(TAG(KIntType, IS_ATOM(x) ? 1 : HDR_COUNT(x)));
 }
