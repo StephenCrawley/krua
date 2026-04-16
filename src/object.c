@@ -40,7 +40,7 @@ K kalloc(K_int n){
     K x, r;
 
     // minimum allocation is 32 bytes. bucket 0 = 32B, bucket 1 = 64B, etc.
-    K_int b, bucket = (64 - BUCKET_SHIFT) - __builtin_clzll(n + MIN_ALLOC - 1);
+    K_int b, bucket = MAX(0, (64 - __builtin_clzll(n - 1)) - BUCKET_SHIFT);
     b = bucket;
 
     // if there's already a free bucket in the list, return it 
