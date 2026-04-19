@@ -63,14 +63,9 @@ static K numbers(char *src, K_int len, K_int count){
     return r;
 }
 
-K params(K x){
+static K params(K x){
     if (HDR_COUNT(x) == 0) return UNREF_X(knew(KSymType, 0)); // []
-    x = cutStr(x, ';'); // cutStr consumes x
-    K r = knew(KSymType, HDR_COUNT(x));
-    // simply encode whatever is there. don't check if param names are valid
-    K *p = OBJ_PTR(x);
-    FOR_EACH(x){SYM_PTR(r)[i] = encodeSym(CHR_PTR(p[i]), HDR_COUNT(p[i]));}
-    return UNREF_X(r);
+    return syms4chrs(cutStr(x, ';'));
 }
 
 // put local vars into 'vars'. find locals by identifying assignment
