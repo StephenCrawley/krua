@@ -2,6 +2,7 @@
 
 #include "object.h"
 
+#define HDR_PAD   16UL
 #define MIN_ALLOC 32UL  // minimum bytes per object
 #define BUCKET_SHIFT 5  // log2(MIN_ALLOC)
 #define BUCKET_SIZEOF(x) (MIN_ALLOC << HDR_BUCKET(x))  // size of the bucket that x is in
@@ -55,9 +56,9 @@ K kalloc(K_int n){
     while (!M[++b]){
         // currently max heapsize is 512MiB. given bucket 0 is 32 bytes, there are only 26 bucket sizes
         if (b == NUM_BUCKETS-1){
-            K_hdr *new_alloc = malloc(HEAP_SIZE); // 512MiB
+            K new_alloc = (K)malloc(HEAP_SIZE); // 512MiB
             if (!new_alloc) { fprintf(stderr, "Out of memory\n"); exit(1); }
-            M[b] = (K)(1 + new_alloc); // skip the header and place a pointer to the array in the bucket
+            M[b] = (HDR_PAD + new_alloc); // skip the header and place a pointer to the array in the bucket
             // IMPORTANT: no need to initialize M[b]. new_alloc points to the returned bucket; see variable 'r' below
             break;
         }
@@ -80,7 +81,7 @@ K kalloc(K_int n){
 // allocate a new list
 // internal function, hidden behind `knew`, which may wrap in refcount tracking if enabled
 K _knew(K_char t, K_int n){
-    K x = (K)kalloc(sizeof(K_hdr) + n*KWIDTHS[t]);
+    K x = (K)kalloc(HDR_PAD + n*KWIDTHS[t]);
     HDR_TYPE(x) = t;
     HDR_REFC(x) = 0;
     HDR_COUNT(x) = n;
