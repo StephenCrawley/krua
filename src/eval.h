@@ -1,8 +1,6 @@
 #ifndef PARSE_H
 #define PARSE_H
 
-#include <ctype.h>
-
 #include "krua.h"
 #include "object.h"
 #include "limits.h"

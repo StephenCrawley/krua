@@ -77,6 +77,14 @@ static int tests_failed = 0;
     ASSERT(kerrno == (err), expr " wrong error type"); \
 } while(0)
 
+#define ASSERT_2_INTS(col, a, b) do { \
+    K _c = (col); \
+    ASSERT(_c && !IS_TAG(_c) && HDR_TYPE(_c) == KIntType, #col " should be KIntType list"); \
+    ASSERT(HDR_COUNT(_c) == 2, #col " should have 2 elements"); \
+    ASSERT(INT_PTR(_c)[0] == (a), #col "[0] mismatch"); \
+    ASSERT(INT_PTR(_c)[1] == (b), #col "[1] mismatch"); \
+} while(0)
+
 /* Testing Practices:
  *
  * Test organization mirrors the interpreter pipeline:
@@ -97,6 +105,7 @@ static int tests_failed = 0;
  *   ASSERT_INT_ATOM(expr, expected)    — eval expr, check int tag with value
  *   ASSERT_INT_LIST(expr, n, vals)     — eval expr, check int list with elements
  *   ASSERT_ERROR(expr, KERR_*)         — eval expr, check failure + kerrno
+ *   ASSERT_2_INTS(col, a, b)           — check K value is 2-elem int list [a,b]
  *   tokenize(src)                      — tokenize only, discard vars/consts
  *
  * General:
@@ -182,7 +191,6 @@ TEST(preprocess_only_whitespace) {
 }
 
 /*TEST(ignore_quoted_slash){
-
     const char *src = "\"ignore / in quotes\"";
     K x = kcstr(src);
     strip(x);
@@ -288,6 +296,14 @@ TEST(tokenize_assignment) {
     K r = tokenize("a:42");
     ASSERT(r && HDR_COUNT(r) == 3, "assignment should produce 3 tokens");
     ASSERT(CHR_PTR(r)[1] == 0, ": should be operator 0");
+    unref(r);
+    PASS();
+}
+
+TEST(tokenize_csv_keyword) {
+    K r = tokenize("csv \"c,s,v\n1,2,3\"");
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType && HDR_COUNT(r) == 2, "should return token stream");
+    ASSERT(CHR_PTR(r)[0] == 20, "should tokenize 'csv' keyword as operator with value 20");
     unref(r);
     PASS();
 }
@@ -535,6 +551,16 @@ TEST(compile_keyword_chain_unary) {
     ASSERT(HDR_COUNT(bc1) == HDR_COUNT(bc2), "keyword form should have same length");
     ASSERT(memcmp(CHR_PTR(bc1), CHR_PTR(bc2), HDR_COUNT(bc1)) == 0, "keyword form should produce identical bytecode");
     unref(bc1), unref(bc2);
+    PASS();
+}
+
+TEST(compile_csv_keyword) {
+    K tokens = tokenize("csv \"c,s,v\n1,2,3\"");
+    K bytecode = compile(0, tokens, 0);
+    ASSERT(bytecode, "should compile without error");
+    ASSERT(!IS_TAG(bytecode) && HDR_TYPE(bytecode) == KChrType && HDR_COUNT(bytecode) == 2, "should compile 2 bytecodes");
+    ASSERT(CHR_PTR(bytecode)[1] == 20, "should compile 'csv' as a unary operator with value 20");
+    unref(bytecode);
     PASS();
 }
 
@@ -854,6 +880,111 @@ TEST(unary_where_multiple) {
     ASSERT(INT_PTR(r)[0] == 1, "(&1=0 1 2 1 0 0)[0] == 1");
     ASSERT(INT_PTR(r)[1] == 3, "(&1=0 1 2 1 0 0)[1] == 3");
     unref(r);
+    PASS();
+}
+
+// Runtime: csv
+TEST(unary_csv_headerless_all_int) {
+    K r = eval(kcstr("csv (0;\"ii\";\"tests/g.csv\")"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "should return KObjType list");
+    ASSERT(HDR_COUNT(r) == 2, "should have 2 columns");
+    ASSERT_2_INTS(OBJ_PTR(r)[0], 1, 7);
+    ASSERT_2_INTS(OBJ_PTR(r)[1], 2, 11);
+    unref(r);
+    PASS();
+}
+
+TEST(unary_csv_headerless_skip_first) {
+    K r = eval(kcstr("csv (0;\" i\";\"tests/g.csv\")"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "should return KObjType list");
+    ASSERT(HDR_COUNT(r) == 1, "should have 1 column");
+    ASSERT_2_INTS(OBJ_PTR(r)[0], 2, 11);
+    unref(r);
+    PASS();
+}
+
+TEST(unary_csv_headerless_skip_last) {
+    K r = eval(kcstr("csv (0;\"i \";\"tests/g.csv\")"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "should return KObjType list");
+    ASSERT(HDR_COUNT(r) == 1, "should have 1 column");
+    ASSERT_2_INTS(OBJ_PTR(r)[0], 1, 7);
+    unref(r);
+    PASS();
+}
+
+TEST(unary_csv_header_full) {
+    K r = eval(kcstr("csv (1;\"iic\";\"tests/f.csv\")"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "should return KObjType 2-tuple");
+    ASSERT(HDR_COUNT(r) == 2, "tuple should have 2 elements (syms; cols)");
+    K syms = OBJ_PTR(r)[0];
+    ASSERT(!IS_TAG(syms) && HDR_TYPE(syms) == KSymType && HDR_COUNT(syms) == 3, "syms should be 3 KSymType");
+    K cols = OBJ_PTR(r)[1];
+    ASSERT(!IS_TAG(cols) && HDR_TYPE(cols) == KObjType && HDR_COUNT(cols) == 3, "cols should be 3 KObjType");
+    ASSERT_2_INTS(OBJ_PTR(cols)[0], 1, 7);
+    ASSERT_2_INTS(OBJ_PTR(cols)[1], 2, 11);
+    K c2 = OBJ_PTR(cols)[2];
+    ASSERT(!IS_TAG(c2) && HDR_TYPE(c2) == KChrType && HDR_COUNT(c2) == 2, "col 2 should be 2 KChrType");
+    ASSERT(CHR_PTR(c2)[0] == 'a' && CHR_PTR(c2)[1] == 'b', "col 2 bytes should be 'a','b'");
+    unref(r);
+    PASS();
+}
+
+TEST(unary_csv_header_skip_middle) {
+    K r = eval(kcstr("csv (1;\"i c\";\"tests/f.csv\")"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "should return KObjType 2-tuple");
+    ASSERT(HDR_COUNT(r) == 2, "tuple should have 2 elements (syms; cols)");
+    K cols = OBJ_PTR(r)[1];
+    ASSERT(!IS_TAG(cols) && HDR_TYPE(cols) == KObjType && HDR_COUNT(cols) == 2, "cols should be 2 KObjType");
+    ASSERT_2_INTS(OBJ_PTR(cols)[0], 1, 7);
+    K c1 = OBJ_PTR(cols)[1];
+    ASSERT(!IS_TAG(c1) && HDR_TYPE(c1) == KChrType && HDR_COUNT(c1) == 2, "col 1 should be 2 KChrType");
+    ASSERT(CHR_PTR(c1)[0] == 'a' && CHR_PTR(c1)[1] == 'b', "col 1 bytes should be 'a','b'");
+    unref(r);
+    PASS();
+}
+
+TEST(unary_csv_arg_not_tuple_error) {
+    ASSERT_ERROR("csv \"abc\"", KERR_TYPE);
+    PASS();
+}
+
+TEST(unary_csv_arg_wrong_count_error) {
+    ASSERT_ERROR("csv (0;\"ii\")", KERR_TYPE);
+    PASS();
+}
+
+TEST(unary_csv_header_flag_not_int_error) {
+    ASSERT_ERROR("csv (\"x\";\"ii\";\"tests/g.csv\")", KERR_TYPE);
+    PASS();
+}
+
+TEST(unary_csv_types_not_string_error) {
+    ASSERT_ERROR("csv (0;1;\"tests/g.csv\")", KERR_TYPE);
+    PASS();
+}
+
+TEST(unary_csv_types_empty_error) {
+    ASSERT_ERROR("csv (0;\"\";\"tests/g.csv\")", KERR_TYPE);
+    PASS();
+}
+
+TEST(unary_csv_types_invalid_char_error) {
+    ASSERT_ERROR("csv (0;\"z\";\"tests/g.csv\")", KERR_TYPE);
+    PASS();
+}
+
+TEST(unary_csv_path_not_string_error) {
+    ASSERT_ERROR("csv (0;\"ii\";42)", KERR_TYPE);
+    PASS();
+}
+
+TEST(unary_csv_file_not_found_error) {
+    ASSERT_ERROR("csv (0;\"ii\";\"nonexistent.csv\")", KERR_VALUE);
+    PASS();
+}
+
+TEST(unary_csv_malformed_separators_error) {
+    ASSERT_ERROR("csv (0;\"iii\";\"tests/g.csv\")", KERR_PARSE);
     PASS();
 }
 
@@ -1450,6 +1581,7 @@ void run_tests() {
     RUN_TEST(tokenize_binary_add);
     RUN_TEST(tokenize_unary_plus);
     RUN_TEST(tokenize_assignment);
+    RUN_TEST(tokenize_csv_keyword);
     // parens
     RUN_TEST(tokenize_paren_passthrough);
     RUN_TEST(tokenize_empty_parens);
@@ -1476,8 +1608,10 @@ void run_tests() {
     RUN_TEST(compile_assignment);
     RUN_TEST(compile_application);
     RUN_TEST(compile_application2);
+    // keywords
     RUN_TEST(compile_keyword_unary);
     RUN_TEST(compile_keyword_chain_unary);
+    RUN_TEST(compile_csv_keyword);
     // semicolons
     RUN_TEST(compile_semicolon);
     RUN_TEST(compile_fenced_semicolon);
@@ -1517,6 +1651,21 @@ void run_tests() {
     RUN_TEST(unary_value_type_error);
     RUN_TEST(unary_where_single);
     RUN_TEST(unary_where_multiple);
+    // csv
+    RUN_TEST(unary_csv_headerless_all_int);
+    RUN_TEST(unary_csv_headerless_skip_first);
+    RUN_TEST(unary_csv_headerless_skip_last);
+    RUN_TEST(unary_csv_header_full);
+    RUN_TEST(unary_csv_header_skip_middle);
+    RUN_TEST(unary_csv_arg_not_tuple_error);
+    RUN_TEST(unary_csv_arg_wrong_count_error);
+    RUN_TEST(unary_csv_header_flag_not_int_error);
+    RUN_TEST(unary_csv_types_not_string_error);
+    RUN_TEST(unary_csv_types_empty_error);
+    RUN_TEST(unary_csv_types_invalid_char_error);
+    RUN_TEST(unary_csv_path_not_string_error);
+    RUN_TEST(unary_csv_file_not_found_error);
+    RUN_TEST(unary_csv_malformed_separators_error);
     // binary arithmetic
     RUN_TEST(binary_add_atom);
     RUN_TEST(binary_multiply_atom);

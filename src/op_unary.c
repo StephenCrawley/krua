@@ -1,4 +1,6 @@
 #include "op_unary.h"
+#include "op_binary.h"
+#include "utils.h"
 
 // iteration helpers over unary operators
 
@@ -15,8 +17,8 @@ K _each1(F1 f, K x){
 
 static K nyi1(K x){NYI_ERROR(1, "unary operator", unref(x);)}
 
-//               :     +     -    *     %     &      |     <     >     =     @     .      !     ,     ?     #      _     ~     $     ^
-F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, where, nyi1, nyi1, nyi1, nyi1, nyi1, value, til, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1};
+//               :     +     -    *     %     &      |     <     >     =     @     .      !     ,     ?     #      _     ~     $     ^    csv
+F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, where, nyi1, nyi1, nyi1, nyi1, nyi1, value, til, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1, csv};
 
 // -x / neg x
 K neg(K x){
@@ -75,4 +77,80 @@ K til(K x){
 // #x / count x
 K count(K x){
     return UNREF_X(TAG(KIntType, IS_ATOM(x) ? 1 : HDR_COUNT(x)));
+}
+
+// 'csv' helper macro
+// uses locals of 'csv'
+#define PARSE_COL(KT, STORE, PARSE) do { \
+      K col = knew(KT, rows); \
+      for (K_int i = 0; i < rows; i++){ \
+          K_int k = i*cn + j; \
+          K_int start = h||k ? idx[k-1]+1 : 0; \
+          STORE(col)[i] = PARSE(s + start, s + idx[k]); \
+      } \
+      OBJ_PTR(r)[rj++] = col; \
+  } while(0)
+
+static K_char chr4chr(K_char*s, K_char*e){ (void)e; return *s; }
+
+K csv(K x){
+    // first verify the argument
+    TYPE_ERROR(IS_TAG(x) || HDR_TYPE(x) != KObjType || HDR_COUNT(x) != 3, 
+        "csv expects 3-tuple (header(int); types(string); data(string))\nexample: csv (0; \"cii\"; \"path/to/file.csv\")", 
+        unref(x));
+    K *arg = OBJ_PTR(x);
+    // header
+    // h = arg[0] -> h = TAG_VAL(arg[0]) -> h = header names if h!=0
+    K h = arg[0];
+    TYPE_ERROR(TAG_TYPE(h) != KIntType, "x 0", unref(x));
+    h = (K)TAG_VAL(h);
+    // types
+    K t = arg[1];
+    TYPE_ERROR(TAG_TYPE(t) || HDR_TYPE(t) != KChrType || HDR_COUNT(t) == 0, "x 1", unref(x));
+    K_int cn = HDR_COUNT(t); // csv column count
+    K_int rn = cn; // return column count
+    FOR_EACH(t){
+        K_char c = CHR_PTR(t)[i];
+        TYPE_ERROR(!strchr(" ci", c), "invalid csv col type", unref(x));
+        rn -= c == ' '; // skip these cols
+    }
+    // csv data, and some numbers to help us along
+    K d = arg[2];
+    TYPE_ERROR(TAG_TYPE(d) || HDR_TYPE(d) != KChrType, "x 2", unref(x));
+    d = readFile(ref(d));
+    if (!d) return UNREF_X(0);
+    K_char *s = CHR_PTR(d);
+    // parse the header
+    if (h){
+        K_char *nl = (K_char*)memchr(s, '\n', HDR_COUNT(d));
+        TYPE_ERROR(!nl, "newline", unref(x); unref(d));
+        h = syms4chrs(cutStr(knewcopy(KChrType, (K_int)(nl - s), (K)s), ','));
+        // TODO: filter h based on arg[1] types (drop ' ')
+    }
+    // create list indices of separator and newlines (cell ends)
+    K sep = eql(kchr(','), ref(d));
+    K nwl = eql(kchr('\n'),ref(d));
+    K ind = eql(kint(1),max(sep, nwl));
+    ind = where(ind);
+    PARSE_ERROR(HDR_COUNT(ind) % cn != 0, -1,
+        "malformed csv. sep+nl % rows != 0", 
+        unref(x); unref(d); unref(h); unref(ind););
+    // loop and parse
+    K_int rows = HDR_COUNT(ind) / cn, *idx = INT_PTR(ind);
+    if (h) rows -= 1, idx += cn;
+    K r = knew(KObjType, rn);
+    // outer loop columns
+    K_int rj = 0; // used in PARSE_COL to advace return column count
+    for (K_int j = 0; j < cn; j++){
+        // inner strided loop column records
+        switch (CHR_PTR(t)[j]){
+        case ' ': /*skip this column*/ break;
+        case 'c': PARSE_COL(KChrType, CHR_PTR, chr4chr); break;
+        case 'i': PARSE_COL(KIntType, INT_PTR, int4chr); break;
+        }
+    }
+    // cleanup
+    unref(d), unref(x), unref(ind);
+    // TODO: table type
+    return h ? k2(h, r) : r;
 }

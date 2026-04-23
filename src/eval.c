@@ -1,16 +1,13 @@
 // krua tokenize -> compile -> vm
 
 #include "eval.h"
-
-#define ISALPHA(c) isalpha((int)(c))
-#define ISDIGIT(c) isdigit((int)(c))
-#define ISALNUM(c) isalnum((int)(c))
+#include "utils.h"
 
 const K_char OPS[] = ":+-*%&|<>=@.!,?#_~$^         '/\\";
-K_char KEYWORDS_STRING[] = ": flip neg first % where | < > group type value til , ? count _ not $ ^";
+K_char KEYWORDS_STRING[] = ": flip neg first % where | < > group type value til , ? count _ not $ ^ csv";
 
 #define IS_ADVERB(x) (x-ADVERB_START < 3u)
-#define IS_POSTFIX_ADVERB(x) ({K_char _p=(x); IS_CLASS(TOK_POSTFIX, _p) && HDR_ARGC(OBJ_PTR(postfix)[_p & 31]);})
+#define IS_POSTFIX_ADVERB(x) ({K_char _p=(x); IS_CLASS(TOK_POSTFIX, _p) && HDR_ADVERB(OBJ_PTR(postfix)[_p & 31]);})
 
 K GLOBALS = 0;
 K KEYWORDS = 0;
@@ -38,12 +35,6 @@ static K_char addVar(K *vars, K_sym x){
 static K_char addConst(K *consts, K x){
     *consts = (*consts == 0) ? k1(x) : joinObj(*consts, x);
     return OP_CONST + HDR_COUNT(*consts)-1;
-}
-
-static K_int int4chr(K_char *src, K_char *end){
-    K_int j = 0;
-    do j = j*10 + (*src++ - '0'); while (src < end && ISDIGIT(*src));
-    return j;
 }
 
 static K numbers(char *src, K_int len, K_int count){
@@ -294,7 +285,7 @@ static K reducePostfix(K x, K *postfix){
             K_int start = i++;
             do ++i; while (i<n && (IS_CLASS(TOK_BRACKET, tok[i]) || IS_ADVERB(tok[i])));
             K body = knewcopy(KChrType, i - start, (K)(tok + start));
-            HDR_ARGC(body) = IS_ADVERB(tok[i-1]);
+            HDR_ADVERB(body) = IS_ADVERB(tok[i-1]);
             *postfix = *postfix ? joinObj(*postfix, body) : k1(body);
             tok[j++] = TOK_POSTFIX + HDR_COUNT(*postfix) - 1;
         } else {
