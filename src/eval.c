@@ -2,6 +2,13 @@
 
 #include "eval.h"
 #include "utils.h"
+#include "object.h"
+#include "limits.h"
+#include "apply.h"
+#include "op_unary.h"
+#include "op_binary.h"
+#include "file.h"
+#include "error.h"
 
 const K_char OPS[] = ":+-*%&|<>=@.!,?#_~$^         '/\\";
 K_char KEYWORDS_STRING[] = ": flip neg first % where | < > group type value til , ? count _ not $ ^ csv";

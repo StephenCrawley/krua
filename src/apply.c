@@ -1,10 +1,12 @@
 #include "apply.h"
 #include "object.h"
 #include "eval.h"
+#include "op_unary.h"
+#include "op_binary.h"
+#include "error.h"
 
 // forward declarations
 K index(K, K);
-K apply(K, int, K*);
 
 // application
 

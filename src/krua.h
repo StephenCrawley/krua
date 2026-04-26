@@ -40,9 +40,6 @@ typedef int64_t  K_long;
 //     to support 64bit, a K value would need a 3rd object type: a tagged pointer where the upper bits contain type (KLongType) and the lower bits are a pointer to the value
 //     this is not hard to implement, but i'm not interested in supporting this right now
 
-// include error.h after K typedefs to prevent 'undefined' errors
-#include "error.h"
-
 // K type enum (remember: update KWIDTHS after adding a type)
 enum {
     KObjType = 0,

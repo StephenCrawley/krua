@@ -2,8 +2,6 @@
 #define UNARY_H
 
 #include "krua.h"
-#include "object.h"
-#include "file.h"
 
 typedef K (*F1)(K); // unary operator f[x]
 

@@ -1,4 +1,8 @@
 #include "op_binary.h"
+#include "object.h"
+#include "op_unary.h"
+#include "apply.h"
+#include "error.h"
 
 // iteration helpers over binary operators
 

@@ -1,6 +1,7 @@
 #include "krua.h"
 #include "eval.h"
 #include "object.h"
+#include "error.h"
 
 int main(){
     printf("krua. mit license. "__DATE__".\n\n");

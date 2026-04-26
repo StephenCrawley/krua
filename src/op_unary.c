@@ -1,6 +1,9 @@
 #include "op_unary.h"
 #include "op_binary.h"
+#include "object.h"
+#include "file.h"
 #include "utils.h"
+#include "error.h"
 
 // iteration helpers over unary operators
 

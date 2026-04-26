@@ -1,6 +1,7 @@
 // K object create/destroy/print
 
 #include "object.h"
+#include "error.h"
 
 #define HDR_PAD   16UL
 #define MIN_ALLOC 32UL  // minimum bytes per object

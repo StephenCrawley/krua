@@ -1,12 +1,7 @@
-#ifndef PARSE_H
-#define PARSE_H
+#ifndef EVAL_H
+#define EVAL_H
 
 #include "krua.h"
-#include "object.h"
-#include "limits.h"
-#include "op_unary.h"
-#include "op_binary.h"
-#include "file.h"
 
 enum {
     OP_UNARY   = 0x00,

@@ -3,6 +3,7 @@
 #include "krua.h"
 #include "eval.h"
 #include "object.h"
+#include "error.h"
 
 #ifdef TRACK_REFS
 #include "refcount.h"

@@ -1,6 +1,8 @@
 #include "file.h"
+#include "object.h"
+#include "error.h"
 
-// forward declaration
+// forward declaration (rather than #include to break cycle eval->file->eval)
 K eval(K);
 
 // read a file into a K_char list

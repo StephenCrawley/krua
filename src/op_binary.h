@@ -2,9 +2,6 @@
 #define BINARY_H
 
 #include "krua.h"
-#include "object.h"
-#include "op_unary.h"
-#include "apply.h"
 
 typedef K (*F2)(K,K); // binary op function. f[x;y]
 
