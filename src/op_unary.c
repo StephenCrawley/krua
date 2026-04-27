@@ -1,6 +1,7 @@
 #include "op_unary.h"
 #include "op_binary.h"
 #include "object.h"
+#include "apply.h"
 #include "file.h"
 #include "utils.h"
 #include "error.h"
@@ -128,7 +129,7 @@ K csv(K x){
         K_char *nl = (K_char*)memchr(s, '\n', HDR_COUNT(d));
         TYPE_ERROR(!nl, "newline", unref(x); unref(d));
         h = syms4chrs(cutStr(knewcopy(KChrType, (K_int)(nl - s), (K)s), ','));
-        // TODO: filter h based on arg[1] types (drop ' ')
+        h = filter(1, h, eql(ref(t), kchr(' ')));
     }
     // create list indices of separator and newlines (cell ends)
     K sep = eql(kchr(','), ref(d));

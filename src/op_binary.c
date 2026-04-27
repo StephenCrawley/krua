@@ -2,6 +2,7 @@
 #include "object.h"
 #include "op_unary.h"
 #include "apply.h"
+#include "utils.h"
 #include "error.h"
 
 // iteration helpers over binary operators
@@ -55,13 +56,13 @@ F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
 #define CL(T, E) { \
     K_char *rp=(K_char*)r; T *xp=(T*)x, *yp=(T*)y; \
     for (K_int i=0; i<n; i++) rp[i] = E(xp[i], yp[i]); \
-    if (n&7) {uint64_t *p = (uint64_t*)r; p[n>>3] &= (1ULL << ((n & 7) << 3)) - 1;}} /* mask the last word to 0 the tail */ \
+    zeroBoolTail(r); } \
 
 // comparison list-atom loop (returns KBoolType)
 #define CA(T, E) { \
     K_char *rp=(K_char*)r; T *xp=(T*)x; T b=TAG_VAL(y); \
     for (K_int i=0; i<n; i++) rp[i] = E(xp[i], b); \
-    if (n&7) {uint64_t *p = (uint64_t*)r; p[n>>3] &= (1ULL << ((n & 7) << 3)) - 1;}} /* mask the last word to 0 the tail */ \
+    zeroBoolTail(r); } \
 
 // dispatch LL-LA
 #define LY(T, E) { if (IS_TAG(y)) LA(T, E) else LL(T, E) }

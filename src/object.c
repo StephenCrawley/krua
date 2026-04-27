@@ -325,7 +325,7 @@ static void _kprint(K x){
     K_int n = HDR_COUNT(x);
 
     if (n == 0){
-        char *empty[] = {"()", "0#0b", "\"\"", "0#0"};
+        char *empty[] = {"()", "0#0b", "\"\"", "0#0", "0#`"};
         printf("%s", empty[HDR_TYPE(x)]);
         return;
     }

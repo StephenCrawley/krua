@@ -3,6 +3,7 @@
 
 #include "krua.h"
 
-K apply(K x, int n, K*args);
+K apply(K, int, K*);
+K filter(bool, K, K);
 
 #endif

@@ -119,6 +119,7 @@ extern const K_char OPS[];
 // K is list-oriented language, and we regularly need to iterate over each list element
 // the FOR_EACH macro simply removes some clutter and clearly shows that each list element is iterated
 #define FOR_EACH(x) for (K_int i=0, _n=HDR_COUNT(x); i<_n; ++i)
+#define FOR_BOOL(x) for (K_int i=0, _n=(HDR_COUNT(x)+7)/8; i<_n; i++)
 
 // helpful test macro
 #define DEBUG(s,args...) putchar('\n'), printf(__func__), printf(": " s"\n", ##args),fflush(stdout)

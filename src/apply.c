@@ -3,6 +3,7 @@
 #include "eval.h"
 #include "op_unary.h"
 #include "op_binary.h"
+#include "utils.h"
 #include "error.h"
 
 // forward declarations
@@ -91,4 +92,9 @@ K index(K x, K ix){
     K r = TAG_TYPE(ix) ? atomIndex(x, TAG_VAL(ix)) : listIndex(knew(HDR_TYPE(x), HDR_COUNT(ix)), x, INT_PTR(ix));
     unref(ix);
     return r;
+}
+
+K filter(bool invert, K x, K b){
+    if (invert) b = notBool(b);
+    return UNREF_X(index(x, where(b)));
 }
