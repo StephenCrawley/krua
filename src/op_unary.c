@@ -32,7 +32,7 @@ K neg(K x){
     } else if (HDR_TYPE(x) == KObjType){
         return _each1(neg, x);
     } else if (HDR_TYPE(x) == KIntType){
-        K r = knew(KIntType, HDR_COUNT(x));
+        K r = reuse(KIntType, x);
         FOR_EACH(x) INT_PTR(r)[i] = -INT_PTR(x)[i];
         return UNREF_X(r);
     }

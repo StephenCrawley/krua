@@ -27,7 +27,7 @@ static inline void zeroBoolTail(K x){
 }
 
 static inline K notBool(K x){
-    K r = knew(KBoolType, HDR_COUNT(x));
+    K r = reuse(KBoolType, x);
     FOR_BOOL(x){
         uint64_t word = ((uint64_t*)x)[i];
         ((uint64_t*)r)[i] = word ^ 0x0101010101010101ULL;

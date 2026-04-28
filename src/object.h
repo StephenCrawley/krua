@@ -22,6 +22,7 @@ K_char addSym(K*, K_sym);
 K* getSlot(K, K_sym);
 K_int findSym(K, K_sym);
 K _knew(K_char, K_int);
+K reuse(K_char, K);
 K knewcopy(K_char, K_int, K);
 K k1(K);
 K k2(K, K);

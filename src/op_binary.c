@@ -83,7 +83,7 @@ static K binaryDispatch(int op, K x, K y){
     if (!(x = promote(t, x))){ unref(y); return 0; }
     K_int n = HDR_COUNT(x);
     // op < 7 is arithmetic. 7-9 is comparison
-    K r = knew(op < 7 ? t : KBoolType, n);
+    K r = op < 7 ? reuse(t, x) : knew(KBoolType, n);
     VSWITCH();
     return UNREF_XY(r);
 }

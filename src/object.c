@@ -196,6 +196,11 @@ K_int findSym(K x, K_sym y){
 
 // utility functions (copy)
 
+// reuse x if it has no references
+K reuse(K_char t, K x){
+    return HDR_REFC(x) ? knew(t, HDR_COUNT(x)) : (++HDR_REFC(x), HDR_TYPE(x)=t, x);
+}
+
 // allocate a new list and copy n items from x
 K knewcopy(K_char t, K_int n, K x){
     K r = MEMCPY(knew(t,n), x, n*KWIDTHS[t]);
