@@ -1160,20 +1160,20 @@ TEST(comparison_max_list) {
 
 TEST(comparison_min_bool) {
     K r = eval(kcstr("(1=1) & (1=1 2 3)"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType && HDR_COUNT(r) == 3, "should return 3-element int list");
-    ASSERT(INT_PTR(r)[0] == 1, "element 0 should be 1");
-    ASSERT(INT_PTR(r)[1] == 0, "element 1 should be 0");
-    ASSERT(INT_PTR(r)[2] == 0, "element 2 should be 0");
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 3, "should return 3-element bool list");
+    ASSERT(CHR_PTR(r)[0] == 1, "element 0 should be 1");
+    ASSERT(CHR_PTR(r)[1] == 0, "element 1 should be 0");
+    ASSERT(CHR_PTR(r)[2] == 0, "element 2 should be 0");
     unref(r);
     PASS();
 }
 
 TEST(comparison_max_bool) {
     K r = eval(kcstr("(1=1) | (1=1 2 3)"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType && HDR_COUNT(r) == 3, "should return 3-element int list");
-    ASSERT(INT_PTR(r)[0] == 1, "element 0 should be 1");
-    ASSERT(INT_PTR(r)[1] == 1, "element 1 should be 1");
-    ASSERT(INT_PTR(r)[2] == 1, "element 2 should be 1");
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 3, "should return 3-element bool list");
+    ASSERT(CHR_PTR(r)[0] == 1, "element 0 should be 1");
+    ASSERT(CHR_PTR(r)[1] == 1, "element 1 should be 1");
+    ASSERT(CHR_PTR(r)[2] == 1, "element 2 should be 1");
     unref(r);
     PASS();
 }

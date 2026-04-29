@@ -132,8 +132,7 @@ K csv(K x){
     // create list indices of separator and newlines (cell ends)
     K sep = eql(kchr(','), ref(d));
     K nwl = eql(kchr('\n'),ref(d));
-    K ind = eql(kint(1),max(sep, nwl));
-    ind = where(ind);
+    K ind = where(max(sep, nwl));
     PARSE_ERROR(HDR_COUNT(ind) % cn != 0, -1,
         "malformed csv. sep+nl % rows != 0", 
         unref(x); unref(d); unref(h); unref(ind););

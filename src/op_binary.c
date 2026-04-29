@@ -69,20 +69,22 @@ F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
 // dispatch CL-CA
 #define CY(T, E) { if (IS_TAG(y)) CA(T, E) else CL(T, E) }
 
-#define LX(T) switch(op){case 1: LY(T,ADD);break; case 3:LY(T,MLT);break; case 5:LY(T,MIN);break; case 6:LY(T,MAX); break; case 9:CY(T,EQL);break;}
+#define LC(T) case 9:CY(T,EQL);break;
+#define LX(T) switch(op){case 1: LY(T,ADD);break; case 3:LY(T,MLT);break; case 5:LY(T,MIN);break; case 6:LY(T,MAX); break; LC(T)}
 
-#define VSWITCH() LX(K_int)
+#define VSWITCH() switch(t){case KBoolType: case KChrType: switch(op){case 5:LY(K_char,MIN);break; case 6:LY(K_char,MAX); break; LC(K_char)} break; case KIntType: LX(K_int) break;}
 
 static K binaryDispatch(int op, K x, K y){
-    K t = KIntType;
-    // TODO: K t = max(HDR_TYPE(x), IS_TAG(y) ? TAG_TYPE(y) : HDR_TYPE(y));
+    // first promote args to the wider type. binary ops work on same types. arith always promotes to int. comp promotes to max of args x,y
+    K_char t = op < 5 ? KIntType : MAX(HDR_TYPE(x), IS_TAG(y) ? TAG_TYPE(y) : HDR_TYPE(y));
     if (!IS_TAG(y)){
         LENGTH_ERROR(HDR_COUNT(y) != HDR_COUNT(x), "", unref(x); unref(y));
         if (!(y = promote(t, y))){ unref(x); return 0; }
     }
     if (!(x = promote(t, x))){ unref(y); return 0; }
+    // then init the return object
     K_int n = HDR_COUNT(x);
-    // op < 7 is arithmetic. 7-9 is comparison
+    // op 7-9 comparison, returns bool. op<7 arithmetic, x always promoted to int, and always returns int
     K r = op < 7 ? reuse(t, x) : knew(KBoolType, n);
     VSWITCH();
     return UNREF_XY(r);
@@ -92,8 +94,9 @@ static K binaryDispatch(int op, K x, K y){
 K f(K x, K y){ \
     if (IS_TAG(x)){ \
         if (IS_TAG(y)){ \
-            TYPE_ERROR(MAX(TAG_TYPE(x),TAG_TYPE(y)) >= KNumericEndType, "", ); \
-            return TAG(op < 7 ? KIntType : KBoolType, g(TAG_VAL(x), TAG_VAL(y))); \
+            K_char t = MAX(TAG_TYPE(x),TAG_TYPE(y)); \
+            TYPE_ERROR(t >= KNumericEndType, "", ); \
+            return TAG(op < 5 ? KIntType : op < 7 ? t : KBoolType, g(TAG_VAL(x), TAG_VAL(y))); \
         } \
         return f(y, x); /* swap means op must be commutative! */ \
     } \
