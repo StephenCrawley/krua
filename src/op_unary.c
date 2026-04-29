@@ -95,8 +95,6 @@ K count(K x){
       OBJ_PTR(r)[rj++] = col; \
   } while(0)
 
-static K_char chr4chr(K_char*s, K_char*e){ (void)e; return *s; }
-
 K csv(K x){
     // first verify the argument
     TYPE_ERROR(IS_TAG(x) || HDR_TYPE(x) != KObjType || HDR_COUNT(x) != 3, 

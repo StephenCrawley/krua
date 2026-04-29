@@ -10,6 +10,10 @@
 #define ISDIGIT(c) isdigit((int)(c))
 #define ISALNUM(c) isalnum((int)(c))
 
+static inline K_char chr4chr(K_char*s, K_char*e){
+    return s==e ? ' ' : *s;
+}
+
 static inline K_int int4chr(K_char *src, K_char *end){
     K_int j = 0;
     do j = j*10 + (*src++ - '0'); while (src < end);
