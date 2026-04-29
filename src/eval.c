@@ -150,6 +150,7 @@ K token(K x, K *vars, K *consts){
             do {
                 count += (src[i++] == ' ' && ISDIGIT(src[i]));
             } while (i < n && (ISDIGIT(src[i]) || src[i] == ' '));
+            while (src[i-1] == ' ') --i;
             *tok++ = addConst(consts, numbers(src+t0, i-t0, count));
         } else if (src[i] == '"'){
             // string
