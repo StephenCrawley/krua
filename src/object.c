@@ -3,11 +3,11 @@
 #include "object.h"
 #include "error.h"
 
-#define HDR_PAD   16UL
-#define MIN_ALLOC 32UL  // minimum bytes per object
-#define BUCKET_SHIFT 5  // log2(MIN_ALLOC)
+#define HDR_PAD   32UL
+#define MIN_ALLOC 64UL  // minimum bytes per object. size allows overreads (eg SIMD chunks)
+#define BUCKET_SHIFT 6  // log2(MIN_ALLOC)
 #define BUCKET_SIZEOF(x) (MIN_ALLOC << HDR_BUCKET(x))  // size of the bucket that x is in
-#define NUM_BUCKETS 25
+#define NUM_BUCKETS 24
 #define HEAP_SIZE   (1ULL << 29) // 512MiB
 K M[NUM_BUCKETS];   // list of linked lists which are free to use
 
