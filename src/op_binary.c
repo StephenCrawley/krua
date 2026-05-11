@@ -1,3 +1,5 @@
+#include <immintrin.h>
+
 #include "op_binary.h"
 #include "object.h"
 #include "op_unary.h"
@@ -10,6 +12,7 @@
 // f'[x;y]
 static K _each2(F2 f, K x, K y){
     LENGTH_ERROR(HDR_COUNT(x) != HDR_COUNT(y), "", unref(x); unref(y));
+    NYI_ERROR(HDR_TYPE(x) == KBoolType || HDR_TYPE(y) == KBoolType, "_each2 bool", unref(x); unref(y));
     K r = knew(KObjType, HDR_COUNT(x)), *robj = OBJ_PTR(r);
     FOR_EACH(r){
         K t = f(item(i, x), item(i, y));
@@ -37,10 +40,13 @@ K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
 //                :    +    -    *    %    &    |    <    >    =    @   .    !    ,    ?    #    _    ~    $    ^
 F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi};
 
-#define ADD(x,y) ((x)+(y))
-//#define SUB(x,y) ((x)-(y)) // currently dead code
-#define MLT(x,y) ((x)*(y))
-#define EQL(x,y) ((x)==(y))
+#define  ADD(x, y) ((x)+(y))
+//#define SUB(x, y) ((x)-(y)) // currently dead code
+#define  MLT(x, y) ((x)*(y))
+#define  EQL(x, y) ((x)==(y))
+#define BEQL(x, y) (~((x)^(y)))
+#define  AND(x, y) ((x)&(y))
+#define   OR(x, y) ((x)|(y))
 
 // list-list loop
 #define LL(T, E) { \
@@ -54,25 +60,59 @@ F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
 
 // comparison list-list (returns KBoolType)
 #define CL(T, E) { \
-    K_char *rp=(K_char*)r; T *xp=(T*)x, *yp=(T*)y; \
-    for (K_int i=0; i<n; i++) rp[i] = E(xp[i], yp[i]); \
+    T *xp=(T*)x, *yp=(T*)y; \
+    K_int nc = (n + 7) / 8; \
+    for (K_int c=0, o=0; c<nc; c++, o+=8){ \
+        uint8_t buf[8]; \
+        for (int i = 0; i < 8; i++) buf[i] = E(xp[o + i], yp[o + i]);\
+        uint64_t w; \
+        memcpy(&w, buf, 8); \
+        uint8_t packed = (uint8_t)((w * 0x0102040810204080ULL) >> 56); \
+        MEMCPY(r + c, &packed, 1); \
+    } \
     zeroBoolTail(r); } \
 
 // comparison list-atom loop (returns KBoolType)
 #define CA(T, E) { \
-    K_char *rp=(K_char*)r; T *xp=(T*)x; T b=TAG_VAL(y); \
-    for (K_int i=0; i<n; i++) rp[i] = E(xp[i], b); \
+    T *xp=(T*)x, b=TAG_VAL(y); \
+    K_int nc = (n + 7) / 8; \
+    for (K_int c=0, o=0; c<nc; c++, o+=8){ \
+        uint8_t buf[8]; \
+        for (int i = 0; i < 8; i++) buf[i] = E(xp[o + i], b);\
+        uint64_t bits; \
+        memcpy(&bits, buf, 8); \
+        uint8_t packed = (uint8_t)((bits * 0x0102040810204080ULL) >> 56); \
+        MEMCPY(r + c, &packed, 1); \
+    } \
     zeroBoolTail(r); } \
+
+// bool list-list
+#define BL(E) { \
+    uint64_t *rp = (uint64_t*)r, *xp = (uint64_t*)x, *yp = (uint64_t*)y; \
+    for (K_int i=0, wn=(n+63)/64; i < wn; i++) rp[i] = E(xp[i], yp[i]); \
+    zeroBoolTail(r); }
+
+// bool list-atom
+#define BA(E) { \
+    uint64_t *rp = (uint64_t*)r, *xp = (uint64_t*)x, b = TAG_VAL(y) ? -1ULL : 0ULL; \
+    for (K_int i=0, wn=(n+63)/64; i < wn; i++) rp[i] = E(xp[i], b); \
+    zeroBoolTail(r); }
 
 // dispatch LL-LA
 #define LY(T, E) { if (IS_TAG(y)) LA(T, E) else LL(T, E) }
 // dispatch CL-CA
 #define CY(T, E) { if (IS_TAG(y)) CA(T, E) else CL(T, E) }
+// dispatch BL-BA
+#define BY(   E) { if (IS_TAG(y)) BA(   E) else BL(   E) }
 
 #define LC(T) case 9:CY(T,EQL);break;
 #define LX(T) switch(op){case 1: LY(T,ADD);break; case 3:LY(T,MLT);break; case 5:LY(T,MIN);break; case 6:LY(T,MAX); break; LC(T)}
 
-#define VSWITCH() switch(t){case KBoolType: case KChrType: switch(op){case 5:LY(K_char,MIN);break; case 6:LY(K_char,MAX); break; LC(K_char)} break; case KIntType: LX(K_int) break;}
+#define VSWITCH() \
+    switch(t){ \
+    case KBoolType: switch(op){case 5:BY(AND);break; case 6:BY(OR);break; case 9:BY(BEQL);break;} break; \
+    case KChrType:  switch(op){case 5:LY(K_char,MIN);break; case 6:LY(K_char,MAX); break; LC(K_char)} break; \
+    case KIntType:  LX(K_int) break;}
 
 static K binaryDispatch(int op, K x, K y){
     // first promote args to the wider type. binary ops work on same types. arith always promotes to int. comp promotes to max of args x,y

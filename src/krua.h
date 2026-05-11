@@ -101,15 +101,17 @@ typedef struct {
 #define IS_ATOM(x)      ({ K _x=(x); IS_TAG(_x)||HDR_TYPE(_x)>=K_ATOMIC_GENERICS_TYPE_START ;}) // can we group type enums so atomics are contiguous?
 #define IS_NESTED(x)    ({ K_char _t=HDR_TYPE(x); !_t || _t>=K_GENERIC_TYPES_START ;})
 #define OOB(i, n)       ((uint32_t)(i) >= (uint32_t)(n))
-#define MIN(x, y)       ({typeof(x)_x=(x); typeof(y)_y=(y); _x<_y?_x:_y;})
-#define MAX(x, y)       ({typeof(x)_x=(x); typeof(y)_y=(y); _x>_y?_x:_y;})
+#define MIN(x, y)       ({ typeof(x)_x=(x); typeof(y)_y=(y); _x<_y?_x:_y; })
+#define MAX(x, y)       ({ typeof(x)_x=(x); typeof(y)_y=(y); _x>_y?_x:_y; })
+#define GET_BIT(x, i)   ({ typeof(i)_i=(i); (LNG_PTR(x)[_i/64] >> _i%64) & 1; })
 // TODO: EXPR/LAMBDA ACCESS (bytecode; vars; consts; source)
 
 // some useful global data is here:
 
 // width of each type's items
+// KBoolType == 0 should not be used, and special-cased wherever widths are needed
 //                      Obj, Bool, Chr, Int, Sym, Op, Lambda, Adverb
-static int KWIDTHS[] = {  8,    1,   1,   4,   4,  8,      8,      8};
+static int KWIDTHS[] = {  8,    0,   1,   4,   4,  8,      8,      8};
 
 // operators string, where index encodes the operators value
 extern const K_char OPS[];
@@ -118,8 +120,8 @@ extern const K_char OPS[];
 
 // K is list-oriented language, and we regularly need to iterate over each list element
 // the FOR_EACH macro simply removes some clutter and clearly shows that each list element is iterated
-#define FOR_EACH(x) for (K_int i=0, _n=HDR_COUNT(x); i<_n; ++i)
-#define FOR_BOOL(x) for (K_int i=0, _n=(HDR_COUNT(x)+7)/8; i<_n; i++)
+#define FOR_EACH(x)  for (K_int i=0, _n=HDR_COUNT(x);         i<_n; ++i)
+#define FOR_WORDS(x) for (K_int i=0, _n=(HDR_COUNT(x)+63)/64; i<_n; ++i)
 
 // helpful test macro
 #define DEBUG(s,args...) putchar('\n'), printf(__func__), printf(": " s"\n", ##args),fflush(stdout)

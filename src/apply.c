@@ -26,6 +26,7 @@ K applyLambda(K x, int n, K *args){
 
 K each1(K f, K x){
     RANK_ERROR(IS_ATOM(x), "f'atom", unref(x));
+    NYI_ERROR(HDR_TYPE(x) == KBoolType, "each1 bool", unref(x));
     K r = knew(KObjType, HDR_COUNT(x));
     FOR_EACH(x){
         K t = item(i, x);
@@ -89,6 +90,7 @@ static K atomIndex(K x, K_int i){
 }
 
 K index(K x, K ix){
+    NYI_ERROR(HDR_TYPE(x) == KBoolType || (!IS_ATOM(ix)&&HDR_TYPE(ix) == KBoolType), "index bool", unref(ix));
     K r = TAG_TYPE(ix) ? atomIndex(x, TAG_VAL(ix)) : listIndex(knew(HDR_TYPE(x), HDR_COUNT(ix)), x, INT_PTR(ix));
     unref(ix);
     return r;

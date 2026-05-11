@@ -21,20 +21,20 @@ static inline K_int int4chr(K_char *src, K_char *end){
 }
 
 // 0 non-logical tail elements in the last word of a KBoolType array
-// NB: this is for byte bool representation
+// NB: this is for bit bool representation
 static inline void zeroBoolTail(K x){
     K_int n = HDR_COUNT(x);
-    if (n){
-        K_int wn = (n+7)/8, pad = wn*8 - n;
-        ((uint64_t*)x)[wn-1] = (((uint64_t*)x)[wn-1] << (pad*8)) >> (pad*8);
+    if (n & 63){
+        K_int wn = (n+63)/64;
+        ((uint64_t*)x)[wn-1] &= (1ULL << (n & 63)) - 1;
     }
 }
 
 static inline K notBool(K x){
     K r = reuse(KBoolType, x);
-    FOR_BOOL(x){
+    FOR_WORDS(x){
         uint64_t word = ((uint64_t*)x)[i];
-        ((uint64_t*)r)[i] = word ^ 0x0101010101010101ULL;
+        ((uint64_t*)r)[i] = ~word;
     }
     zeroBoolTail(r);
     return UNREF_X(r);

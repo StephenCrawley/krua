@@ -82,7 +82,7 @@ K kalloc(K_int n){
 // allocate a new list
 // internal function, hidden behind `knew`, which may wrap in refcount tracking if enabled
 K _knew(K_char t, K_int n){
-    K x = (K)kalloc(HDR_PAD + n*KWIDTHS[t]);
+    K x = (K)kalloc(HDR_PAD + (t==KBoolType ? (n+7)/8 : n*KWIDTHS[t]));
     HDR_TYPE(x) = t;
     HDR_REFC(x) = 0;
     HDR_COUNT(x) = n;
@@ -296,8 +296,9 @@ K item(K_int i, K x){
 // promote x to type t. widens if smaller than target. error if non-numeric type
 K promote(int t, K x){
     TYPE_ERROR(HDR_TYPE(x) > KIntType, "", unref(x));
-    return t == HDR_TYPE(x) ? x :
-        UNREF_X( ({K r = knew(t, HDR_COUNT(x)); FOR_EACH(r) INT_PTR(r)[i] = CHR_PTR(x)[i]; r;}) );
+    if (HDR_TYPE(x) == t) return x;
+    NYI_ERROR(HDR_TYPE(x) == KBoolType, "bool promote", unref(x));
+    return UNREF_X( ({K r = knew(t, HDR_COUNT(x)); FOR_EACH(r) INT_PTR(r)[i] = CHR_PTR(x)[i]; r;}) );
 }
 
 // ** K object print ** //
@@ -346,7 +347,7 @@ static void _kprint(K x){
         }
         if (n != 1) putchar(')');
     } else if (type == KBoolType){
-        FOR_EACH(x) putchar('0' + CHR_PTR(x)[i]);
+        FOR_EACH(x) putchar('0' + GET_BIT(x, i));
         putchar('b');
     } else if (type == KChrType){
         printf("\"%.*s\"", n, (K_char*)x);

@@ -43,21 +43,16 @@ K neg(K x){
 K where(K x){
     TYPE_ERROR(IS_TAG(x) || HDR_TYPE(x) != KBoolType, "&x expects bool", unref(x));
     // over-read in both loops depends on zeroed last word beyond logical length n
-    K_int n = 0, m = (HDR_COUNT(x)+7)/8;
+    K_int n = 0, m = (HDR_COUNT(x)+63)/64;
     for (K_int i = 0; i < m; i++){
         n += stdc_count_ones(((uint64_t*)x)[i]);
     }
     K r = knew(KIntType, n);
     K_int idx = 0;
-    for (K_int i = 0, o = 0; i < m; i++, o += 8){
+    for (K_int i = 0, o = 0; i < m; i++, o += 64){
         uint64_t word = ((uint64_t*)x)[i];
-        // special-case packed word
-        if (word == 0x0101010101010101UL){
-            for (int j = 0; j < 8; j++) INT_PTR(r)[idx++] = o+j;
-            continue;
-        }
         while (word){
-            INT_PTR(r)[idx++] = o + stdc_trailing_zeros(word)/8;
+            INT_PTR(r)[idx++] = o + stdc_trailing_zeros(word);
             word &= word - 1;
         }
     }
