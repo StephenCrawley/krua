@@ -81,14 +81,16 @@ K count(K x){
 // 'csv' helper macro
 // uses locals of 'csv'
 #define PARSE_COL(KT, STORE, PARSE) do { \
-      K col = knew(KT, rows); \
-      for (K_int i = 0; i < rows; i++){ \
-          K_int k = i*cn + j; \
-          K_int start = h||k ? idx[k-1]+1 : 0; \
-          STORE(col)[i] = PARSE(s + start, s + idx[k]); \
-      } \
-      OBJ_PTR(r)[rj++] = col; \
-  } while(0)
+    K col = knew(KT, rows); \
+    K_int *p = idx + j; \
+    K_int prev = (h||j) ? *(p - 1) + 1 : 0; \
+    for (K_int i = 0; i < rows; i++){ \
+        STORE(col)[i] = PARSE(s + prev, s + *p); \
+        p += cn; \
+        prev = *(p - 1) + 1; \
+    } \
+    OBJ_PTR(r)[rj++] = col; \
+    } while(0)
 
 K csv(K x){
     // first verify the argument
