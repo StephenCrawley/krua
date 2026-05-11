@@ -72,6 +72,20 @@ F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
     } \
     zeroBoolTail(r); } \
 
+#ifdef __AVX2__
+
+#define CA(T, E) { \
+    typedef T V##T __attribute__((vector_size(32), aligned(1))); \
+    V##T *xp=(V##T*)x, b=(V##T){} + (T)TAG_VAL(y) ; \
+    K_int nc = (n * sizeof(T) + 31) / 32; \
+    for (K_int c=0; c<nc; c++){ \
+        uint32_t bits = (uint32_t)(sizeof(T)==1?_mm256_movemask_epi8((__m256i)E(xp[c], b)):_mm256_movemask_ps((__m256i)E(xp[c], b))); \
+        MEMCPY(r + c*(32 / (8 * sizeof(T))), &bits, 32 / (8 * sizeof(T))); \
+    } \
+    zeroBoolTail(r); } \
+
+#else
+
 // comparison list-atom loop (returns KBoolType)
 #define CA(T, E) { \
     T *xp=(T*)x, b=TAG_VAL(y); \
@@ -85,6 +99,8 @@ F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
         MEMCPY(r + c, &packed, 1); \
     } \
     zeroBoolTail(r); } \
+
+#endif
 
 // bool list-list
 #define BL(E) { \
