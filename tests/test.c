@@ -3,6 +3,7 @@
 #include "krua.h"
 #include "eval.h"
 #include "object.h"
+#include "op_binary.h"
 #include "error.h"
 
 #ifdef TRACK_REFS
@@ -84,6 +85,26 @@ static int tests_failed = 0;
     ASSERT(HDR_COUNT(_c) == 2, #col " should have 2 elements"); \
     ASSERT(INT_PTR(_c)[0] == (a), #col "[0] mismatch"); \
     ASSERT(INT_PTR(_c)[1] == (b), #col "[1] mismatch"); \
+} while(0)
+
+// fill the full bucket data area (clobbering positions past HDR_COUNT) so that
+// vector reads past n see deterministic bytes — without this, garbage in bucket
+// headroom makes the pre-zeroBoolTail result tail non-deterministic
+#define FILL_BUCKET(x, v) memset((void*)(x), (v), (64UL << HDR_BUCKET(x)) - 32)
+
+#define ASSERT_BOOL_TAIL_ZERO(r) do { \
+    K_int _n = HDR_COUNT(r); \
+    if (_n & 63) { \
+        uint64_t _last = ((uint64_t*)(r))[(_n + 63) / 64 - 1]; \
+        uint64_t _mask = (1ULL << (_n & 63)) - 1; \
+        ASSERT((_last & ~_mask) == 0, "bool tail past n must be zero"); \
+    } \
+} while(0)
+
+#define ASSERT_ALL_BITS_SET(r, n) do { \
+    int _ok = 1; \
+    for (K_int _b = 0; _b < (n); _b++) if (!GET_BIT(r, _b)) { _ok = 0; break; } \
+    ASSERT(_ok, "all bits in valid range should be set"); \
 } while(0)
 
 /* Testing Practices:
@@ -1068,6 +1089,21 @@ TEST(binary_add_obj_atom) {
     PASS();
 }
 
+// n=20 > VI lanes (8 AVX2 / 16 AVX512) — forces >1 vector iteration in LL/LA
+TEST(binary_add_int_list_long) {
+    K_int expected[20];
+    for (int i = 0; i < 20; i++) expected[i] = 2 * i;
+    ASSERT_INT_LIST("(!20)+!20", 20, expected);
+    PASS();
+}
+
+TEST(binary_add_int_atom_long) {
+    K_int expected[20];
+    for (int i = 0; i < 20; i++) expected[i] = i + 5;
+    ASSERT_INT_LIST("5+!20", 20, expected);
+    PASS();
+}
+
 // Runtime: comparison
 TEST(comparison_int_atom_true) {
     K r = eval(kcstr("1=1"));
@@ -1102,12 +1138,127 @@ TEST(comparison_int_list_list) {
     PASS();
 }
 
-TEST(comparison_tail_ok) {
-    // last word gets zeroed after compare... make sure trailing bools are ok
-    K r = eval(kcstr("(!10)=!10"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType, "(!10)=!10 should return KBoolType list");
-    ASSERT(GET_BIT(r, 8) == 1, "((!10)=!10)[8] == 1");
-    ASSERT(GET_BIT(r, 9) == 1, "((!10)=!10)[9] == 1");
+// n=521 > 512 bits — exercises tail mask in the word containing bit n-1
+// after multiple vector iterations. Sized to preempt AVX512 (512-bit lanes).
+// FILL_BUCKET clobbers headroom so the pre-zeroBoolTail tail is forced high,
+// making missing-mask bugs deterministic instead of probabilistic.
+
+TEST(comparison_tail_int_eql_list) {
+    K_int n = 521;
+    K x = knew(KIntType, n), y = knew(KIntType, n);
+    FILL_BUCKET(x, 0x42); FILL_BUCKET(y, 0x42);
+    K r = eql(x, y);
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_int_eql_atom) {
+    K_int n = 521;
+    K x = knew(KIntType, n);
+    FILL_BUCKET(x, 0x42);
+    K r = eql(x, kint(0x42424242));
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_char_eql_list) {
+    K_int n = 521;
+    K x = knew(KChrType, n), y = knew(KChrType, n);
+    FILL_BUCKET(x, 'B'); FILL_BUCKET(y, 'B');
+    K r = eql(x, y);
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_char_eql_atom) {
+    K_int n = 521;
+    K x = knew(KChrType, n);
+    FILL_BUCKET(x, 'B');
+    K r = eql(x, kchr('B'));
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_bool_and_list) {
+    K_int n = 521;
+    K x = knew(KBoolType, n), y = knew(KBoolType, n);
+    FILL_BUCKET(x, 0xFF); FILL_BUCKET(y, 0xFF);
+    K r = min(x, y);
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_bool_and_atom) {
+    K_int n = 521;
+    K x = knew(KBoolType, n);
+    FILL_BUCKET(x, 0xFF);
+    K r = min(x, TAG(KBoolType, 1));
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_bool_or_list) {
+    K_int n = 521;
+    K x = knew(KBoolType, n), y = knew(KBoolType, n);
+    FILL_BUCKET(x, 0xFF); FILL_BUCKET(y, 0xFF);
+    K r = max(x, y);
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_bool_or_atom) {
+    K_int n = 521;
+    K x = knew(KBoolType, n);
+    FILL_BUCKET(x, 0xFF);
+    K r = max(x, TAG(KBoolType, 1));
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_bool_eql_list) {
+    K_int n = 521;
+    K x = knew(KBoolType, n), y = knew(KBoolType, n);
+    FILL_BUCKET(x, 0xFF); FILL_BUCKET(y, 0xFF);
+    K r = eql(x, y);
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_bool_eql_atom) {
+    K_int n = 521;
+    K x = knew(KBoolType, n);
+    FILL_BUCKET(x, 0xFF);
+    K r = eql(x, TAG(KBoolType, 1));
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
     unref(r);
     PASS();
 }
@@ -1154,6 +1305,41 @@ TEST(comparison_max_list) {
     ASSERT(INT_PTR(r)[1] == 1, "element 1 should be 1");
     ASSERT(INT_PTR(r)[2] == 2, "element 2 should be 2");
     ASSERT(INT_PTR(r)[3] == 3, "element 3 should be 3");
+    unref(r);
+    PASS();
+}
+
+// n past VI/VC lane width (8/32 AVX2, 16/64 AVX512) for VMIN kernels
+TEST(comparison_min_int_list_long) {
+    K_int expected[20];
+    for (int i = 0; i < 20; i++) expected[i] = i < 10 ? i : 20 - i;
+    ASSERT_INT_LIST("(!20)&(20-!20)", 20, expected);
+    PASS();
+}
+
+TEST(comparison_min_char_list_long) {
+    K r = eval(kcstr("\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"&\"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\""));
+    ASSERT(r && HDR_TYPE(r) == KChrType && HDR_COUNT(r) == 40, "shape");
+    int ok = 1;
+    for (K_int i = 0; i < 40; i++) if (CHR_PTR(r)[i] != 'A') { ok = 0; break; }
+    ASSERT(ok, "min of all-A and all-B should be all-A");
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_max_int_list_long) {
+    K_int expected[20];
+    for (int i = 0; i < 20; i++) expected[i] = i < 10 ? 20 - i : i;
+    ASSERT_INT_LIST("(!20)|(20-!20)", 20, expected);
+    PASS();
+}
+
+TEST(comparison_max_char_list_long) {
+    K r = eval(kcstr("\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"|\"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\""));
+    ASSERT(r && HDR_TYPE(r) == KChrType && HDR_COUNT(r) == 40, "shape");
+    int ok = 1;
+    for (K_int i = 0; i < 40; i++) if (CHR_PTR(r)[i] != 'B') { ok = 0; break; }
+    ASSERT(ok, "max of all-A and all-B should be all-B");
     unref(r);
     PASS();
 }
@@ -1676,18 +1862,33 @@ void run_tests() {
     RUN_TEST(binary_add_obj_list);
     RUN_TEST(binary_add_obj_obj);
     RUN_TEST(binary_add_obj_atom);
+    RUN_TEST(binary_add_int_list_long);
+    RUN_TEST(binary_add_int_atom_long);
     // comparison
     RUN_TEST(comparison_int_atom_true);
     RUN_TEST(comparison_int_atom_false);
     RUN_TEST(comparison_int_atom_list);
     RUN_TEST(comparison_int_list_list);
-    RUN_TEST(comparison_tail_ok);
+    RUN_TEST(comparison_tail_int_eql_list);
+    RUN_TEST(comparison_tail_int_eql_atom);
+    RUN_TEST(comparison_tail_char_eql_list);
+    RUN_TEST(comparison_tail_char_eql_atom);
+    RUN_TEST(comparison_tail_bool_and_list);
+    RUN_TEST(comparison_tail_bool_and_atom);
+    RUN_TEST(comparison_tail_bool_or_list);
+    RUN_TEST(comparison_tail_bool_or_atom);
+    RUN_TEST(comparison_tail_bool_eql_list);
+    RUN_TEST(comparison_tail_bool_eql_atom);
     RUN_TEST(comparison_min_atom);
     RUN_TEST(comparison_min_atom_2);
     RUN_TEST(comparison_max_atom);
     RUN_TEST(comparison_max_atom_2);
     RUN_TEST(comparison_min_list);
     RUN_TEST(comparison_max_list);
+    RUN_TEST(comparison_min_int_list_long);
+    RUN_TEST(comparison_min_char_list_long);
+    RUN_TEST(comparison_max_int_list_long);
+    RUN_TEST(comparison_max_char_list_long);
     RUN_TEST(comparison_min_bool);
     RUN_TEST(comparison_max_bool);
     // assignment
