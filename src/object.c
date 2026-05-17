@@ -3,11 +3,8 @@
 #include "object.h"
 #include "error.h"
 
-#define HDR_PAD   32UL
-#define MIN_ALLOC 64UL  // minimum bytes per object. size allows overreads (eg SIMD chunks)
-#define BUCKET_SHIFT 6  // log2(MIN_ALLOC)
-#define BUCKET_SIZEOF(x) (MIN_ALLOC << HDR_BUCKET(x))  // size of the bucket that x is in
-#define NUM_BUCKETS 24
+#define BUCKET_SHIFT 7  // log2(MIN_ALLOC)
+#define NUM_BUCKETS 23
 #define HEAP_SIZE   (1ULL << 29) // 512MiB
 K M[NUM_BUCKETS];   // list of linked lists which are free to use
 
@@ -41,7 +38,7 @@ void _unref(K x){
 K kalloc(K_int n){
     K x, r;
 
-    // minimum allocation is 32 bytes. bucket 0 = 32B, bucket 1 = 64B, etc.
+    // minimum allocation is 128 bytes. bucket 0 = 128B, bucket 1 = 256B, etc.
     K_int b, bucket = MAX(0, (64 - __builtin_clzll(n - 1)) - BUCKET_SHIFT);
     b = bucket;
 
@@ -55,7 +52,7 @@ K kalloc(K_int n){
 
     // find the next largest bucket
     while (!M[++b]){
-        // currently max heapsize is 512MiB. given bucket 0 is 32 bytes, there are only 26 bucket sizes
+        // currently max heapsize is 512MiB. given bucket 0 is 128 bytes, there are only 23 bucket sizes
         if (b == NUM_BUCKETS-1){
             K new_alloc = (K)malloc(HEAP_SIZE); // 512MiB
             if (!new_alloc) { fprintf(stderr, "Out of memory\n"); exit(1); }

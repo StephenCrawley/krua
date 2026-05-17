@@ -50,7 +50,12 @@ F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
 #define VMIN(x, y) __builtin_elementwise_min((x), (y))
 #define VMAX(x, y) __builtin_elementwise_max((x), (y))
 
-#ifdef __AVX2__
+#ifdef __AVX512F__
+    typedef K_char VC __attribute__((vector_size(64), aligned(1)));
+    typedef K_int  VI __attribute__((vector_size(64), aligned(1)));
+    #define PVC(v) _mm512_movepi8_mask((__m512i)(v))
+    #define PVI(v) _mm512_movepi32_mask((__m512i)(v))
+#elif defined(__AVX2__)
     typedef K_char VC __attribute__((vector_size(32), aligned(1)));
     typedef K_int  VI __attribute__((vector_size(32), aligned(1)));
     #define PVC(v) _mm256_movemask_epi8((__m256i)(v))

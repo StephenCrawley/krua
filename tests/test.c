@@ -90,7 +90,7 @@ static int tests_failed = 0;
 // fill the full bucket data area (clobbering positions past HDR_COUNT) so that
 // vector reads past n see deterministic bytes — without this, garbage in bucket
 // headroom makes the pre-zeroBoolTail result tail non-deterministic
-#define FILL_BUCKET(x, v) memset((void*)(x), (v), (64UL << HDR_BUCKET(x)) - 32)
+#define FILL_BUCKET(x, v) memset((void*)(x), (v), BUCKET_SIZEOF(x) - HDR_PAD)
 
 #define ASSERT_BOOL_TAIL_ZERO(r) do { \
     K_int _n = HDR_COUNT(r); \

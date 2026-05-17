@@ -3,6 +3,10 @@
 
 #include "krua.h"
 
+#define MIN_ALLOC 128UL // minimum bytes per object. size allows overreads (eg SIMD chunks)
+#define HDR_PAD    64UL
+#define BUCKET_SIZEOF(x) (MIN_ALLOC << HDR_BUCKET(x))  // size of the bucket that x is in
+
 #define UNREF_X(k)  ({__typeof__(k)_k=(k); unref(x); _k;})
 #define UNREF_Y(k)  ({__typeof__(k)_k=(k); unref(y); _k;})
 #define UNREF_R(k)  ({__typeof__(k)_k=(k); unref(r); _k;})
