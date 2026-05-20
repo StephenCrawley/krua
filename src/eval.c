@@ -388,7 +388,6 @@ K getGlobal(K_sym var){
 // limits:
 // - 32 constants per expression
 // - 32 variables per expression (incl. args/locals/globals)
-// TODO: multi-byte encoding
 K vm(K x, K vars, K consts, K_char varc, K*args){
     K_sym *v = SYM_PTR(vars);
     K_char *ip = CHR_PTR(x), *e = ip + HDR_COUNT(x);
