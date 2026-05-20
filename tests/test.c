@@ -1364,6 +1364,44 @@ TEST(comparison_max_bool) {
     PASS();
 }
 
+// Runtime: squeeze
+// squeeze of a boxed KBoolType list routes through eql(x_as_long, TAG(KBoolType,1))
+// via the 8-byte comparison kernel. Sizes 1/7/8/9/64/65 cover byte-internal tail mask,
+// byte boundary, multi-chunk iteration, word boundary, and word-tail respectively.
+// Headroom past n is poisoned with TAG(KBoolType,1) so a missing zeroBoolTail would
+// leave 1-bits past position n (without poison, allocator-zero buckets hide the bug).
+#define CHECK_SQUEEZE_BOOL(n_val) do { \
+    K_int _n = (n_val); \
+    K _x = knew(KObjType, _n); \
+    K_int _cap = (BUCKET_SIZEOF(_x) - HDR_PAD) / 8; \
+    for (K_int _k = 0; _k < _cap; _k++) OBJ_PTR(_x)[_k] = TAG(KBoolType, 1); \
+    for (K_int _k = 0; _k < _n;   _k++) OBJ_PTR(_x)[_k] = TAG(KBoolType, _k & 1); \
+    K _r = squeeze(_x); \
+    ASSERT(_r && !IS_TAG(_r) && HDR_TYPE(_r) == KBoolType && HDR_COUNT(_r) == _n, "shape"); \
+    int _ok = 1; \
+    for (K_int _k = 0; _k < _n; _k++) if (GET_BIT(_r, _k) != (_k & 1)) { _ok = 0; break; } \
+    ASSERT(_ok, "alternating bit pattern mismatch"); \
+    ASSERT_BOOL_TAIL_ZERO(_r); \
+    unref(_r); \
+} while(0)
+
+TEST(squeeze_bool_eval) {
+    K r = eval(kcstr("(1=1;1=0;1=1)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 3, "shape");
+    ASSERT(GET_BIT(r, 0) == 1, "bit 0 should be 1");
+    ASSERT(GET_BIT(r, 1) == 0, "bit 1 should be 0");
+    ASSERT(GET_BIT(r, 2) == 1, "bit 2 should be 1");
+    unref(r);
+    PASS();
+}
+
+TEST(squeeze_bool_n1)  { CHECK_SQUEEZE_BOOL(1);  PASS(); }
+TEST(squeeze_bool_n7)  { CHECK_SQUEEZE_BOOL(7);  PASS(); }
+TEST(squeeze_bool_n8)  { CHECK_SQUEEZE_BOOL(8);  PASS(); }
+TEST(squeeze_bool_n9)  { CHECK_SQUEEZE_BOOL(9);  PASS(); }
+TEST(squeeze_bool_n64) { CHECK_SQUEEZE_BOOL(64); PASS(); }
+TEST(squeeze_bool_n65) { CHECK_SQUEEZE_BOOL(65); PASS(); }
+
 // Runtime: assignment
 TEST(assignment_basic) {
     K r = eval(kcstr("x:42"));
@@ -1891,6 +1929,14 @@ void run_tests() {
     RUN_TEST(comparison_max_char_list_long);
     RUN_TEST(comparison_min_bool);
     RUN_TEST(comparison_max_bool);
+    // squeeze
+    RUN_TEST(squeeze_bool_eval);
+    RUN_TEST(squeeze_bool_n1);
+    RUN_TEST(squeeze_bool_n7);
+    RUN_TEST(squeeze_bool_n8);
+    RUN_TEST(squeeze_bool_n9);
+    RUN_TEST(squeeze_bool_n64);
+    RUN_TEST(squeeze_bool_n65);
     // assignment
     RUN_TEST(assignment_basic);
     RUN_TEST(assignment_basic_2);

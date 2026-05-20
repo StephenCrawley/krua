@@ -15,6 +15,7 @@
 
 static inline K kchr(K_char c) { return TAG(KChrType, c); }
 static inline K kint(K_int  i) { return TAG(KIntType, i); }
+static inline K klong(K_long i){ return i; } // TODO: heap allocation when full KLngType support added
 static inline K kop(K_int   i) { return TAG(KOpType, i); }
 #define knull() kop(0)
 

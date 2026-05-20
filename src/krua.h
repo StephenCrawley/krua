@@ -46,6 +46,7 @@ enum {
     KBoolType,
     KChrType,
     KIntType,
+    KLngType,
     KNumericEndType,
     KSymType = KNumericEndType,
     KOpType,
@@ -89,6 +90,7 @@ typedef struct {
 #define TAG_TYPE(x) ((x) >> 56)
 #define TAG_VAL(x)  ((K_int)(x))
 #define TAG(t,x)    ((K)(t)<<56 | (K)(uint32_t)(K_int)(x)) //create a tag
+#define INT_VAL(x)  (x) // TODO: TAG_TYPE==KLngType ? deref(x) : TAG_VAL(x), when we properly support KLngType
 
 // dict / table access
 #define KEYS(k)     OBJ_PTR(k)[0]
@@ -110,8 +112,8 @@ typedef struct {
 
 // width of each type's items
 // KBoolType == 0 should not be used, and special-cased wherever widths are needed
-//                      Obj, Bool, Chr, Int, Sym, Op, Lambda, Adverb
-static int KWIDTHS[] = {  8,    0,   1,   4,   4,  8,      8,      8};
+//                      Obj, Bool, Chr, Int, Long, Sym, Op, Lambda, Adverb
+static int KWIDTHS[] = {  8,    0,   1,   4,    8,   4,  8,      8,      8};
 
 // operators string, where index encodes the operators value
 extern const K_char OPS[];

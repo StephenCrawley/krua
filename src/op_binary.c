@@ -53,16 +53,24 @@ F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
 #ifdef __AVX512F__
     typedef K_char VC __attribute__((vector_size(64), aligned(1)));
     typedef K_int  VI __attribute__((vector_size(64), aligned(1)));
-    #define PVC(v) _mm512_movepi8_mask((__m512i)(v))
+    typedef K_long VJ __attribute__((vector_size(64), aligned(1)));
+    #define PVC(v)  _mm512_movepi8_mask((__m512i)(v))
     #define PVI(v) _mm512_movepi32_mask((__m512i)(v))
+    #define PVJ(v) _mm512_movepi64_mask((__m512i)(v))
 #elif defined(__AVX2__)
     typedef K_char VC __attribute__((vector_size(32), aligned(1)));
     typedef K_int  VI __attribute__((vector_size(32), aligned(1)));
+    typedef K_long VJ __attribute__((vector_size(64), aligned(1))); // 64-byte vector on AVX2 produces a clean 8-bit mask per chunk for byte-store
     #define PVC(v) _mm256_movemask_epi8((__m256i)(v))
-    #define PVI(v) _mm256_movemask_ps ((__m256)(v))
+    #define PVI(v) _mm256_movemask_ps((__m256)(v))
+    static inline uint64_t PVJ(VJ v){
+        __m256d *p = (__m256d*)&v;
+        return _mm256_movemask_pd(p[0]) | ((uint64_t)_mm256_movemask_pd(p[1]) << 4);
+    }
 #else
     typedef K_char VC __attribute__((vector_size(8),  aligned(1)));
     typedef K_int  VI __attribute__((vector_size(32), aligned(1)));
+    typedef K_long VJ __attribute__((vector_size(64), aligned(1)));
     static inline uint64_t PVC(VC v){
         uint64_t u; memcpy(&u, &v, 8);
         return ((u & 0x0101010101010101ULL) * 0x0102040810204080ULL) >> 56;
@@ -72,10 +80,15 @@ F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
         for (int i=0; i<8; i++) b |= (uint64_t)(l[i] >> 31) << i;
         return b;
     }
+    static inline uint64_t PVJ(VJ v){
+        uint64_t l[8]; memcpy(l, &v, 64); uint64_t b = 0;
+        for (int i=0; i<8; i++) b |= (l[i] >> 63) << i;
+        return b;
+    }
 #endif
 
 #define LANES(V)   ((K_int)(sizeof(V)/sizeof((V){}[0])))
-#define BCAST(V,x) ((V){} + (typeof((V){}[0]))TAG_VAL(x))
+#define BCAST(V,x) ((V){} + (typeof((V){}[0]))INT_VAL(x))
 
 // bool list-list
 #define BL(E) { \
@@ -101,9 +114,9 @@ F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
     for (K_int c=0; c<cn; c++) rp[c] = E(xp[c], b); }
 
 // dispatch LL-LA / BL-BA / CL-CA
-#define LY(V, E) { if (IS_TAG(y)) LA(V, E) else LL(V, E) }
 #define BY(   E) { if (IS_TAG(y)) BA(   E) else BL(   E); zeroBoolTail(r); }
 #define CY(V, E) { if (IS_TAG(y)) CA(V, E) else CL(V, E); zeroBoolTail(r); }
+#define LY(V, E) { if (IS_TAG(y)) LA(V, E) else LL(V, E) }
 
 #define LC(V) case 5:LY(V,VMIN);break; case 6:LY(V,VMAX);break; case 9:CY(V,EQL);break;
 #define LX(V) case 1:LY(V,ADD); break; case 3:LY(V,MLT); break; LC(V)
@@ -112,7 +125,8 @@ F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
     switch(t){ \
     case KBoolType: switch(op){case 5:BY(AND);break; case 6:BY(OR);break; case 9:BY(BEQL);break;} break; \
     case KChrType:  switch(op){LC(VC)} break; \
-    case KIntType:  switch(op){LX(VI)} break; }
+    case KIntType:  switch(op){LX(VI)} break; \
+    case KLngType:  switch(op){case 9: CY(VJ,EQL); break;} break; }
 
 static K binaryDispatch(int op, K x, K y){
     // first promote args to the wider type. binary ops work on same types. arith always promotes to int. comp promotes to max of args x,y

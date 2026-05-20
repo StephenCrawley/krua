@@ -2,6 +2,7 @@
 
 #include "object.h"
 #include "error.h"
+#include "op_binary.h"
 
 #define BUCKET_SHIFT 7  // log2(MIN_ALLOC)
 #define NUM_BUCKETS 23
@@ -275,6 +276,7 @@ K squeeze(K x){
     K_char type = TAG_TYPE(OBJ_PTR(x)[0]);
     if (!type) return x;
     FOR_EACH(x) if (type != TAG_TYPE(OBJ_PTR(x)[i])) return x;
+    if (type == KBoolType) { HDR_TYPE(x)=KLngType; return eql(x, (K_long)klong(TAG(KBoolType,1))); }
     K r = knew(type, HDR_COUNT(x));
     switch(WIDTH_OF(r)){
     case 1: {K_char *d = CHR_PTR(r); FOR_EACH(r) d[i] = TAG_VAL(OBJ_PTR(x)[i]); break;}
@@ -291,9 +293,10 @@ K item(K_int i, K x){
 
 // promote x to type t. widens if smaller than target. error if non-numeric type
 K promote(int t, K x){
-    TYPE_ERROR(HDR_TYPE(x) > KIntType, "", unref(x));
+    TYPE_ERROR(HDR_TYPE(x) >= KNumericEndType, "", unref(x));
     if (HDR_TYPE(x) == t) return x;
-    NYI_ERROR(HDR_TYPE(x) == KBoolType, "bool promote", unref(x));
+    NYI_ERROR(HDR_TYPE(x) == KBoolType, "promote KBoolType", unref(x));
+    NYI_ERROR(HDR_TYPE(x) == KLngType, "promote LngType", unref(x));
     return UNREF_X( ({K r = knew(t, HDR_COUNT(x)); FOR_EACH(r) INT_PTR(r)[i] = CHR_PTR(x)[i]; r;}) );
 }
 
