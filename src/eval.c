@@ -463,7 +463,7 @@ K timeExpr(K x){
 
 K evalFile(K x){
     K_int i = 2;
-    PARSE_ERROR(HDR_COUNT(x)<4 || CHR_PTR(x)[2] != ' ', i, "'\\l file.k' expected", unref(x)); // TODO: what is the check needed here?
+    PARSE_ERROR(HDR_COUNT(x)<4 || CHR_PTR(x)[2] != ' ', i, "'\\l file.k' expected", unref(x));
     // consume whitespace till filename
     while (i < HDR_COUNT(x) && CHR_PTR(x)[i] == ' ') ++i;
     return UNREF_X(kfile(knewcopy(KChrType, HDR_COUNT(x)-i, (K)(CHR_PTR(x)+i))));
