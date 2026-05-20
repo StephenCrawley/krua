@@ -284,7 +284,6 @@ K squeeze(K x){
 }
 
 // retrieve item from index i
-// TODO? handle atoms. assumes x is list
 K item(K_int i, K x){
     int t = HDR_TYPE(x);
     return (t == KObjType) ? ref(OBJ_PTR(x)[i]) : TAG(t, WIDTH_OF(x)==1 ? CHR_PTR(x)[i] : INT_PTR(x)[i]);
