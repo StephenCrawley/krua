@@ -833,6 +833,44 @@ TEST(unary_neg_type_error) {
     PASS();
 }
 
+TEST(unary_first_atom) {
+    ASSERT_INT_ATOM("*123", 123);
+    PASS();
+}
+
+TEST(unary_first_list) {
+    ASSERT_INT_ATOM("*123 1 2", 123);
+    PASS();
+}
+
+TEST(unary_first_nested) {
+    K r = eval(kcstr("*(1 2;3 4)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "*(1 2;3 4) should return int list");
+    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
+    ASSERT(INT_PTR(r)[0] == 1 && INT_PTR(r)[1] == 2, "result should be 1 2");
+    unref(r);
+    PASS();
+}
+
+TEST(unary_keyword_first_atom) {
+    ASSERT_INT_ATOM("first 123", 123);
+    PASS();
+}
+
+TEST(unary_keyword_first_list) {
+    ASSERT_INT_ATOM("first 123 1 2", 123);
+    PASS();
+}
+
+TEST(unary_keyword_first_nested) {
+    K r = eval(kcstr("first (1 2;3 4)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "first (1 2;3 4) should return int list");
+    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
+    ASSERT(INT_PTR(r)[0] == 1 && INT_PTR(r)[1] == 2, "result should be 1 2");
+    unref(r);
+    PASS();
+}
+
 TEST(unary_til) {
     ASSERT_INT_LIST("!3", 3, ((K_int[]){0, 1, 2}));
     PASS();
@@ -1865,6 +1903,12 @@ void run_tests() {
     RUN_TEST(unary_keyword_neg_atom);
     RUN_TEST(unary_keyword_neg_list);
     RUN_TEST(unary_neg_type_error);
+    RUN_TEST(unary_first_atom);
+    RUN_TEST(unary_first_list);
+    RUN_TEST(unary_first_nested);
+    RUN_TEST(unary_keyword_first_atom);
+    RUN_TEST(unary_keyword_first_list);
+    RUN_TEST(unary_keyword_first_nested);
     RUN_TEST(unary_til);
     RUN_TEST(unary_keyword_til);
     RUN_TEST(unary_count_list);

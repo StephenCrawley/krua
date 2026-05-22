@@ -8,6 +8,7 @@ typedef K (*F1)(K); // unary operator f[x]
 extern F1 unary_op[21];
 
 K neg(K);
+K first(K);
 K value(K);
 K where(K);
 K til(K);

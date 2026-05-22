@@ -5,5 +5,6 @@
 
 K apply(K, int, K*);
 K filter(bool, K, K);
+K index(K, K);
 
 #endif

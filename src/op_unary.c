@@ -21,8 +21,8 @@ K _each1(F1 f, K x){
 
 static K nyi1(K x){NYI_ERROR(1, "unary operator", unref(x);)}
 
-//               :     +     -    *     %     &      |     <     >     =     @     .      !     ,     ?     #      _     ~     $     ^    csv
-F1 unary_op[] = {nyi1, nyi1, neg, nyi1, nyi1, where, nyi1, nyi1, nyi1, nyi1, nyi1, value, til, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1, csv};
+//               :     +     -    *      %     &      |     <     >     =     @     .      !     ,     ?     #      _     ~     $     ^    csv
+F1 unary_op[] = {nyi1, nyi1, neg, first, nyi1, where, nyi1, nyi1, nyi1, nyi1, nyi1, value, til, nyi1, nyi1, count, nyi1, nyi1, nyi1, nyi1, csv};
 
 // -x / neg x
 K neg(K x){
@@ -37,6 +37,10 @@ K neg(K x){
         return UNREF_X(r);
     }
     TYPE_ERROR(1, "-x expects int", unref(x));
+}
+
+K first(K x){
+    return IS_ATOM(x) ? x : UNREF_X(index(x, kint(0)));
 }
 
 // &x / where x
