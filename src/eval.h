@@ -22,7 +22,7 @@ enum {
 #define ADVERB_START 29u
 
 extern K GLOBALS; // global interpreter state
-extern K_char KEYWORDS_STRING[]; // unary primitive keywords string
+extern const char KEYWORDS_STRING[]; // unary primitive keywords string
 extern K KEYWORDS; // unary primitive keywords symlist
 
 K token(K,K*,K*);

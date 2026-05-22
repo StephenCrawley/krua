@@ -82,7 +82,7 @@ typedef struct {
 #define CHR_PTR(x)    ((K_char*)(x))
 #define INT_PTR(x)    (( K_int*)(x))
 #define LNG_PTR(x)    ((K_long*)(x))
-#define SYM_PTR(x)    INT_PTR(x)
+#define SYM_PTR(x)    (( K_sym*)(x))
 // set header data with these
 
 // we inspect and access tagged K objects with:
@@ -92,7 +92,7 @@ typedef struct {
 #define TAG(t,x)    ((K)(t)<<56 | (K)(uint32_t)(K_int)(x)) //create a tag
 #define INT_VAL(x)  (x) // TODO: TAG_TYPE==KLngType ? deref(x) : TAG_VAL(x), when we properly support KLngType
 
-// dict / table access
+// dict/table access
 #define KEYS(k)     OBJ_PTR(k)[0]
 #define VALS(k)     OBJ_PTR(k)[1]
 
@@ -116,7 +116,7 @@ typedef struct {
 static int KWIDTHS[] = {  8,    0,   1,   4,    8,   4,  8,      8,      8};
 
 // operators string, where index encodes the operators value
-extern const K_char OPS[];
+extern const char OPS[];
 
 // some useful macros are here:
 

@@ -10,8 +10,8 @@
 #include "file.h"
 #include "error.h"
 
-const K_char OPS[] = ":+-*%&|<>=@.!,?#_~$^         '/\\";
-K_char KEYWORDS_STRING[] = ": flip neg first % where | < > group type value til , ? count _ not $ ^ csv";
+const char OPS[] = ":+-*%&|<>=@.!,?#_~$^         '/\\";
+const char KEYWORDS_STRING[] = ": flip neg first % where | < > group type value til , ? count _ not $ ^ csv";
 
 #define IS_ADVERB(x) (x-ADVERB_START < 3u)
 #define IS_POSTFIX_ADVERB(x) ({K_char _p=(x); IS_CLASS(TOK_POSTFIX, _p) && HDR_ADVERB(OBJ_PTR(postfix)[_p & 31]);})
@@ -44,9 +44,9 @@ static K_char addConst(K *consts, K x){
     return OP_CONST + HDR_COUNT(*consts)-1;
 }
 
-static K numbers(char *src, K_int len, K_int count){
+static K numbers(K_char *src, K_int len, K_int count){
     K r;
-    char *end = src + len;
+    K_char *end = src + len;
     if (count == 1){
         r = kint(int4chr(src, end));
     } else {
@@ -113,7 +113,7 @@ static K lambda(K_char *src, K_int start, K_int end){
 }
 
 // return index of next non-whitespace character
-static int next(char *src, int i){
+static int next(K_char *src, int i){
     while (src[i] == ' ') ++i;
     return i;
 }
@@ -177,7 +177,7 @@ K token(K x, K *vars, K *consts){
         } else {
             // operators, punctuation
             PARSE_ERROR((unsigned)src[i] - 32 > 94u, i, "invalid token", unref(r));
-            K_char *op = strchr(OPS, src[i]);
+            char *op = strchr(OPS, src[i]);
             *tok++ = op ? op - OPS : src[i];
             ++i;
         }

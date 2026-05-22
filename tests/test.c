@@ -1406,7 +1406,7 @@ TEST(squeeze_bool_n65) { CHECK_SQUEEZE_BOOL(65); PASS(); }
 TEST(assignment_basic) {
     K r = eval(kcstr("x:42"));
     ASSERT(r == knull(), "assignment as final op should return knull");
-    K x_val = getGlobal(encodeSym("x", 1));
+    K x_val = getGlobal(encodeSym((K_char*)"x", 1));
     ASSERT(x_val && TAG_VAL(x_val) == 42, "x should be assigned 42");
     PASS();
 }
@@ -1414,7 +1414,7 @@ TEST(assignment_basic) {
 TEST(assignment_basic_2) {
     K r = eval(kcstr("x:42+1"));
     ASSERT(r == knull(), "assignment as final op should return knull");
-    K x_val = getGlobal(encodeSym("x", 1));
+    K x_val = getGlobal(encodeSym((K_char*)"x", 1));
     ASSERT(x_val && TAG_VAL(x_val) == 43, "x should be assigned 43");
     PASS();
 }

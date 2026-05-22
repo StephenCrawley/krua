@@ -18,7 +18,7 @@ int main(){
         if (!f) exit(0);
 
         // overwrite potential trailing newline
-        K_char *nl = strchr(buf, '\n'); 
+        char *nl = strchr(buf, '\n');
         if (nl) *nl = 0;
 
         // eval + print 
