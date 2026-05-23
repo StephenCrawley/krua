@@ -844,11 +844,7 @@ TEST(unary_first_list) {
 }
 
 TEST(unary_first_nested) {
-    K r = eval(kcstr("*(1 2;3 4)"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "*(1 2;3 4) should return int list");
-    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
-    ASSERT(INT_PTR(r)[0] == 1 && INT_PTR(r)[1] == 2, "result should be 1 2");
-    unref(r);
+    ASSERT_INT_LIST("*(1 2;3 4)", 2, ((K_int[]){1, 2}));
     PASS();
 }
 
@@ -863,11 +859,7 @@ TEST(unary_keyword_first_list) {
 }
 
 TEST(unary_keyword_first_nested) {
-    K r = eval(kcstr("first (1 2;3 4)"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "first (1 2;3 4) should return int list");
-    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
-    ASSERT(INT_PTR(r)[0] == 1 && INT_PTR(r)[1] == 2, "result should be 1 2");
-    unref(r);
+    ASSERT_INT_LIST("first (1 2;3 4)", 2, ((K_int[]){1, 2}));
     PASS();
 }
 
@@ -925,21 +917,12 @@ TEST(unary_value_type_error) {
 }
 
 TEST(unary_where_single) {
-    K r = eval(kcstr("&1=!3"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "&1=!3 should return KIntType list");
-    ASSERT(HDR_COUNT(r) == 1, "&1=!3 should have 1 element");
-    ASSERT(INT_PTR(r)[0] == 1, "(&1=!3)[0] == 1");
-    unref(r);
+    ASSERT_INT_LIST("&1=!3", 1, ((K_int[]){1}));
     PASS();
 }
 
 TEST(unary_where_multiple) {
-    K r = eval(kcstr("&1=0 1 2 1 0 0"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "&1=0 1 2 1 0 0 should return KIntType list");
-    ASSERT(HDR_COUNT(r) == 2, "&1=0 1 2 1 0 0 should have 2 elements");
-    ASSERT(INT_PTR(r)[0] == 1, "(&1=0 1 2 1 0 0)[0] == 1");
-    ASSERT(INT_PTR(r)[1] == 3, "(&1=0 1 2 1 0 0)[1] == 3");
-    unref(r);
+    ASSERT_INT_LIST("&1=0 1 2 1 0 0", 2, ((K_int[]){1, 3}));
     PASS();
 }
 
@@ -1050,41 +1033,27 @@ TEST(unary_csv_malformed_separators_error) {
 
 // Runtime: binary arithmetic
 TEST(binary_add_atom) {
-    K r = eval(kcstr("1+2"));
-    ASSERT(r && IS_TAG(r), "result should be a tag");
-    ASSERT(TAG_VAL(r) == 3, "1+2 should evaluate to 3");
+    ASSERT_INT_ATOM("1+2", 3);
     PASS();
 }
 
 TEST(binary_multiply_atom) {
-    K r = eval(kcstr("3*4"));
-    ASSERT(r && IS_TAG(r), "result should be a tag");
-    ASSERT(TAG_VAL(r) == 12, "3*4 should evaluate to 12");
+    ASSERT_INT_ATOM("3*4", 12);
     PASS();
 }
 
 TEST(binary_sub_atom) {
-    K r = eval(kcstr("1-2"));
-    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType, "1-2 should return int atom");
-    ASSERT(TAG_VAL(r) == -1, "1-2 should be -1");
+    ASSERT_INT_ATOM("1-2", -1);
     PASS();
 }
 
 TEST(binary_sub_list_list) { // TODO: BINARY_OP doesn't handle list-list yet
-    K r = eval(kcstr("1 2-3 4"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "1 2-3 4 should return int list");
-    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
-    ASSERT(INT_PTR(r)[0] == -2 && INT_PTR(r)[1] == -2, "1 2-3 4 should be -2 -2");
-    unref(r);
+    ASSERT_INT_LIST("1 2-3 4", 2, ((K_int[]){-2, -2}));
     PASS();
 }
 
 TEST(binary_sub_list_atom) {
-    K r = eval(kcstr("1 2 3-1"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "1 2 3-1 should return int list");
-    ASSERT(HDR_COUNT(r) == 3, "result should have 3 elements");
-    ASSERT(INT_PTR(r)[0] == 0 && INT_PTR(r)[1] == 1 && INT_PTR(r)[2] == 2, "1 2 3-1 should be 0 1 2");
-    unref(r);
+    ASSERT_INT_LIST("1 2 3-1", 3, ((K_int[]){0, 1, 2}));
     PASS();
 }
 
@@ -1302,48 +1271,32 @@ TEST(comparison_tail_bool_eql_atom) {
 }
 
 TEST(comparison_min_atom) {
-    K r = eval(kcstr("1&2"));
-    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType && TAG_VAL(r) == 1, "should return minimum value 1");
+    ASSERT_INT_ATOM("1&2", 1);
     PASS();
 }
 
 TEST(comparison_min_atom_2) {
-    K r = eval(kcstr("2&1"));
-    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType && TAG_VAL(r) == 1, "should return minimum value 1");
+    ASSERT_INT_ATOM("2&1", 1);
     PASS();
 }
 
 TEST(comparison_max_atom) {
-    K r = eval(kcstr("1|2"));
-    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType && TAG_VAL(r) == 2, "should return maximum value 2");
+    ASSERT_INT_ATOM("1|2", 2);
     PASS();
 }
 
 TEST(comparison_max_atom_2) {
-    K r = eval(kcstr("2|1"));
-    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType && TAG_VAL(r) == 2, "should return maximum value 2");
+    ASSERT_INT_ATOM("2|1", 2);
     PASS();
 }
 
 TEST(comparison_min_list) {
-    K r = eval(kcstr("1 & 1 0 2 3"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType && HDR_COUNT(r) == 4, "should return 4-element int list");
-    ASSERT(INT_PTR(r)[0] == 1, "element 0 should be 1");
-    ASSERT(INT_PTR(r)[1] == 0, "element 1 should be 0");
-    ASSERT(INT_PTR(r)[2] == 1, "element 2 should be 1");
-    ASSERT(INT_PTR(r)[3] == 1, "element 3 should be 1");
-    unref(r);
+    ASSERT_INT_LIST("1 & 1 0 2 3", 4, ((K_int[]){1, 0, 1, 1}));
     PASS();
 }
 
 TEST(comparison_max_list) {
-    K r = eval(kcstr("1 | 1 0 2 3"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType && HDR_COUNT(r) == 4, "should return 4-element int list");
-    ASSERT(INT_PTR(r)[0] == 1, "element 0 should be 1");
-    ASSERT(INT_PTR(r)[1] == 1, "element 1 should be 1");
-    ASSERT(INT_PTR(r)[2] == 2, "element 2 should be 2");
-    ASSERT(INT_PTR(r)[3] == 3, "element 3 should be 3");
-    unref(r);
+    ASSERT_INT_LIST("1 | 1 0 2 3", 4, ((K_int[]){1, 1, 2, 3}));
     PASS();
 }
 
@@ -1478,8 +1431,7 @@ TEST(assignment_reassignment) {
 }
 
 TEST(assignment_op) {
-    K r = eval(kcstr("f:+; f[1;6]"));
-    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType && TAG_VAL(r) == 7, "operator assignment works");
+    ASSERT_INT_ATOM("f:+; f[1;6]", 7);
     PASS();
 }
 
@@ -1502,18 +1454,12 @@ TEST(index_str_with_list){
 }
 
 TEST(index_int_with_list){
-    K r = eval(kcstr("3 2 1@0"));
-    ASSERT(r && IS_TAG(r), "indexing at 0 should return atom");
-    ASSERT(TAG_TYPE(r) == KIntType, "result should be KIntType");
-    ASSERT(TAG_VAL(r) == 3, "first element should be 3");
+    ASSERT_INT_ATOM("3 2 1@0", 3);
     PASS();
 }
 
 TEST(index_int_out_of_bounds){
-    K r = eval(kcstr("1 2@3"));
-    ASSERT(r && IS_TAG(r), "out of bounds index should return atom");
-    ASSERT(TAG_TYPE(r) == KIntType, "result should be KIntType");
-    ASSERT(TAG_VAL(r) == 0, "out of bounds int index should return 0");
+    ASSERT_INT_ATOM("1 2@3", 0);
     PASS();
 }
 
@@ -1526,22 +1472,17 @@ TEST(index_str_out_of_bounds){
 }
 
 TEST(index_postfix_two_args){
-    K r = eval(kcstr("(1 2;3 4)[1;0]"));
-    ASSERT(r && IS_TAG(r), "result should be an atom");
-    ASSERT(TAG_TYPE(r) == KIntType, "result should be KIntType");
-    ASSERT(TAG_VAL(r) == 3, "result should be 3");
+    ASSERT_INT_ATOM("(1 2;3 4)[1;0]", 3);
     PASS();
 }
 
 TEST(index_postfix_three_args){
-    K r = eval(kcstr("((1 2;3 4);(5 6;7 8))[1;0;1]"));
-    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 6, "should be 6");
+    ASSERT_INT_ATOM("((1 2;3 4);(5 6;7 8))[1;0;1]", 6);
     PASS();
 }
 
 TEST(index_postfix_single_arg){
-    K r = eval(kcstr("1 2 3[0]"));
-    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 1, "should be 1");
+    ASSERT_INT_ATOM("1 2 3[0]", 1);
     PASS();
 }
 
@@ -1623,44 +1564,37 @@ TEST(lambda_apply_empty_body) {
 }
 
 TEST(lambda_apply_identity) {
-    K r = eval(kcstr("{[x]x}@42"));
-    ASSERT(r && TAG_VAL(r) == 42, "{[x]x}@42 should be 42");
+    ASSERT_INT_ATOM("{[x]x}@42", 42);
     PASS();
 }
 
 TEST(lambda_apply_add) {
-    K r = eval(kcstr("{[x]x+1}@2"));
-    ASSERT(r && TAG_VAL(r) == 3, "{[x]x+1}@2 should be 3");
+    ASSERT_INT_ATOM("{[x]x+1}@2", 3);
     PASS();
 }
 
 TEST(lambda_apply_multiply) {
-    K r = eval(kcstr("{[x]x*2}@10"));
-    ASSERT(r && TAG_VAL(r) == 20, "{[x]x*2}@10 should be 20");
+    ASSERT_INT_ATOM("{[x]x*2}@10", 20);
     PASS();
 }
 
 TEST(lambda_apply_with_local) {
-    K r = eval(kcstr("{[x]y:x+1}@6"));
-    ASSERT(r && TAG_VAL(r) == 7, "lambda with local: {[x]y:x+1;y}@5 should be 6");
+    ASSERT_INT_ATOM("{[x]y:x+1}@6", 7);
     PASS();
 }
 
 TEST(lambda_apply_multiple_locals) {
-    K r = eval(kcstr("{[x]z:y:x+1}@6"));
-    ASSERT(r && TAG_VAL(r) == 7, "multiple locals: (5+1)*2=12");
+    ASSERT_INT_ATOM("{[x]z:y:x+1}@6", 7);
     PASS();
 }
 
 TEST(lambda_apply_local_and_param) {
-    K r = eval(kcstr("{[x]x+y:x+1}@5"));
-    ASSERT(r && TAG_VAL(r) == 11, "local+param: (5+1)+5=11");
+    ASSERT_INT_ATOM("{[x]x+y:x+1}@5", 11);
     PASS();
 }
 
 TEST(lambda_apply_nested) {
-    K r = eval(kcstr("{[x]x+{[y]y*2}@3}@5"));
-    ASSERT(r && TAG_VAL(r) == 11, "nested lambda: 5+(3*2)=11");
+    ASSERT_INT_ATOM("{[x]x+{[y]y*2}@3}@5", 11);
     PASS();
 }
 
@@ -1672,8 +1606,7 @@ TEST(lambda_apply_no_params) {
 }
 
 TEST(lambda_postfix_eval){
-    K r = eval(kcstr("{[x]x+1}[6]"));
-    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 7, "{[x]x+1}[6] should be 7");
+    ASSERT_INT_ATOM("{[x]x+1}[6]", 7);
     PASS();
 }
 
@@ -1700,41 +1633,33 @@ TEST(lambda_error_undefined_var) {
 }
 
 TEST(lambda_set_get) {
-    K r = eval(kcstr("{[x]a:x+1; a+2} 4"));
-    ASSERT(r, "should evaluate without error");
-    ASSERT(IS_TAG(r) && TAG_TYPE(r) == KIntType && TAG_VAL(r) == 7, "should return int-atom with value 7");
+    ASSERT_INT_ATOM("{[x]a:x+1; a+2} 4", 7);
     PASS();
 }
 
 // Runtime: parens / semicolons
 TEST(paren_eval_simple) {
-    K r = eval(kcstr("(42)"));
-    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 42, "(42) should be 42");
+    ASSERT_INT_ATOM("(42)", 42);
     PASS();
 }
 
 TEST(paren_eval_grouping) {
-    K r = eval(kcstr("(1+2)*3"));
-    ASSERT(r && IS_TAG(r), "result should be a tag");
-    ASSERT(TAG_VAL(r) == 9, "(1+2)*3 should be 9");
+    ASSERT_INT_ATOM("(1+2)*3", 9);
     PASS();
 }
 
 TEST(paren_eval_nested) {
-    K r = eval(kcstr("((1+2))"));
-    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 3, "((1+2)) should be 3");
+    ASSERT_INT_ATOM("((1+2))", 3);
     PASS();
 }
 
 TEST(paren_eval_deep) {
-    K r = eval(kcstr("(((1+2)))"));
-    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 3, "(((1+2))) should be 3");
+    ASSERT_INT_ATOM("(((1+2)))", 3);
     PASS();
 }
 
 TEST(paren_eval_multiple) {
-    K r = eval(kcstr("(1+2)+(3+4)"));
-    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 10, "(1+2)+(3+4) should be 10");
+    ASSERT_INT_ATOM("(1+2)+(3+4)", 10);
     PASS();
 }
 
@@ -1745,36 +1670,27 @@ TEST(semicolon_terminated_expr) {
 }
 
 TEST(expr_multiexpr_basic) {
-    K r = eval(kcstr("1 2;2"));
-    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 2, "should return 2");
+    ASSERT_INT_ATOM("1 2;2", 2);
     PASS();
 }
 
 TEST(expr_subexpr_with_ops) {
-    K r = eval(kcstr("1+2;3*4"));
-    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 12, "1+2;3*4 should return 12");
+    ASSERT_INT_ATOM("1+2;3*4", 12);
     PASS();
 }
 
 TEST(expr_subexpr_assignment) {
-    K r = eval(kcstr("x:1;x+2"));
-    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 3, "x:1;x+2 should return 3");
+    ASSERT_INT_ATOM("x:1;x+2", 3);
     PASS();
 }
 
 TEST(expr_fenced_subexpr_basic) {
-    K r = eval(kcstr("(1;2)"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "(1;2) should return int array");
-    ASSERT(HDR_COUNT(r) == 2 && INT_PTR(r)[0] == 1 && INT_PTR(r)[1] == 2, "(1;2) should be 1 2");
-    unref(r);
+    ASSERT_INT_LIST("(1;2)", 2, ((K_int[]){1, 2}));
     PASS();
 }
 
 TEST(expr_fenced_subexpr_with_ops) {
-    K r = eval(kcstr("(1;2+3)"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "(1;2+3) should return int array");
-    ASSERT(HDR_COUNT(r) == 2 && INT_PTR(r)[0] == 1 && INT_PTR(r)[1] == 5, "(1;2+3) should be 1 5");
-    unref(r);
+    ASSERT_INT_LIST("(1;2+3)", 2, ((K_int[]){1, 5}));
     PASS();
 }
 
@@ -1790,20 +1706,12 @@ TEST(expr_fenced_subexpr_heterogeneous) {
 
 // Runtime: adverbs
 TEST(adverb_each_lambda_count) {
-    K r = eval(kcstr("{[x]#x}'(1 2;3 4 5)"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "should return int list");
-    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
-    ASSERT(INT_PTR(r)[0] == 2 && INT_PTR(r)[1] == 3, "{[x]#x}'(1 2;3 4 5) should be 2 3");
-    unref(r);
+    ASSERT_INT_LIST("{[x]#x}'(1 2;3 4 5)", 2, ((K_int[]){2, 3}));
     PASS();
 }
 
 TEST(adverb_each_bare_op_count) {
-    K r = eval(kcstr("#'(1 2;3 4 5)"));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType, "should return int list");
-    ASSERT(HDR_COUNT(r) == 2, "result should have 2 elements");
-    ASSERT(INT_PTR(r)[0] == 2 && INT_PTR(r)[1] == 3, "#'(1 2;3 4 5) should be 2 3");
-    unref(r);
+    ASSERT_INT_LIST("#'(1 2;3 4 5)", 2, ((K_int[]){2, 3}));
     PASS();
 }
 
@@ -1814,8 +1722,7 @@ TEST(adverb_each_atom_rank_error) {
 }
 
 TEST(adverb_bare_op_bracket_eval) {
-    K r = eval(kcstr("+[1;2]"));
-    ASSERT(r && IS_TAG(r) && TAG_VAL(r) == 3, "+[1;2] should be 3");
+    ASSERT_INT_ATOM("+[1;2]", 3);
     PASS();
 }
 
