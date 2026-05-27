@@ -404,7 +404,7 @@ K vm(K x, K vars, K consts, K_char varc, K*args){
         case 6: if (IS_PRIMITIVE(i)) *--top=kop(i); else a=k1(*top),HDR_TYPE(a)=KAdverbType,HDR_ADVERB(a)=i-ADVERB_START,*top=a; break;
         case 7: switch(i){ // special ops 0:pop 1:enlist
                 case 0: unref(*top++); break;
-                case 1: a=knew(KObjType,*ip++); FOR_EACH(a)OBJ_PTR(a)[i]=*top++; *--top=squeeze(a); break;
+                case 1: K_int n=*ip++; a=knew(KObjType,n); top+=n; MEMCPY(a,top-n,sizeof(K)*n); *--top=squeeze(a); break;
                 }
         }
     }
