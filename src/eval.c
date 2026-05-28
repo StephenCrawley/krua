@@ -376,6 +376,7 @@ cleanup:
     return 0;
 }
 
+__attribute__((noinline))
 K getGlobal(K_sym var){
     K keys = KEYS(GLOBALS);
     K_int i = findSym(keys, var);
