@@ -13,12 +13,6 @@
 #define UNREF_XY(k) UNREF_X(UNREF_Y(k))
 #define UNREF_XR(k) UNREF_X(UNREF_R(k))
 
-static inline K kchr(K_char c) { return TAG(KChrType, c); }
-static inline K kint(K_int  i) { return TAG(KIntType, i); }
-static inline K klong(K_long i){ return i; } // TODO: heap allocation when full KLngType support added
-static inline K kop(K_int   i) { return TAG(KOpType, i); }
-#define knull() kop(0)
-
 K ref(K);
 void _unref(K);
 K_sym encodeSym(K_char*, int);
@@ -46,6 +40,13 @@ K squeeze(K);
 K item(K_int, K);
 K promote(int, K);
 K kprint(K);
+
+static inline K kchr(K_char c) { return TAG(KChrType, c); }
+static inline K kint(K_int  i) { return TAG(KIntType, i); }
+static inline K klong(K_long i){ return i; } // TODO: heap allocation when full KLngType support added
+static inline K kop(K_int   i) { return TAG(KOpType, i); }
+#define knull() kop(0)
+static inline K kadverb(K x,K_int i) { K a=k1(x); return HDR_TYPE(a)=KAdverbType, HDR_ADVERB(a)=i, a; }
 
 #ifdef TRACK_REFS
   // When tracking, include the tracking header

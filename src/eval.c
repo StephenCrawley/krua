@@ -401,7 +401,7 @@ K vm(K x, K vars, K consts, K_char varc, K*args){
         case 3: *--top=ref(OBJ_PTR(consts)[i]); break;
         case 4: *--top=i<varc?ref(args[i]):getGlobal(v[i]); if (!*top) goto bail; break;
         case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;
-        case 6: if (IS_PRIMITIVE(i)) *--top=kop(i); else a=k1(*top),HDR_TYPE(a)=KAdverbType,HDR_ADVERB(a)=i-ADVERB_START,*top=a; break;
+        case 6: if(IS_PRIMITIVE(i))*--top=kop(i); else *top=kadverb(*top,i-ADVERB_START); break;
         case 7: switch(i){ // special ops 0:pop 1:enlist
                 case 0: unref(*top++); break;
                 case 1: K_int n=*ip++; a=knew(KObjType,n); top+=n; MEMCPY(a,top-n,sizeof(K)*n); *--top=squeeze(a); break;
