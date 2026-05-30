@@ -14,5 +14,7 @@ K min(K, K);
 K max(K, K);
 K eql(K, K);
 K at(K, K);
+K take(K, K);
+K drop(K, K);
 
 #endif

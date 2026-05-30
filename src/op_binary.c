@@ -37,8 +37,8 @@ static K _eachleft(F2 f, K x, K y){
 
 K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
 
-//                :    +    -    *    %    &    |    <    >    =    @   .    !    ,    ?    #    _    ~    $    ^
-F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi, nyi};
+//                :    +    -    *    %    &    |    <    >    =    @   .    !    ,    ?    #     _     ~    $    ^
+F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi, nyi, nyi, take, drop, nyi, nyi, nyi};
 
 #define  ADD(x, y) ((x)+(y))
 //#define SUB(x, y) ((x)-(y)) // currently dead code
@@ -169,4 +169,51 @@ BINARY_OP(eql,EQL,9)
 
 K at(K x, K y){
     return UNREF_X(apply(x, 1, &y));
+}
+
+K natom(K_int n, K x){
+    K r = knew(TAG_TYPE(x), n);
+    switch(KWIDTHS[TAG_TYPE(x)]){
+    case 1: FOR(n) CHR_PTR(r)[i] = TAG_VAL(x); break;
+    case 4: FOR(n) INT_PTR(r)[i] = TAG_VAL(x); break;
+    case 8: FOR(n) LNG_PTR(r)[i] = TAG_VAL(x); break;
+    }
+    return r;
+}
+
+// helper to overtake (when n>#x)
+K ntake(K_int n, K x){
+    K_int xn = HDR_COUNT(x), t = HDR_TYPE(x), w = KWIDTHS[t];
+    if (n <= xn) return n == xn ? x : UNREF_X(squeeze(knewcopy(t, n, x)));
+    K r = knew(t, n);
+    MEMCPY(r, x, xn*w);
+    for (K_int f = xn; f < n; ){
+        K_int chunk = MIN(f, n-f);
+        MEMCPY(r + f*w, r, chunk*w);
+        f += chunk;
+    }
+    if (t == KObjType) FOR_EACH(r) ref(OBJ_PTR(r)[i]);
+    return UNREF_X(r);
+}
+
+K ndrop(K_int, K); // forward decl
+
+// x#y
+K take(K x, K y){
+    TYPE_ERROR(TAG_TYPE(x) != KIntType, "x#y expects int atom x", unref(x); unref(y));
+    K_int n = TAG_VAL(x);
+    return TAG_TYPE(y) ? natom(abs(n), y) : n<0 ? ndrop(MAX(0, n+HDR_COUNT(y)), y) : ntake(n, IS_ATOM(y) ? k1(y) : y);
+}
+
+K ndrop(K_int n, K x){
+    K_int w = KWIDTHS[HDR_TYPE(x)];
+    return n == 0 ? x : UNREF_X(abs(n) >= HDR_COUNT(x) ? knew(HDR_TYPE(x), 0) : squeeze(knewcopy(HDR_TYPE(x), HDR_COUNT(x)-abs(n), n<0 ? x : x + w*n)));
+}
+
+// x_y
+K drop(K x, K y){
+    TYPE_ERROR(TAG_TYPE(x) != KIntType, "x_y expects int atom x", unref(x); unref(y));
+    TYPE_ERROR(IS_ATOM(y), "x_y expects list y", unref(x); unref(y));
+    K_int n = TAG_VAL(x);
+    return ndrop(n, y);
 }

@@ -270,6 +270,13 @@ K joinObj(K x, K y){
     return x;
 }
 
+K joinList(K x, K y){
+    K_int n = HDR_COUNT(x);
+    x = kextend(x, HDR_COUNT(y));
+    kcpy(PTR_TO(x, n), y);
+    return UNREF_Y(x);
+}
+
 // (1;2) -> 1 2
 K squeeze(K x){
     if (!x || HDR_COUNT(x) == 0) return x;

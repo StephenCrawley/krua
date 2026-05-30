@@ -1523,6 +1523,233 @@ TEST(apply_chained_bracket_rank_error){
     PASS();
 }
 
+// Runtime: take (#)
+TEST(binary_take_atom_int){
+    ASSERT_INT_LIST("3#5", 3, ((K_int[]){5, 5, 5}));
+    PASS();
+}
+
+TEST(binary_take_atom_char){
+    K r = eval(kcstr("3#\"a\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "n#char-atom should be KChrType list");
+    ASSERT(HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "aaa", 3) == 0, "3#\"a\" should be \"aaa\"");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_take_undertake){
+    ASSERT_INT_LIST("2#1 2 3 4", 2, ((K_int[]){1, 2}));
+    PASS();
+}
+
+TEST(binary_take_exact){
+    ASSERT_INT_LIST("3#1 2 3", 3, ((K_int[]){1, 2, 3}));
+    PASS();
+}
+
+TEST(binary_take_overtake_cycle){
+    ASSERT_INT_LIST("5#1 2 3", 5, ((K_int[]){1, 2, 3, 1, 2}));
+    PASS();
+}
+
+TEST(binary_take_overtake_double){ // n > 2*count exercises the doubling recursion
+    ASSERT_INT_LIST("7#1 2 3", 7, ((K_int[]){1, 2, 3, 1, 2, 3, 1}));
+    PASS();
+}
+
+TEST(binary_take_overtake_boundary){ // n == 2*count
+    ASSERT_INT_LIST("6#1 2 3", 6, ((K_int[]){1, 2, 3, 1, 2, 3}));
+    PASS();
+}
+
+TEST(binary_take_overtake_char){
+    K r = eval(kcstr("5#\"ab\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "overtake char should be KChrType list");
+    ASSERT(HDR_COUNT(r) == 5 && memcmp(CHR_PTR(r), "ababa", 5) == 0, "5#\"ab\" should be \"ababa\"");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_take_undertake_squeeze){ // shrink prefix turns homogeneous -> flat type
+    ASSERT_INT_LIST("2#(1;2;\"ab\")", 2, ((K_int[]){1, 2}));
+    PASS();
+}
+
+TEST(binary_take_undertake_stays_generic){ // heterogeneous prefix stays boxed
+    K r = eval(kcstr("2#(\"ab\";1;2)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "heterogeneous prefix stays generic");
+    ASSERT(HDR_COUNT(r) == 2, "should have 2 elements");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_take_overtake_generic){ // n > 2*count: doubling path must ref boxed children
+    K r = eval(kcstr("5#(1;\"ab\")"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "overtake stays generic (not squeezable)");
+    ASSERT(HDR_COUNT(r) == 5, "should have 5 elements");
+    ASSERT(IS_TAG(OBJ_PTR(r)[0]) && TAG_VAL(OBJ_PTR(r)[0]) == 1, "elem 0 is int 1");
+    ASSERT(IS_TAG(OBJ_PTR(r)[4]) && TAG_VAL(OBJ_PTR(r)[4]) == 1, "elem 4 wraps to int 1");
+    ASSERT(!IS_TAG(OBJ_PTR(r)[1]) && HDR_TYPE(OBJ_PTR(r)[1]) == KChrType, "boxed string preserved");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_take_lambda_replicate){ // n#lambda: atom replicated into a generic list
+    K r = eval(kcstr("3#{[x]x}"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "n#lambda should be a generic list");
+    ASSERT(HDR_COUNT(r) == 3, "should have 3 elements");
+    for (int i = 0; i < 3; i++)
+        ASSERT(!IS_TAG(OBJ_PTR(r)[i]) && HDR_TYPE(OBJ_PTR(r)[i]) == KLambdaType, "each element is a lambda");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_take_negative_atom){ // (-x)#atom replicates |x| times, sign ignored
+    ASSERT_INT_LIST("(-3)#5", 3, ((K_int[]){5, 5, 5}));
+    PASS();
+}
+
+TEST(binary_take_negative_atom_char){ // same for a char atom
+    K r = eval(kcstr("(-3)#\"a\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "(-x)#char-atom should be KChrType list");
+    ASSERT(HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "aaa", 3) == 0, "(-3)#\"a\" should be \"aaa\"");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_take_negative_undertake){ // (-x)#y, |x|<count takes from the back
+    ASSERT_INT_LIST("(-2)#1 2 3 4 5", 2, ((K_int[]){4, 5}));
+    PASS();
+}
+
+TEST(binary_take_negative_single){ // last element
+    ASSERT_INT_LIST("(-1)#1 2 3", 1, ((K_int[]){3}));
+    PASS();
+}
+
+TEST(binary_take_negative_exact){ // |x|==count is the whole list
+    ASSERT_INT_LIST("(-5)#1 2 3 4 5", 5, ((K_int[]){1, 2, 3, 4, 5}));
+    PASS();
+}
+
+TEST(binary_take_negative_overtake_clamps){ // |x|>count does NOT cycle; it clamps to the whole list
+    ASSERT_INT_LIST("(-7)#0 1 2 3 4", 5, ((K_int[]){0, 1, 2, 3, 4}));
+    ASSERT_INT_LIST("(-12)#0 1 2 3 4", 5, ((K_int[]){0, 1, 2, 3, 4}));
+    ASSERT_INT_LIST("(-7)#!5", 5, ((K_int[]){0, 1, 2, 3, 4}));
+    PASS();
+}
+
+TEST(binary_take_negative_char){ // negative take on a char list (width 1)
+    K r = eval(kcstr("(-2)#\"abcde\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "(-x)#char-list should be KChrType list");
+    ASSERT(HDR_COUNT(r) == 2 && memcmp(CHR_PTR(r), "de", 2) == 0, "(-2)#\"abcde\" should be \"de\"");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_take_negative_char_overtake){ // char overtake clamps to the whole list too
+    K r = eval(kcstr("(-7)#\"abc\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "char overtake should be KChrType list");
+    ASSERT(HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "abc", 3) == 0, "(-7)#\"abc\" should clamp to \"abc\"");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_take_negative_generic){ // negative take keeps boxed children and refs them
+    K r = eval(kcstr("(-2)#(1;\"ab\";2)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "negative take from generic stays generic");
+    ASSERT(HDR_COUNT(r) == 2, "should have 2 elements");
+    ASSERT(!IS_TAG(OBJ_PTR(r)[0]) && HDR_TYPE(OBJ_PTR(r)[0]) == KChrType, "boxed string preserved");
+    ASSERT(IS_TAG(OBJ_PTR(r)[1]) && TAG_VAL(OBJ_PTR(r)[1]) == 2, "trailing int preserved");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_drop_front){ // x_y, x>0 drops from the front
+    ASSERT_INT_LIST("2_1 2 3 4 5", 3, ((K_int[]){3, 4, 5}));
+    PASS();
+}
+
+TEST(binary_drop_back){ // x_y, x<0 drops from the back (parens force a negative atom, not monadic neg)
+    ASSERT_INT_LIST("(-2)_1 2 3 4 5", 3, ((K_int[]){1, 2, 3}));
+    PASS();
+}
+
+TEST(binary_drop_zero){ // 0_y is identity
+    ASSERT_INT_LIST("0_1 2 3", 3, ((K_int[]){1, 2, 3}));
+    PASS();
+}
+
+TEST(binary_drop_exact){ // dropping the whole list yields an empty, typed list
+    ASSERT_INT_LIST("3_1 2 3", 0, ((K_int[]){0}));
+    PASS();
+}
+
+TEST(binary_drop_overdrop){ // x >= count clamps to empty, type preserved
+    ASSERT_INT_LIST("5_1 2 3", 0, ((K_int[]){0}));
+    PASS();
+}
+
+TEST(binary_drop_overdrop_neg){ // -x >= count clamps to empty too
+    ASSERT_INT_LIST("(-5)_1 2 3", 0, ((K_int[]){0}));
+    PASS();
+}
+
+TEST(binary_drop_char){ // drop works on char lists (width 1)
+    K r = eval(kcstr("2_\"abcde\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "x_char-list should be KChrType list");
+    ASSERT(HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "cde", 3) == 0, "2_\"abcde\" should be \"cde\"");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_drop_char_back){ // negative drop from the back of a char list
+    K r = eval(kcstr("(-2)_\"abcde\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "(-2)_char-list should be KChrType list");
+    ASSERT(HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "abc", 3) == 0, "(-2)_\"abcde\" should be \"abc\"");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_drop_generic){ // drop keeps boxed children and refs them
+    K r = eval(kcstr("1_(1;\"ab\";2)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "drop from generic stays generic");
+    ASSERT(HDR_COUNT(r) == 2, "should have 2 elements");
+    ASSERT(!IS_TAG(OBJ_PTR(r)[0]) && HDR_TYPE(OBJ_PTR(r)[0]) == KChrType, "boxed string preserved");
+    ASSERT(IS_TAG(OBJ_PTR(r)[1]) && TAG_VAL(OBJ_PTR(r)[1]) == 2, "trailing int preserved");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_drop_generic_back){ // negative drop on a generic list copies from the front
+    K r = eval(kcstr("(-1)_(1;\"ab\";2)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "negative drop from generic stays generic");
+    ASSERT(HDR_COUNT(r) == 2, "should have 2 elements");
+    ASSERT(IS_TAG(OBJ_PTR(r)[0]) && TAG_VAL(OBJ_PTR(r)[0]) == 1, "leading int preserved");
+    ASSERT(!IS_TAG(OBJ_PTR(r)[1]) && HDR_TYPE(OBJ_PTR(r)[1]) == KChrType, "boxed string preserved");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_drop_squeeze){ // shrinking a generic to one boxed element stays generic (not unboxed)
+    K r = eval(kcstr("2_(1;2;\"ab\")"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "single boxed remainder stays generic");
+    ASSERT(HDR_COUNT(r) == 1, "should have 1 element");
+    ASSERT(!IS_TAG(OBJ_PTR(r)[0]) && HDR_TYPE(OBJ_PTR(r)[0]) == KChrType, "remaining element is the string");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_drop_atom_y_type_error){ // y must be a list
+    ASSERT_ERROR("1_5", KERR_TYPE);
+    PASS();
+}
+
+TEST(binary_drop_nonint_x_type_error){ // x must be an int atom
+    ASSERT_ERROR("\"x\"_1 2 3", KERR_TYPE);
+    PASS();
+}
+
 // Runtime: lambdas
 TEST(lambda_eval_returns_lambda) {
     K r = eval(kcstr("{[x]x+1}"));
@@ -1910,6 +2137,41 @@ void run_tests() {
     RUN_TEST(apply_string_cascade_rank_error);
     RUN_TEST(apply_too_many_args_rank_error);
     RUN_TEST(apply_chained_bracket_rank_error);
+    // take (#)
+    RUN_TEST(binary_take_atom_int);
+    RUN_TEST(binary_take_atom_char);
+    RUN_TEST(binary_take_undertake);
+    RUN_TEST(binary_take_exact);
+    RUN_TEST(binary_take_overtake_cycle);
+    RUN_TEST(binary_take_overtake_double);
+    RUN_TEST(binary_take_overtake_boundary);
+    RUN_TEST(binary_take_overtake_char);
+    RUN_TEST(binary_take_undertake_squeeze);
+    RUN_TEST(binary_take_undertake_stays_generic);
+    RUN_TEST(binary_take_overtake_generic);
+    RUN_TEST(binary_take_lambda_replicate);
+    RUN_TEST(binary_take_negative_atom);
+    RUN_TEST(binary_take_negative_atom_char);
+    RUN_TEST(binary_take_negative_undertake);
+    RUN_TEST(binary_take_negative_single);
+    RUN_TEST(binary_take_negative_exact);
+    RUN_TEST(binary_take_negative_overtake_clamps);
+    RUN_TEST(binary_take_negative_char);
+    RUN_TEST(binary_take_negative_char_overtake);
+    RUN_TEST(binary_take_negative_generic);
+    RUN_TEST(binary_drop_front);
+    RUN_TEST(binary_drop_back);
+    RUN_TEST(binary_drop_zero);
+    RUN_TEST(binary_drop_exact);
+    RUN_TEST(binary_drop_overdrop);
+    RUN_TEST(binary_drop_overdrop_neg);
+    RUN_TEST(binary_drop_char);
+    RUN_TEST(binary_drop_char_back);
+    RUN_TEST(binary_drop_generic);
+    RUN_TEST(binary_drop_generic_back);
+    RUN_TEST(binary_drop_squeeze);
+    RUN_TEST(binary_drop_atom_y_type_error);
+    RUN_TEST(binary_drop_nonint_x_type_error);
     // lambdas
     RUN_TEST(lambda_eval_returns_lambda);
     RUN_TEST(lambda_eval_no_params);
