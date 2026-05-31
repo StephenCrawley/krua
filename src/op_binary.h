@@ -9,7 +9,7 @@ extern F2 binary_op[20];
 
 K add(K, K);
 K sub(K, K);
-K mlt(K, K);
+K mul(K, K);
 K min(K, K);
 K max(K, K);
 K eql(K, K);

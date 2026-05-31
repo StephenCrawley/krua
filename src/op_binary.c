@@ -38,11 +38,11 @@ static K _eachleft(F2 f, K x, K y){
 K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
 
 //                :    +    -    *    %    &    |    <    >    =    @   .    !    ,    ?    #     _     ~    $    ^
-F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi, nyi, nyi, take, drop, nyi, nyi, nyi};
+F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, nyi, nyi, eql, at, nyi, nyi, nyi, nyi, take, drop, nyi, nyi, nyi};
 
 #define  ADD(x, y) ((x)+(y))
 //#define SUB(x, y) ((x)-(y)) // currently dead code
-#define  MLT(x, y) ((x)*(y))
+#define  MUL(x, y) ((x)*(y))
 #define  EQL(x, y) ((x)==(y))
 #define BEQL(x, y) (~((x)^(y)))
 #define  AND(x, y) ((x)&(y))
@@ -119,7 +119,7 @@ F2 binary_op[] = {nyi, add, sub, mlt, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
 #define LY(V, E) { if (IS_TAG(y)) LA(V, E) else LL(V, E) }
 
 #define LC(V) case 5:LY(V,VMIN);break; case 6:LY(V,VMAX);break; case 9:CY(V,EQL);break;
-#define LX(V) case 1:LY(V,ADD); break; case 3:LY(V,MLT); break; LC(V)
+#define LX(V) case 1:LY(V,ADD); break; case 3:LY(V,MUL); break; LC(V)
 
 #define VSWITCH() \
     switch(t){ \
@@ -162,7 +162,7 @@ K f(K x, K y){ \
 
 BINARY_OP(add,ADD,1)
 K sub(K x, K y){ K r; return (r=neg(y)) ? add(x,r) : UNREF_X(r); }
-BINARY_OP(mlt,MLT,3)
+BINARY_OP(mul,MUL,3)
 BINARY_OP(min,MIN,5)
 BINARY_OP(max,MAX,6)
 BINARY_OP(eql,EQL,9)
