@@ -1523,6 +1523,11 @@ TEST(apply_chained_bracket_rank_error){
     PASS();
 }
 
+TEST(apply_keyword_dyadic_rank){ // applyOperator: keyword (csv, op>=20) is unary only
+    ASSERT_ERROR("csv[1;2]", KERR_RANK);
+    PASS();
+}
+
 // Runtime: take (#)
 TEST(binary_take_atom_int){
     ASSERT_INT_LIST("3#5", 3, ((K_int[]){5, 5, 5}));
@@ -1864,6 +1869,11 @@ TEST(lambda_set_get) {
     PASS();
 }
 
+TEST(lambda_rank_error) { // applyLambda: argc < n
+    ASSERT_ERROR("{[x]x}[1;2]", KERR_RANK);
+    PASS();
+}
+
 // Runtime: parens / semicolons
 TEST(paren_eval_simple) {
     ASSERT_INT_ATOM("(42)", 42);
@@ -2038,6 +2048,22 @@ TEST(adverb_each1_scan1) {
     ASSERT_2_INTS(OBJ_PTR(r)[0], 1, 3);
     ASSERT_2_INTS(OBJ_PTR(r)[1], 3, 7);
     unref(r);
+    PASS();
+}
+
+// adverb error/cleanup paths: inner apply fails mid-reduce/scan/each (partial-result cleanup)
+TEST(adverb_over1_reduce_length_error) { // over1Generic: unref(x) on propagated error
+    ASSERT_ERROR("+/(1 2;3 4 5)", KERR_LENGTH);
+    PASS();
+}
+
+TEST(adverb_scan1_reduce_length_error) { // scan1Generic: HDR_COUNT(r)=i; unref(r) partial cleanup
+    ASSERT_ERROR("+\\(1 2;3 4 5)", KERR_LENGTH);
+    PASS();
+}
+
+TEST(adverb_each1_inner_rank_error) { // each1Generic: 2nd element (atom) fails inner over, partial cleanup
+    ASSERT_ERROR("+/'(1 2;3)", KERR_RANK);
     PASS();
 }
 
@@ -2225,6 +2251,7 @@ void run_tests() {
     RUN_TEST(apply_string_cascade_rank_error);
     RUN_TEST(apply_too_many_args_rank_error);
     RUN_TEST(apply_chained_bracket_rank_error);
+    RUN_TEST(apply_keyword_dyadic_rank);
     // take (#)
     RUN_TEST(binary_take_atom_int);
     RUN_TEST(binary_take_atom_char);
@@ -2279,6 +2306,7 @@ void run_tests() {
     RUN_TEST(lambda_error);
     RUN_TEST(lambda_error_undefined_var);
     RUN_TEST(lambda_set_get);
+    RUN_TEST(lambda_rank_error);
     // parens / semicolons
     RUN_TEST(paren_eval_simple);
     RUN_TEST(paren_eval_grouping);
@@ -2314,6 +2342,10 @@ void run_tests() {
     // adverb stacking (each1 of over1/scan1)
     RUN_TEST(adverb_each1_over1);
     RUN_TEST(adverb_each1_scan1);
+    // adverb error/cleanup paths
+    RUN_TEST(adverb_over1_reduce_length_error);
+    RUN_TEST(adverb_scan1_reduce_length_error);
+    RUN_TEST(adverb_each1_inner_rank_error);
 
     printf("\n======================\n");
     printf("Tests run:    %d\n", tests_run);
