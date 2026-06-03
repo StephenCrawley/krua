@@ -1953,6 +1953,94 @@ TEST(adverb_bare_op_bracket_eval) {
     PASS();
 }
 
+// over1: fast paths (specialized +/ -/ */ kernels on KIntType)
+TEST(adverb_over1_sum_fast) {
+    ASSERT_INT_ATOM("+/1 2 3 4", 10);
+    PASS();
+}
+
+TEST(adverb_over1_mul_fast) {
+    ASSERT_INT_ATOM("*/1 2 3 4", 24);
+    PASS();
+}
+
+TEST(adverb_over1_sub_fast) { // subOver's 2*x[0] trick, order-sensitive
+    ASSERT_INT_ATOM("-/1 2 3 4", -8);
+    PASS();
+}
+
+// over1: generic path (non-special ops fall through to over1Generic)
+TEST(adverb_over1_max_generic) {
+    ASSERT_INT_ATOM("|/3 1 4 1 5", 5);
+    PASS();
+}
+
+TEST(adverb_over1_min_generic) {
+    ASSERT_INT_ATOM("&/3 1 4 1 5", 1);
+    PASS();
+}
+
+// over1: nested (generic, boxed children)
+TEST(adverb_over1_nested) {
+    ASSERT_INT_LIST("+/(1 2;3 4)", 2, ((K_int[]){4, 6}));
+    PASS();
+}
+
+// over1: confirmed edge semantics
+TEST(adverb_over1_empty_identity) { // empty KIntType -> specialized identity
+    ASSERT_INT_ATOM("+/!0", 0);
+    ASSERT_INT_ATOM("*/!0", 1);
+    PASS();
+}
+
+TEST(adverb_over1_atom_rank_error) {
+    ASSERT_ERROR("+/5", KERR_RANK);
+    PASS();
+}
+
+// scan1: generic (scan has no fast path; all go through scan1Generic)
+TEST(adverb_scan1_sum) {
+    ASSERT_INT_LIST("+\\1 2 3 4", 4, ((K_int[]){1, 3, 6, 10}));
+    PASS();
+}
+
+TEST(adverb_scan1_mul) {
+    ASSERT_INT_LIST("*\\1 2 3 4", 4, ((K_int[]){1, 2, 6, 24}));
+    PASS();
+}
+
+TEST(adverb_scan1_sub) {
+    ASSERT_INT_LIST("-\\1 2 3 4", 4, ((K_int[]){1, -1, -4, -8}));
+    PASS();
+}
+
+// scan1: nested (regression guard for the scan1Generic refcount fix)
+TEST(adverb_scan1_nested) {
+    K r = eval(kcstr("+\\(1 2;3 4)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "scan over nested should be generic list");
+    ASSERT(HDR_COUNT(r) == 2, "should have 2 rows");
+    ASSERT_2_INTS(OBJ_PTR(r)[0], 1, 2); // corrupted before the refcount fix
+    ASSERT_2_INTS(OBJ_PTR(r)[1], 4, 6);
+    unref(r);
+    PASS();
+}
+
+// each1 composed over over1/scan1 (adverb stacking)
+TEST(adverb_each1_over1) {
+    ASSERT_INT_LIST("+/'(1 2;3 4)", 2, ((K_int[]){3, 7}));
+    PASS();
+}
+
+TEST(adverb_each1_scan1) {
+    K r = eval(kcstr("+\\'(1 2;3 4)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "each-scan should be generic list");
+    ASSERT(HDR_COUNT(r) == 2, "should have 2 rows");
+    ASSERT_2_INTS(OBJ_PTR(r)[0], 1, 3);
+    ASSERT_2_INTS(OBJ_PTR(r)[1], 3, 7);
+    unref(r);
+    PASS();
+}
+
 void run_tests() {
     printf("\nPreprocessing:\n");
     RUN_TEST(preprocess_strip_leading_comment);
@@ -2209,6 +2297,23 @@ void run_tests() {
     RUN_TEST(adverb_each_bare_op_count);
     RUN_TEST(adverb_each_atom_rank_error);
     RUN_TEST(adverb_bare_op_bracket_eval);
+    // over1 (f/)
+    RUN_TEST(adverb_over1_sum_fast);
+    RUN_TEST(adverb_over1_mul_fast);
+    RUN_TEST(adverb_over1_sub_fast);
+    RUN_TEST(adverb_over1_max_generic);
+    RUN_TEST(adverb_over1_min_generic);
+    RUN_TEST(adverb_over1_nested);
+    RUN_TEST(adverb_over1_empty_identity);
+    RUN_TEST(adverb_over1_atom_rank_error);
+    // scan1 (f\)
+    RUN_TEST(adverb_scan1_sum);
+    RUN_TEST(adverb_scan1_mul);
+    RUN_TEST(adverb_scan1_sub);
+    RUN_TEST(adverb_scan1_nested);
+    // adverb stacking (each1 of over1/scan1)
+    RUN_TEST(adverb_each1_over1);
+    RUN_TEST(adverb_each1_scan1);
 
     printf("\n======================\n");
     printf("Tests run:    %d\n", tests_run);

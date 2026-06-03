@@ -3,6 +3,7 @@
 #include "eval.h"
 #include "op_unary.h"
 #include "op_binary.h"
+#include "adverb.h"
 #include "utils.h"
 #include "error.h"
 
@@ -24,19 +25,6 @@ K applyLambda(K x, int n, K *args){
     return r;
 }
 
-K each1(K f, K x){
-    RANK_ERROR(IS_ATOM(x), "f'atom", unref(x));
-    NYI_ERROR(HDR_TYPE(x) == KBoolType, "each1 bool", unref(x));
-    K r = knew(KObjType, HDR_COUNT(x));
-    FOR_EACH(x){
-        K t = item(i, x);
-        t = apply(f, 1, &t);
-        if (!t) { HDR_COUNT(r)=i; unref(r); return UNREF_X(0); }
-        OBJ_PTR(r)[i] = t;
-    }
-    return UNREF_X( squeeze(r) );
-}
-
 K applyOperator(K x, int n, K *args){
     NYI_ERROR(n > 2, "applyOperator n>2", while(n--) unref(args[n]));
     RANK_ERROR(n != 1 && !IS_OPERATOR((unsigned)TAG_VAL(x)), "keywords are unary only", while(n--) unref(args[n]));
@@ -44,8 +32,8 @@ K applyOperator(K x, int n, K *args){
 }
 
 K applyAdverb(K x, int n, K *args){
-    NYI_ERROR(n != 1 || HDR_ADVERB(x) != 0, "adverb", while(n--) unref(args[n]));
-    return each1(OBJ_PTR(x)[0], args[0]);
+    NYI_ERROR(n != 1, "adverb", while(n--) unref(args[n]));
+    return adv1(x, args[0]);
 }
 
 K applyOver(K x, int n, K *args){

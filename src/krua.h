@@ -106,7 +106,7 @@ typedef struct {
 #define MIN(x, y)       ({ typeof(x)_x=(x); typeof(y)_y=(y); _x<_y?_x:_y; })
 #define MAX(x, y)       ({ typeof(x)_x=(x); typeof(y)_y=(y); _x>_y?_x:_y; })
 #define GET_BIT(x, i)   ({ typeof(i)_i=(i); (LNG_PTR(x)[_i/64] >> _i%64) & 1; })
-// TODO: EXPR/LAMBDA ACCESS (bytecode; vars; consts; source)
+#define PICK3(n,x,y,z)  ({int _n=(n);!_n?x:_n==1?y:z;})
 
 // some useful global data is here:
 
