@@ -15,9 +15,10 @@ static inline K_char chr4chr(K_char*s, K_char*e){
 }
 
 static inline K_int int4chr(K_char *src, K_char *end){
+    K_int sign = (*src == '-') ? (++src, -1) : 1;
     K_int j = 0;
     do j = j*10 + (*src++ - '0'); while (src < end);
-    return j;
+    return sign*j;
 }
 
 // 0 non-logical tail elements in the last word of a KBoolType array

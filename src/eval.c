@@ -45,18 +45,17 @@ static K_char addConst(K *consts, K x){
 }
 
 static K numbers(K_char *src, K_int len, K_int count){
-    K r;
     K_char *end = src + len;
-    if (count == 1){
-        r = kint(int4chr(src, end));
-    } else {
-        r = knew(KIntType, count);
-        K_int *ints = INT_PTR(r);
-        FOR_EACH(r){
-            ints[i] = 0;
-            do ints[i] = 10*ints[i] + (*src++ - '0'); while (src < end && ISDIGIT(*src));
-            while (src < end && *src == ' ') ++src;
-        }
+    if (count == 1) return kint(int4chr(src, end));  // int4chr peels a leading '-'
+    K r = knew(KIntType, count);
+    K_int *ints = INT_PTR(r);
+    FOR_EACH(r){
+        bool neg = (*src == '-');
+        src += neg;
+        ints[i] = 0;
+        do ints[i] = 10*ints[i] + (*src++ - '0'); while (src < end && ISDIGIT(*src));
+        if (neg) ints[i] = -ints[i];
+        while (src < end && *src == ' ') ++src;
     }
     return r;
 }
@@ -125,6 +124,7 @@ static int next(K_char *src, int i){
 // NB: does not consume (unref) arg 'x' 
 // NB: constant/variable tokens are the same value as the bytecode that's eventually generated for them
 // TODO: write array of source code offsets which corresponds to each token for error reporting
+// '-' opening a negative literal: a digit follows. scoped to token(): uses i, n from scope
 K token(K x, K *vars, K *consts){
     K_int n = HDR_COUNT(x);
     // token stream to return
@@ -138,17 +138,19 @@ K token(K x, K *vars, K *consts){
         // token start index
         K_int t0 = i;
 
+#define ISNEGDIGIT(s) (s[i] == '-' && i+1 < n && ISDIGIT(s[i+1]))
         if (ISALPHA(src[i])){
             // variables + keywords
             do ++i; while (i < n && ISALNUM(src[i]));
             K_int j;
             K_sym sym = encodeSym(src+t0, i-t0);
             *tok++ = (j=findSym(KEYWORDS, sym)) < HDR_COUNT(KEYWORDS) ? j : addVar(vars, sym);
-        } else if (ISDIGIT(src[i])){
-            // numbers
+        } else if (ISDIGIT(src[i]) || (ISNEGDIGIT(src) && (i==0 || strchr(" ({[;", src[i-1])))){
+            // numbers (negative literal opens at strand boundary: start, space, '(' '[' ';')
             K_int count = 1;
             do {
-                count += (src[i++] == ' ' && ISDIGIT(src[i]));
+                if (src[i++] == ' ' && i < n && (ISDIGIT(src[i]) || ISNEGDIGIT(src)))
+                    count++, i += (src[i] == '-');   // new element; swallow its sign so the loop just sees digits
             } while (i < n && (ISDIGIT(src[i]) || src[i] == ' '));
             while (src[i-1] == ' ') --i;
             *tok++ = addConst(consts, numbers(src+t0, i-t0, count));
@@ -181,12 +183,13 @@ K token(K x, K *vars, K *consts){
             *tok++ = op ? op - OPS : src[i];
             ++i;
         }
+#undef ISNEGDIGIT
     }
     HDR_COUNT(r) = tok - CHR_PTR(r);
     return r;
 }
 
-// placeholder token ranges for reduced token 
+// placeholder token ranges for reduced token
 enum {
     TOK_PAREN   = 0x40,
     TOK_BRACKET = 0xc0,

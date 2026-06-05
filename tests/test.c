@@ -281,6 +281,66 @@ TEST(tokenize_trailing_whitespace) {
     PASS();
 }
 
+TEST(tokenize_negative_atom) {
+    K x = kcstr("-3");
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "-3 should produce 1 token");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "should be CONST");
+    K c = OBJ_PTR(consts)[0];
+    ASSERT(IS_TAG(c) && TAG_TYPE(c) == KIntType, "const should be an int atom");
+    ASSERT(TAG_VAL(c) == -3, "const should be -3");
+    unref(x), unref(r), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(tokenize_negative_strand) {
+    K x = kcstr("1 -2");
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "1 -2 should produce 1 strand-literal token");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "should be CONST");
+    ASSERT_2_INTS(OBJ_PTR(consts)[0], 1, -2);
+    unref(x), unref(r), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(tokenize_negative_list) {
+    K x = kcstr("-1 2 -3");
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "-1 2 -3 should produce 1 token");
+    K c = OBJ_PTR(consts)[0];
+    ASSERT(!IS_TAG(c) && HDR_TYPE(c) == KIntType && HDR_COUNT(c) == 3, "const should be a 3-int list");
+    ASSERT(INT_PTR(c)[0] == -1 && INT_PTR(c)[1] == 2 && INT_PTR(c)[2] == -3, "const should be -1 2 -3");
+    unref(x), unref(r), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(tokenize_negative_after_paren) {
+    K x = kcstr("(-1 2)");
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 3, "(-1 2) should produce 3 tokens");
+    ASSERT(CHR_PTR(r)[0] == '(' && CHR_PTR(r)[2] == ')', "should be wrapped in ( )");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[1]), "middle should be CONST");
+    ASSERT_2_INTS(OBJ_PTR(consts)[0], -1, 2);
+    unref(x), unref(r), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(tokenize_negative_trailing_space) {
+    K x = kcstr("1 2 -3 ");
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "trailing space should be trimmed -> 1 token");
+    K c = OBJ_PTR(consts)[0];
+    ASSERT(!IS_TAG(c) && HDR_TYPE(c) == KIntType && HDR_COUNT(c) == 3, "const should be a 3-int list");
+    ASSERT(INT_PTR(c)[0] == 1 && INT_PTR(c)[1] == 2 && INT_PTR(c)[2] == -3, "const should be 1 2 -3");
+    unref(x), unref(r), unref(vars), unref(consts);
+    PASS();
+}
+
 // Tokenization: variables
 TEST(tokenize_single_variable) {
     K r = tokenize("abc");
@@ -327,6 +387,27 @@ TEST(tokenize_csv_keyword) {
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType && HDR_COUNT(r) == 2, "should return token stream");
     ASSERT(CHR_PTR(r)[0] == 20, "should tokenize 'csv' keyword as operator with value 20");
     unref(r);
+    PASS();
+}
+
+TEST(tokenize_subtraction) {
+    K r = tokenize("1-2");
+    ASSERT(r && HDR_COUNT(r) == 3, "1-2 should produce 3 tokens (no negative literal)");
+    ASSERT(CHR_PTR(r)[1] == 2, "- should be operator 2 (OPS[:+-...])");
+    unref(r);
+    PASS();
+}
+
+TEST(tokenize_subtraction_after_paren) {
+    K x = kcstr("(1 2)-3");
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 5, "(1 2)-3 should produce 5 tokens");
+    ASSERT(CHR_PTR(r)[3] == 2, "- should be operator 2, not part of a literal");
+    ASSERT(consts && HDR_COUNT(consts) == 2, "should have 2 consts: (1 2) and 3");
+    K c = OBJ_PTR(consts)[1];
+    ASSERT(IS_TAG(c) && TAG_TYPE(c) == KIntType && TAG_VAL(c) == 3, "second const should be atom 3 (positive)");
+    unref(x), unref(r), unref(vars), unref(consts);
     PASS();
 }
 
@@ -1609,59 +1690,59 @@ TEST(binary_take_lambda_replicate){ // n#lambda: atom replicated into a generic 
     PASS();
 }
 
-TEST(binary_take_negative_atom){ // (-x)#atom replicates |x| times, sign ignored
-    ASSERT_INT_LIST("(-3)#5", 3, ((K_int[]){5, 5, 5}));
+TEST(binary_take_negative_atom){ // -x#atom replicates |x| times, sign ignored
+    ASSERT_INT_LIST("-3#5", 3, ((K_int[]){5, 5, 5}));
     PASS();
 }
 
 TEST(binary_take_negative_atom_char){ // same for a char atom
-    K r = eval(kcstr("(-3)#\"a\""));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "(-x)#char-atom should be KChrType list");
-    ASSERT(HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "aaa", 3) == 0, "(-3)#\"a\" should be \"aaa\"");
+    K r = eval(kcstr("-3#\"a\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "-x#char-atom should be KChrType list");
+    ASSERT(HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "aaa", 3) == 0, "-3#\"a\" should be \"aaa\"");
     unref(r);
     PASS();
 }
 
 TEST(binary_take_negative_undertake){ // (-x)#y, |x|<count takes from the back
-    ASSERT_INT_LIST("(-2)#1 2 3 4 5", 2, ((K_int[]){4, 5}));
+    ASSERT_INT_LIST("-2#1 2 3 4 5", 2, ((K_int[]){4, 5}));
     PASS();
 }
 
 TEST(binary_take_negative_single){ // last element
-    ASSERT_INT_LIST("(-1)#1 2 3", 1, ((K_int[]){3}));
+    ASSERT_INT_LIST("-1#1 2 3", 1, ((K_int[]){3}));
     PASS();
 }
 
 TEST(binary_take_negative_exact){ // |x|==count is the whole list
-    ASSERT_INT_LIST("(-5)#1 2 3 4 5", 5, ((K_int[]){1, 2, 3, 4, 5}));
+    ASSERT_INT_LIST("-5#1 2 3 4 5", 5, ((K_int[]){1, 2, 3, 4, 5}));
     PASS();
 }
 
 TEST(binary_take_negative_overtake_clamps){ // |x|>count does NOT cycle; it clamps to the whole list
-    ASSERT_INT_LIST("(-7)#0 1 2 3 4", 5, ((K_int[]){0, 1, 2, 3, 4}));
-    ASSERT_INT_LIST("(-12)#0 1 2 3 4", 5, ((K_int[]){0, 1, 2, 3, 4}));
-    ASSERT_INT_LIST("(-7)#!5", 5, ((K_int[]){0, 1, 2, 3, 4}));
+    ASSERT_INT_LIST("-7#0 1 2 3 4", 5, ((K_int[]){0, 1, 2, 3, 4}));
+    ASSERT_INT_LIST("-12#0 1 2 3 4", 5, ((K_int[]){0, 1, 2, 3, 4}));
+    ASSERT_INT_LIST("-7#!5", 5, ((K_int[]){0, 1, 2, 3, 4}));
     PASS();
 }
 
 TEST(binary_take_negative_char){ // negative take on a char list (width 1)
-    K r = eval(kcstr("(-2)#\"abcde\""));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "(-x)#char-list should be KChrType list");
-    ASSERT(HDR_COUNT(r) == 2 && memcmp(CHR_PTR(r), "de", 2) == 0, "(-2)#\"abcde\" should be \"de\"");
+    K r = eval(kcstr("-2#\"abcde\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "-x#char-list should be KChrType list");
+    ASSERT(HDR_COUNT(r) == 2 && memcmp(CHR_PTR(r), "de", 2) == 0, "-2#\"abcde\" should be \"de\"");
     unref(r);
     PASS();
 }
 
 TEST(binary_take_negative_char_overtake){ // char overtake clamps to the whole list too
-    K r = eval(kcstr("(-7)#\"abc\""));
+    K r = eval(kcstr("-7#\"abc\""));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "char overtake should be KChrType list");
-    ASSERT(HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "abc", 3) == 0, "(-7)#\"abc\" should clamp to \"abc\"");
+    ASSERT(HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "abc", 3) == 0, "-7#\"abc\" should clamp to \"abc\"");
     unref(r);
     PASS();
 }
 
 TEST(binary_take_negative_generic){ // negative take keeps boxed children and refs them
-    K r = eval(kcstr("(-2)#(1;\"ab\";2)"));
+    K r = eval(kcstr("-2#(1;\"ab\";2)"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "negative take from generic stays generic");
     ASSERT(HDR_COUNT(r) == 2, "should have 2 elements");
     ASSERT(!IS_TAG(OBJ_PTR(r)[0]) && HDR_TYPE(OBJ_PTR(r)[0]) == KChrType, "boxed string preserved");
@@ -1675,8 +1756,8 @@ TEST(binary_drop_front){ // x_y, x>0 drops from the front
     PASS();
 }
 
-TEST(binary_drop_back){ // x_y, x<0 drops from the back (parens force a negative atom, not monadic neg)
-    ASSERT_INT_LIST("(-2)_1 2 3 4 5", 3, ((K_int[]){1, 2, 3}));
+TEST(binary_drop_back){ // x_y, x<0 drops from the back
+    ASSERT_INT_LIST("-2_1 2 3 4 5", 3, ((K_int[]){1, 2, 3}));
     PASS();
 }
 
@@ -1696,7 +1777,7 @@ TEST(binary_drop_overdrop){ // x >= count clamps to empty, type preserved
 }
 
 TEST(binary_drop_overdrop_neg){ // -x >= count clamps to empty too
-    ASSERT_INT_LIST("(-5)_1 2 3", 0, ((K_int[]){0}));
+    ASSERT_INT_LIST("-5_1 2 3", 0, ((K_int[]){0}));
     PASS();
 }
 
@@ -1709,9 +1790,9 @@ TEST(binary_drop_char){ // drop works on char lists (width 1)
 }
 
 TEST(binary_drop_char_back){ // negative drop from the back of a char list
-    K r = eval(kcstr("(-2)_\"abcde\""));
-    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "(-2)_char-list should be KChrType list");
-    ASSERT(HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "abc", 3) == 0, "(-2)_\"abcde\" should be \"abc\"");
+    K r = eval(kcstr("-2_\"abcde\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "-2_char-list should be KChrType list");
+    ASSERT(HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "abc", 3) == 0, "-2_\"abcde\" should be \"abc\"");
     unref(r);
     PASS();
 }
@@ -1727,7 +1808,7 @@ TEST(binary_drop_generic){ // drop keeps boxed children and refs them
 }
 
 TEST(binary_drop_generic_back){ // negative drop on a generic list copies from the front
-    K r = eval(kcstr("(-1)_(1;\"ab\";2)"));
+    K r = eval(kcstr("-1_(1;\"ab\";2)"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "negative drop from generic stays generic");
     ASSERT(HDR_COUNT(r) == 2, "should have 2 elements");
     ASSERT(IS_TAG(OBJ_PTR(r)[0]) && TAG_VAL(OBJ_PTR(r)[0]) == 1, "leading int preserved");
@@ -2085,6 +2166,11 @@ void run_tests() {
     RUN_TEST(tokenize_char_literal);
     RUN_TEST(tokenize_empty_string_literal);
     RUN_TEST(tokenize_trailing_whitespace);
+    RUN_TEST(tokenize_negative_atom);
+    RUN_TEST(tokenize_negative_strand);
+    RUN_TEST(tokenize_negative_list);
+    RUN_TEST(tokenize_negative_after_paren);
+    RUN_TEST(tokenize_negative_trailing_space);
     // variables
     RUN_TEST(tokenize_single_variable);
     RUN_TEST(tokenize_multiple_variables);
@@ -2093,6 +2179,8 @@ void run_tests() {
     RUN_TEST(tokenize_unary_plus);
     RUN_TEST(tokenize_assignment);
     RUN_TEST(tokenize_csv_keyword);
+    RUN_TEST(tokenize_subtraction);
+    RUN_TEST(tokenize_subtraction_after_paren);
     // parens
     RUN_TEST(tokenize_paren_passthrough);
     RUN_TEST(tokenize_empty_parens);
