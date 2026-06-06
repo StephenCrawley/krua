@@ -16,5 +16,6 @@ K eql(K, K);
 K at(K, K);
 K take(K, K);
 K drop(K, K);
+K cut(K, K);
 
 #endif

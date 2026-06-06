@@ -1836,6 +1836,59 @@ TEST(binary_drop_nonint_x_type_error){ // x must be an int atom
     PASS();
 }
 
+// Runtime: cut (^)
+TEST(binary_cut_char){ // x^y slices y at the sorted indices in x; last segment runs to #y
+    K r = eval(kcstr("2 4^\"abcdefghi\"")); // -> ("cd";"efghi")
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "x^y should return a generic list");
+    ASSERT(HDR_COUNT(r) == 2, "should have 2 segments");
+    K a = OBJ_PTR(r)[0], b = OBJ_PTR(r)[1];
+    ASSERT(!IS_TAG(a) && HDR_TYPE(a) == KChrType && HDR_COUNT(a) == 2 && memcmp(CHR_PTR(a), "cd", 2) == 0, "seg 0 is \"cd\"");
+    ASSERT(!IS_TAG(b) && HDR_TYPE(b) == KChrType && HDR_COUNT(b) == 5 && memcmp(CHR_PTR(b), "efghi", 5) == 0, "seg 1 runs to end: \"efghi\"");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_cut_squeeze_boxed){ // homogeneous boxed segments squeeze back to flat lists
+    K r = eval(kcstr("0 2 5^(1;3;\"a\";\"b\";\"c\";\"d\";\"e\")")); // -> (1 3;"abc";"de")
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "should return a generic list");
+    ASSERT(HDR_COUNT(r) == 3, "should have 3 segments");
+    K a = OBJ_PTR(r)[0], b = OBJ_PTR(r)[1], c = OBJ_PTR(r)[2];
+    ASSERT(!IS_TAG(a) && HDR_TYPE(a) == KIntType && HDR_COUNT(a) == 2 && INT_PTR(a)[0] == 1 && INT_PTR(a)[1] == 3, "seg 0 squeezes to int list 1 3");
+    ASSERT(!IS_TAG(b) && HDR_TYPE(b) == KChrType && HDR_COUNT(b) == 3 && memcmp(CHR_PTR(b), "abc", 3) == 0, "seg 1 squeezes to \"abc\"");
+    ASSERT(!IS_TAG(c) && HDR_TYPE(c) == KChrType && HDR_COUNT(c) == 2 && memcmp(CHR_PTR(c), "de", 2) == 0, "seg 2 squeezes to \"de\"");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_cut_empty_segments){ // repeated index -> empty segment; x[last]==#y -> empty tail
+    K r = eval(kcstr("0 0 3^\"abc\"")); // -> ("";"abc";"")
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "should return a generic list");
+    ASSERT(HDR_COUNT(r) == 3, "should have 3 segments");
+    K a = OBJ_PTR(r)[0], b = OBJ_PTR(r)[1], c = OBJ_PTR(r)[2];
+    ASSERT(!IS_TAG(a) && HDR_TYPE(a) == KChrType && HDR_COUNT(a) == 0, "seg 0 is empty");
+    ASSERT(!IS_TAG(b) && HDR_TYPE(b) == KChrType && HDR_COUNT(b) == 3 && memcmp(CHR_PTR(b), "abc", 3) == 0, "seg 1 is \"abc\"");
+    ASSERT(!IS_TAG(c) && HDR_TYPE(c) == KChrType && HDR_COUNT(c) == 0, "seg 2 is empty (x[last]==#y)");
+    unref(r);
+    PASS();
+}
+
+TEST(binary_cut_atom_x_type_error){ // x must be an int list, not an atom
+    ASSERT_ERROR("2^\"abc\"", KERR_TYPE);
+    PASS();
+}
+
+TEST(binary_cut_atom_y_type_error){ // y must be a list
+    ASSERT_ERROR("0 1^5", KERR_RANK);
+    PASS();
+}
+
+TEST(binary_cut_domain_error){ // x must be ordered, in domain 0..#y, and non-negative
+    ASSERT_ERROR("4 2^\"abcdef\"", KERR_TYPE); // unordered (interior branch)
+    ASSERT_ERROR("0 9^\"abc\"", KERR_TYPE);    // x[last] > #y (last branch; was a segfault)
+    ASSERT_ERROR("-1 2^\"abc\"", KERR_TYPE);   // negative index
+    PASS();
+}
+
 // Runtime: lambdas
 TEST(lambda_eval_returns_lambda) {
     K r = eval(kcstr("{[x]x+1}"));
@@ -2375,6 +2428,12 @@ void run_tests() {
     RUN_TEST(binary_drop_squeeze);
     RUN_TEST(binary_drop_atom_y_type_error);
     RUN_TEST(binary_drop_nonint_x_type_error);
+    RUN_TEST(binary_cut_char);
+    RUN_TEST(binary_cut_squeeze_boxed);
+    RUN_TEST(binary_cut_empty_segments);
+    RUN_TEST(binary_cut_atom_x_type_error);
+    RUN_TEST(binary_cut_atom_y_type_error);
+    RUN_TEST(binary_cut_domain_error);
     // lambdas
     RUN_TEST(lambda_eval_returns_lambda);
     RUN_TEST(lambda_eval_no_params);

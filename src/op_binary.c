@@ -38,7 +38,7 @@ static K _eachleft(F2 f, K x, K y){
 K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
 
 //                :    +    -    *    %    &    |    <    >    =    @   .    !    ,    ?    #     _     ~    $    ^
-F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, nyi, nyi, eql, at, nyi, nyi, nyi, nyi, take, drop, nyi, nyi, nyi};
+F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, nyi, nyi, eql, at, nyi, nyi, nyi, nyi, take, drop, nyi, nyi, cut};
 
 #define  ADD(x, y) ((x)+(y))
 //#define SUB(x, y) ((x)-(y)) // currently dead code
@@ -216,4 +216,20 @@ K drop(K x, K y){
     TYPE_ERROR(IS_ATOM(y), "x_y expects list y", unref(x); unref(y));
     K_int n = TAG_VAL(x);
     return ndrop(n, y);
+}
+
+K cut(K x, K y){
+    TYPE_ERROR(TAG_TYPE(x) || HDR_TYPE(x) != KIntType, "x^y expects int list x", unref(x); unref(y));
+    RANK_ERROR(IS_ATOM(y), "x^y expects list y", unref(x); unref(y));
+    K_int xn = HDR_COUNT(x);
+    // verify all x positive and ordered
+    FOR_EACH(x){
+        TYPE_ERROR(INT_PTR(x)[i] < 0 || INT_PTR(x)[i] > (i == xn-1 ? HDR_COUNT(y) : INT_PTR(x)[i+1]), "x^y expects ordered int list x in domain of y", unref(x); unref(y)); // TODO? domain error
+    }
+    K r = knew(KObjType, xn);
+    FOR_EACH(x){
+        K_int *xptr = INT_PTR(x);
+        OBJ_PTR(r)[i] = squeeze(knewcopy(HDR_TYPE(y), (i == xn-1 ? HDR_COUNT(y) : xptr[i+1]) - xptr[i], PTR_TO(y, xptr[i])));
+    }
+    return UNREF_XY(r);
 }
