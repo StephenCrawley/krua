@@ -36,7 +36,9 @@ K joinStr(K, K_char);
 static inline K razeStr(K x){ return joinStr(x, 0); }
 K joinTag(K, K);
 K joinObj(K, K);
+K joinList(K, K);
 K squeeze(K);
+K expand(K);
 K item(K_int, K);
 K promote(int, K);
 K kprint(K);

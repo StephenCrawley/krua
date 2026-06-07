@@ -37,8 +37,8 @@ static K _eachleft(F2 f, K x, K y){
 
 K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
 
-//                :    +    -    *    %    &    |    <    >    =    @   .    !    ,    ?    #     _     ~    $    ^
-F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, nyi, nyi, eql, at, nyi, nyi, nyi, nyi, take, drop, nyi, nyi, cut};
+//                :    +    -    *    %    &    |    <    >    =    @   .    !    ,     ?    #     _     ~    $    ^
+F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, nyi, nyi, eql, at, nyi, nyi, join, nyi, take, drop, nyi, nyi, cut};
 
 #define  ADD(x, y) ((x)+(y))
 //#define SUB(x, y) ((x)-(y)) // currently dead code
@@ -171,6 +171,15 @@ K at(K x, K y){
     return UNREF_X(apply(x, 1, &y));
 }
 
+// x,y
+K join(K x, K y){
+    if (IS_ATOM(x)) x = enlist(x);
+    if (IS_ATOM(y)){
+        return TAG_TYPE(y) == HDR_TYPE(x) ? joinTag(x, y) : joinObj(expand(x), y);
+    }
+    return HDR_TYPE(x) == HDR_TYPE(y) ? joinList(x, y) : joinList(expand(x), expand(y));
+}
+
 K natom(K_int n, K x){
     K r = knew(TAG_TYPE(x), n);
     switch(KWIDTHS[TAG_TYPE(x)]){
@@ -181,7 +190,7 @@ K natom(K_int n, K x){
     return r;
 }
 
-// helper to overtake (when n>#x)
+// helper to take
 K ntake(K_int n, K x){
     K_int xn = HDR_COUNT(x), t = HDR_TYPE(x), w = KWIDTHS[t];
     if (n <= xn) return n == xn ? x : UNREF_X(squeeze(knewcopy(t, n, x)));

@@ -292,6 +292,14 @@ K squeeze(K x){
     return UNREF_X(r);
 }
 
+// 1 2 -> (1;2)
+K expand(K x){
+    if (HDR_TYPE(x) == KObjType) return x;
+    K r = knew(KObjType, HDR_COUNT(x));
+    FOR_EACH(x) OBJ_PTR(r)[i] = item(i, x);
+    return UNREF_X(r);
+}
+
 // retrieve item from index i
 K item(K_int i, K x){
     int t = HDR_TYPE(x);

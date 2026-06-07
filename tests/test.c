@@ -1914,6 +1914,67 @@ TEST(binary_cut_domain_error){ // x must be ordered, in domain 0..#y, and non-ne
     PASS();
 }
 
+// Runtime: join (,)
+TEST(binary_join_char_atoms){ // "a","b" -> "ab"
+    K r = eval(kcstr("\"a\",\"b\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType && HDR_COUNT(r) == 2 && memcmp(CHR_PTR(r), "ab", 2) == 0, "should be \"ab\"");
+    unref(r); PASS();
+}
+TEST(binary_join_char_list_atom){ // "ab","c" -> "abc"
+    K r = eval(kcstr("\"ab\",\"c\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType && HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "abc", 3) == 0, "should be \"abc\"");
+    unref(r); PASS();
+}
+TEST(binary_join_char_atom_list){ // "a","bc" -> "abc"
+    K r = eval(kcstr("\"a\",\"bc\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType && HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "abc", 3) == 0, "should be \"abc\"");
+    unref(r); PASS();
+}
+TEST(binary_join_int_atoms){ // 1,2 -> 1 2
+    ASSERT_INT_LIST("1,2", 2, ((K_int[]){1, 2}));
+    PASS();
+}
+TEST(binary_join_int_list_atom){ // 1 2,3 -> 1 2 3
+    ASSERT_INT_LIST("1 2,3", 3, ((K_int[]){1, 2, 3}));
+    PASS();
+}
+TEST(binary_join_int_atom_list){ // 1,2 3 -> 1 2 3
+    ASSERT_INT_LIST("1,2 3", 3, ((K_int[]){1, 2, 3}));
+    PASS();
+}
+TEST(binary_join_char_atom_obj){ // "a",(1;2 3) -> ("a";1;2 3)
+    K r = eval(kcstr("\"a\",(1;2 3)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 3, "should be 3-elem obj list");
+    K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1], r2 = OBJ_PTR(r)[2];
+    ASSERT(IS_TAG(r0) && TAG_TYPE(r0) == KChrType && TAG_VAL(r0) == 'a', "[0] char atom 'a'");
+    ASSERT(IS_TAG(r1) && TAG_TYPE(r1) == KIntType && TAG_VAL(r1) == 1, "[1] int atom 1");
+    ASSERT(!IS_TAG(r2) && HDR_TYPE(r2) == KIntType && HDR_COUNT(r2) == 2 && INT_PTR(r2)[0] == 2 && INT_PTR(r2)[1] == 3, "[2] int list 2 3");
+    unref(r); PASS();
+}
+TEST(binary_join_obj_char_atom){ // (1;2 3),"a" -> (1;2 3;"a")
+    K r = eval(kcstr("(1;2 3),\"a\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 3, "should be 3-elem obj list");
+    K r0 = OBJ_PTR(r)[0], r1 = OBJ_PTR(r)[1], r2 = OBJ_PTR(r)[2];
+    ASSERT(IS_TAG(r0) && TAG_TYPE(r0) == KIntType && TAG_VAL(r0) == 1, "[0] int atom 1");
+    ASSERT(!IS_TAG(r1) && HDR_TYPE(r1) == KIntType && HDR_COUNT(r1) == 2 && INT_PTR(r1)[0] == 2 && INT_PTR(r1)[1] == 3, "[1] int list 2 3");
+    ASSERT(IS_TAG(r2) && TAG_TYPE(r2) == KChrType && TAG_VAL(r2) == 'a', "[2] char atom 'a'");
+    unref(r); PASS();
+}
+TEST(binary_join_atom_lambda){ // 5,{[a;b]a+b} -> (5; lambda)
+    K r = eval(kcstr("5,{[a;b]a+b}"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 2, "should be 2-elem obj list");
+    ASSERT(IS_TAG(OBJ_PTR(r)[0]) && TAG_TYPE(OBJ_PTR(r)[0]) == KIntType && TAG_VAL(OBJ_PTR(r)[0]) == 5, "[0] int atom 5");
+    ASSERT(!IS_TAG(OBJ_PTR(r)[1]) && HDR_TYPE(OBJ_PTR(r)[1]) == KLambdaType, "[1] lambda");
+    unref(r); PASS();
+}
+TEST(binary_join_lambda_atom){ // {[a;b]a+b},5 -> (lambda; 5)
+    K r = eval(kcstr("{[a;b]a+b},5"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 2, "should be 2-elem obj list");
+    ASSERT(!IS_TAG(OBJ_PTR(r)[0]) && HDR_TYPE(OBJ_PTR(r)[0]) == KLambdaType, "[0] lambda");
+    ASSERT(IS_TAG(OBJ_PTR(r)[1]) && TAG_TYPE(OBJ_PTR(r)[1]) == KIntType && TAG_VAL(OBJ_PTR(r)[1]) == 5, "[1] int atom 5");
+    unref(r); PASS();
+}
+
 // Runtime: lambdas
 TEST(lambda_eval_returns_lambda) {
     K r = eval(kcstr("{[x]x+1}"));
@@ -2462,6 +2523,16 @@ void run_tests() {
     RUN_TEST(binary_cut_atom_x_type_error);
     RUN_TEST(binary_cut_atom_y_type_error);
     RUN_TEST(binary_cut_domain_error);
+    RUN_TEST(binary_join_char_atoms);
+    RUN_TEST(binary_join_char_list_atom);
+    RUN_TEST(binary_join_char_atom_list);
+    RUN_TEST(binary_join_int_atoms);
+    RUN_TEST(binary_join_int_list_atom);
+    RUN_TEST(binary_join_int_atom_list);
+    RUN_TEST(binary_join_char_atom_obj);
+    RUN_TEST(binary_join_obj_char_atom);
+    RUN_TEST(binary_join_atom_lambda);
+    RUN_TEST(binary_join_lambda_atom);
     // lambdas
     RUN_TEST(lambda_eval_returns_lambda);
     RUN_TEST(lambda_eval_no_params);
