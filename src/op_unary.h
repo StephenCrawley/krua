@@ -12,6 +12,7 @@ K first(K);
 K value(K);
 K where(K);
 K til(K);
+K enlist(K);
 K count(K);
 K csv(K);
 

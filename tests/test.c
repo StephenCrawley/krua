@@ -974,6 +974,31 @@ TEST(unary_keyword_count_atom) {
     PASS();
 }
 
+TEST(unary_enlist_char) {
+    K r = eval(kcstr(",\"a\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, ",\"a\" should return char list");
+    ASSERT(HDR_COUNT(r) == 1, "result should have 1 element");
+    ASSERT(CHR_PTR(r)[0] == 'a', "element should be 'a'");
+    unref(r);
+    PASS();
+}
+
+TEST(unary_enlist_int) {
+    ASSERT_INT_LIST(",5", 1, ((K_int[]){5}));
+    PASS();
+}
+
+TEST(unary_enlist_nested) {
+    K r = eval(kcstr(",1 2 3"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, ",1 2 3 should return obj list");
+    ASSERT(HDR_COUNT(r) == 1, "result should have 1 element");
+    K r0 = OBJ_PTR(r)[0];
+    ASSERT(!IS_TAG(r0) && HDR_TYPE(r0) == KIntType && HDR_COUNT(r0) == 3, "element should be int list len 3");
+    ASSERT(INT_PTR(r0)[0] == 1 && INT_PTR(r0)[1] == 2 && INT_PTR(r0)[2] == 3, "element should be 1 2 3");
+    unref(r);
+    PASS();
+}
+
 TEST(unary_value_basic) {
     K r = eval(kcstr(".\"tests/read.txt\""));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "should read file as KChrType");
@@ -2304,6 +2329,9 @@ void run_tests() {
     RUN_TEST(unary_count_atom);
     RUN_TEST(unary_keyword_count_list);
     RUN_TEST(unary_keyword_count_atom);
+    RUN_TEST(unary_enlist_char);
+    RUN_TEST(unary_enlist_int);
+    RUN_TEST(unary_enlist_nested);
     RUN_TEST(unary_value_basic);
     RUN_TEST(unary_value_file_not_found);
     RUN_TEST(unary_value_type_error);
