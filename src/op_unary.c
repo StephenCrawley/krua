@@ -94,7 +94,7 @@ K count(K x){
     K_int *p = idx + j; \
     K_int prev = (h||j) ? *(p - 1) + 1 : 0; \
     for (K_int i = 0; i < rows; i++){ \
-        STORE(col)[i] = PARSE(s + prev, s + *p); \
+        STORE(col)[i] = PARSE(*p - prev, s + prev); \
         p += cn; \
         prev = *(p - 1) + 1; \
     } \
@@ -119,7 +119,7 @@ K csv(K x){
     K_int rn = cn; // return column count
     FOR_EACH(t){
         K_char c = CHR_PTR(t)[i];
-        TYPE_ERROR(!strchr(" ci", c), "invalid csv col type", unref(x));
+        TYPE_ERROR(!strchr(" Cci", c), "invalid csv col type", unref(x));
         rn -= c == ' '; // skip these cols
     }
     // csv data, and some numbers to help us along
@@ -132,7 +132,7 @@ K csv(K x){
     if (h){
         K_char *nl = (K_char*)memchr(s, '\n', HDR_COUNT(d));
         TYPE_ERROR(!nl, "newline", unref(x); unref(d));
-        h = syms4chrs(cutStr(knewcopy(KChrType, (K_int)(nl - s), (K)s), ','));
+        h = syms4chrs(cutStr(kstr(nl - s, s), ','));
         h = filter(1, h, eql(ref(t), kchr(' ')));
     }
     // create list indices of separator and newlines (cell ends)
@@ -152,6 +152,7 @@ K csv(K x){
         // inner strided loop column records
         switch (CHR_PTR(t)[j]){
         case ' ': /*skip this column*/ break;
+        case 'C': PARSE_COL(KObjType, OBJ_PTR, kstr);    break;
         case 'c': PARSE_COL(KChrType, CHR_PTR, chr4chr); break;
         case 'i': PARSE_COL(KIntType, INT_PTR, int4chr); break;
         }

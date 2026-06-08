@@ -10,15 +10,15 @@
 #define ISDIGIT(c) isdigit((int)(c))
 #define ISALNUM(c) isalnum((int)(c))
 
-static inline K_char chr4chr(K_char*s, K_char*e){
-    return s==e ? ' ' : *s;
+static inline K_char chr4chr(K_int n, K_char *s){
+    return n==0 ? ' ' : *s;
 }
 
-static inline K_int int4chr(K_char *src, K_char *end){
-    K_int sign = (*src == '-') ? (++src, -1) : 1;
+static inline K_int int4chr(K_int n, K_char *s){
+    if (*s == '-') return -int4chr(n-1, ++s);
     K_int j = 0;
-    do j = j*10 + (*src++ - '0'); while (src < end);
-    return sign*j;
+    FOR(n) j = j*10 + (*s++ - '0');
+    return j;
 }
 
 // 0 non-logical tail elements in the last word of a KBoolType array

@@ -121,9 +121,13 @@ K k4(K x, K y, K z, K w){
     return r;
 }
 
+K kstr(K_int n, K_char *s){
+    return knewcopy(KChrType, n, (K)s);
+}
+
 // K_chr list from nul-terminated c-string
 K kcstr(const char *s){
-    return knewcopy(KChrType, strlen(s), (K)s);
+    return kstr(strlen(s), (K_char*)s);
 }
 
 K kc1(K_char a){
@@ -237,7 +241,7 @@ K cutStr(K x, K_char c){
     K_char *s=CHR_PTR(x), *e=s, *end=s+HDR_COUNT(x);
     for (int i=0; i<n; i++){
         while (e<end && *e!=c) e++;
-        OBJ_PTR(r)[i] = knewcopy(KChrType, e-s, (K)s);
+        OBJ_PTR(r)[i] = kstr(e-s, s);
         s = ++e;
     }
     return UNREF_X(r);

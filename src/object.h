@@ -27,6 +27,7 @@ K k1(K);
 K k2(K, K);
 K k3(K, K, K);
 K k4(K, K, K, K);
+K kstr(K_int, K_char*);
 K kcstr(const char*);
 K ksymdict();
 K kc1(K_char);

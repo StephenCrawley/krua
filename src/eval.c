@@ -45,8 +45,8 @@ static K_char addConst(K *consts, K x){
 }
 
 static K numbers(K_char *src, K_int len, K_int count){
+    if (count == 1) return kint(int4chr(len, src));
     K_char *end = src + len;
-    if (count == 1) return kint(int4chr(src, end));  // int4chr peels a leading '-'
     K r = knew(KIntType, count);
     K_int *ints = INT_PTR(r);
     FOR_EACH(r){
@@ -94,9 +94,9 @@ static K lambda(K_char *src, K_int start, K_int end){
     
     // extract params and body
     // NB: 'vars' will contain params, local vars, and global vars referenced in the lambda
-    K vars = params(knewcopy(KChrType, pend - pstart, (K)pstart));
+    K vars = params(kstr(pend - pstart, pstart));
     K_char argc = HDR_COUNT(vars);
-    K body = knewcopy(KChrType, (src + end) - pend - 1, (K)(pend + 1));
+    K body = kstr((src + end) - pend - 1, pend + 1);
     locals(body, &vars);
     K_char varc = HDR_COUNT(vars);
     
@@ -107,7 +107,7 @@ static K lambda(K_char *src, K_int start, K_int end){
     HDR_VARC(f) = varc;
     HDR_TYPE(f) = KLambdaType;
     unref(OBJ_PTR(f)[3]);
-    OBJ_PTR(f)[3] = knewcopy(KChrType, end - start + 1, (K)(src + start));
+    OBJ_PTR(f)[3] = kstr(end - start + 1, src + start);
     return f;
 }
 
@@ -159,7 +159,7 @@ K token(K x, K *vars, K *consts){
             ++t0;
             do ++i; while (i < n && src[i] != '"');
             PARSE_ERROR(i == n, i, "unclosed string", unref(r));
-            *tok++ = addConst(consts, (i-t0) == 1 ? kchr(src[t0]) : knewcopy(KChrType, i-t0, (K)(src+t0)));
+            *tok++ = addConst(consts, (i-t0) == 1 ? kchr(src[t0]) : kstr(i-t0, src+t0));
             ++i;
         } else if (src[i] == '{'){
             K_int end = findClose(src, i, n, '{', '}');
@@ -276,7 +276,7 @@ static K reduceFenced(K x, K *fenced){
         if (tok[i] == '(' || tok[i] == '[') {
             bool p = tok[i] == '(';
             K_int end = findClose(tok, i, n, tok[i], p?')':']');
-            K body = knewcopy(KChrType, end - i - 1, (K)(tok + i + 1));
+            K body = kstr(end - i - 1, tok + i + 1);
             *fenced = *fenced ? joinObj(*fenced, body) : k1(body);
             tok[j++] = (p ? TOK_PAREN : TOK_BRACKET) + HDR_COUNT(*fenced) - 1;
             i = end + 1;
@@ -295,7 +295,7 @@ static K reducePostfix(K x, K *postfix){
         if (i < n-1 && (IS_CLASS(TOK_BRACKET, tok[i+1]) || IS_ADVERB(tok[i+1]))){
             K_int start = i++;
             do ++i; while (i<n && (IS_CLASS(TOK_BRACKET, tok[i]) || IS_ADVERB(tok[i])));
-            K body = knewcopy(KChrType, i - start, (K)(tok + start));
+            K body = kstr(i - start, tok + start);
             HDR_ADVERB(body) = IS_ADVERB(tok[i-1]);
             *postfix = *postfix ? joinObj(*postfix, body) : k1(body);
             tok[j++] = TOK_POSTFIX + HDR_COUNT(*postfix) - 1;
@@ -448,11 +448,11 @@ K timeExpr(K x){
     // get the iteration count if specified
     if (CHR_PTR(x)[2] == ':'){
         CHR_PTR(x)[i] = 0; 
-        n = int4chr(CHR_PTR(x)+3, CHR_PTR(x)+i);
+        n = int4chr(i-3, CHR_PTR(x)+3);
     }
 
     // extract + load expression
-    K r = load(knewcopy(KChrType, HDR_COUNT(x)-(i+1), (K)(CHR_PTR(x)+i+1)), 0);
+    K r = load(kstr(HDR_COUNT(x)-(i+1), CHR_PTR(x)+i+1), 0);
     if (!r) return 0;
 
     // measure nanos, report millis                                                                                 
@@ -470,7 +470,7 @@ K evalFile(K x){
     PARSE_ERROR(HDR_COUNT(x)<4 || CHR_PTR(x)[2] != ' ', i, "'\\l file.k' expected", unref(x));
     // consume whitespace till filename
     while (i < HDR_COUNT(x) && CHR_PTR(x)[i] == ' ') ++i;
-    return UNREF_X(kfile(knewcopy(KChrType, HDR_COUNT(x)-i, (K)(CHR_PTR(x)+i))));
+    return UNREF_X(kfile(kstr(HDR_COUNT(x)-i, CHR_PTR(x)+i)));
 }
 
 // evaluate a K-string

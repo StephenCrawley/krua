@@ -1062,32 +1062,42 @@ TEST(unary_csv_headerless_skip_last) {
 }
 
 TEST(unary_csv_header_full) {
-    K r = eval(kcstr("csv (1;\"iic\";\"tests/f.csv\")"));
+    K r = eval(kcstr("csv (1;\"iicC\";\"tests/f.csv\")"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "should return KObjType 2-tuple");
     ASSERT(HDR_COUNT(r) == 2, "tuple should have 2 elements (syms; cols)");
     K syms = OBJ_PTR(r)[0];
-    ASSERT(!IS_TAG(syms) && HDR_TYPE(syms) == KSymType && HDR_COUNT(syms) == 3, "syms should be 3 KSymType");
+    ASSERT(!IS_TAG(syms) && HDR_TYPE(syms) == KSymType && HDR_COUNT(syms) == 4, "syms should be 4 KSymType");
     K cols = OBJ_PTR(r)[1];
-    ASSERT(!IS_TAG(cols) && HDR_TYPE(cols) == KObjType && HDR_COUNT(cols) == 3, "cols should be 3 KObjType");
+    ASSERT(!IS_TAG(cols) && HDR_TYPE(cols) == KObjType && HDR_COUNT(cols) == 4, "cols should be 4 KObjType");
     ASSERT_2_INTS(OBJ_PTR(cols)[0], 1, 7);
     ASSERT_2_INTS(OBJ_PTR(cols)[1], 2, 11);
     K c2 = OBJ_PTR(cols)[2];
     ASSERT(!IS_TAG(c2) && HDR_TYPE(c2) == KChrType && HDR_COUNT(c2) == 2, "col 2 should be 2 KChrType");
     ASSERT(CHR_PTR(c2)[0] == 'a' && CHR_PTR(c2)[1] == 'b', "col 2 bytes should be 'a','b'");
+    K c3 = OBJ_PTR(cols)[3];
+    ASSERT(!IS_TAG(c3) && HDR_TYPE(c3) == KObjType && HDR_COUNT(c3) == 2, "col 3 should be 2-elem KObjType string list");
+    K s0 = OBJ_PTR(c3)[0], s1 = OBJ_PTR(c3)[1];
+    ASSERT(!IS_TAG(s0) && HDR_TYPE(s0) == KChrType && HDR_COUNT(s0) == 5 && memcmp(CHR_PTR(s0), "hello", 5) == 0, "col 3 elem 0 should be \"hello\"");
+    ASSERT(!IS_TAG(s1) && HDR_TYPE(s1) == KChrType && HDR_COUNT(s1) == 5 && memcmp(CHR_PTR(s1), "world", 5) == 0, "col 3 elem 1 should be \"world\"");
     unref(r);
     PASS();
 }
 
 TEST(unary_csv_header_skip_middle) {
-    K r = eval(kcstr("csv (1;\"i c\";\"tests/f.csv\")"));
+    K r = eval(kcstr("csv (1;\"i cC\";\"tests/f.csv\")"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "should return KObjType 2-tuple");
     ASSERT(HDR_COUNT(r) == 2, "tuple should have 2 elements (syms; cols)");
     K cols = OBJ_PTR(r)[1];
-    ASSERT(!IS_TAG(cols) && HDR_TYPE(cols) == KObjType && HDR_COUNT(cols) == 2, "cols should be 2 KObjType");
+    ASSERT(!IS_TAG(cols) && HDR_TYPE(cols) == KObjType && HDR_COUNT(cols) == 3, "cols should be 3 KObjType");
     ASSERT_2_INTS(OBJ_PTR(cols)[0], 1, 7);
     K c1 = OBJ_PTR(cols)[1];
     ASSERT(!IS_TAG(c1) && HDR_TYPE(c1) == KChrType && HDR_COUNT(c1) == 2, "col 1 should be 2 KChrType");
     ASSERT(CHR_PTR(c1)[0] == 'a' && CHR_PTR(c1)[1] == 'b', "col 1 bytes should be 'a','b'");
+    K c2 = OBJ_PTR(cols)[2];
+    ASSERT(!IS_TAG(c2) && HDR_TYPE(c2) == KObjType && HDR_COUNT(c2) == 2, "col 2 should be 2-elem KObjType string list");
+    K s0 = OBJ_PTR(c2)[0], s1 = OBJ_PTR(c2)[1];
+    ASSERT(!IS_TAG(s0) && HDR_TYPE(s0) == KChrType && HDR_COUNT(s0) == 5 && memcmp(CHR_PTR(s0), "hello", 5) == 0, "col 2 elem 0 should be \"hello\"");
+    ASSERT(!IS_TAG(s1) && HDR_TYPE(s1) == KChrType && HDR_COUNT(s1) == 5 && memcmp(CHR_PTR(s1), "world", 5) == 0, "col 2 elem 1 should be \"world\"");
     unref(r);
     PASS();
 }
