@@ -8,7 +8,6 @@
 
 #define ISALPHA(c) isalpha((int)(c))
 #define ISDIGIT(c) isdigit((int)(c))
-#define ISALNUM(c) isalnum((int)(c))
 
 static inline K_char chr4chr(K_int n, K_char *s){
     return n==0 ? ' ' : *s;

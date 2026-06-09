@@ -39,14 +39,9 @@ static K_char appendObj(K *v, K x){
     return HDR_COUNT(*v) - 1;
 }
 
-// append a variable name to a vars list and return the bytecode+index
-static K_char addVar(K *vars, K_sym x){
-    return OP_GET_VAR + addSym(vars, x);
-}
-
 // append a K value to consts lists and return the bytecode+index
 static K_char addConst(K *consts, K x){
-    return OP_CONST + appendObj(consts, x);;
+    return OP_CONST + appendObj(consts, x);
 }
 
 static K numbers(K_char *src, K_int len, K_int count){
@@ -117,8 +112,8 @@ static K lambda(K_char *src, K_int start, K_int end){
 }
 
 // return index of next non-whitespace character
-static int next(K_char *src, int i){
-    while (src[i] == ' ') ++i;
+static int next(K_char *src, K_int i, K_int n){
+    while (i < n && src[i] == ' ') ++i;
     return i;
 }
 
@@ -139,17 +134,17 @@ K token(K x, K *vars, K *consts){
     K_int i = 0;
     K_char *src = CHR_PTR(x);
     K_char *tok = CHR_PTR(r);
-    while ((i = next(src, i)) < n){ // while next() non-whitespace position is valid/in source
+    while ((i = next(src, i, n)) < n){ // while next() non-whitespace position is valid/in source
         // token start index
         K_int t0 = i;
 
 #define ISNEGDIGIT(s) (s[i] == '-' && i+1 < n && ISDIGIT(s[i+1]))
         if (ISALPHA(src[i])){
             // variables + keywords
-            do ++i; while (i < n && ISALNUM(src[i]));
+            do ++i; while (i < n && ISALPHA(src[i]));
             K_int j;
             K_sym sym = encodeSym(src+t0, i-t0);
-            *tok++ = (j=findSym(KEYWORDS, sym)) < HDR_COUNT(KEYWORDS) ? j : addVar(vars, sym);
+            *tok++ = (j=findSym(KEYWORDS, sym)) < HDR_COUNT(KEYWORDS) ? j : OP_GET_VAR + addSym(vars, sym);
         } else if (ISDIGIT(src[i]) || (ISNEGDIGIT(src) && (i==0 || strchr(" ({[;", src[i-1])))){
             // numbers (negative literal opens at strand boundary: start, space, '(' '[' ';')
             K_int count = 1;
@@ -174,7 +169,7 @@ K token(K x, K *vars, K *consts){
             *tok++ = addConst(consts, res);
             i = end + 1;
         } else if (src[i] == '(' || src[i] == ')'){
-            if (src[i] == '(' && src[i+1] == ')'){
+            if (src[i] == '(' && i+1 < n && src[i+1] == ')'){
                 // add empty list literal const ()
                 *tok++ = addConst(consts, knew(KObjType, 0));
                 i += 2;
@@ -268,7 +263,7 @@ static K expandTokens(K x, K fenced, K postfix){
     K r = knew(KObjType, HDR_COUNT(x));
     FOR_EACH(x){
         K t = expandSwitch(CHR_PTR(x)[i], fenced, postfix);
-        if (!t) return UNREF_R(0); 
+        if (!t) { HDR_COUNT(r)=i; return UNREF_R(0);}
         OBJ_PTR(r)[i] = t;
     }
     return UNREF_X(razeStr(r));
@@ -321,7 +316,7 @@ static K reducePostfix(K x, K *postfix){
 // 5. stitch back the slices of bytecode
 K compile(K f, K x, int mode) {
     K fenced = 0, postfix = 0, r = 0;
-    if (!(x = reduceFenced(x, &fenced))) goto cleanup;
+    x = reduceFenced(x, &fenced);
     x = reducePostfix(x, &postfix);
 
     // cut on ; and emit tokens for each subexpression
@@ -410,7 +405,7 @@ K vm(K x, K vars, K consts, K_char varc, K*args){
         case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;
         case 6: if(IS_PRIMITIVE(i))*--top=kop(i); else *top=kadverb(*top,i-ADVERB_START); break;
         case 7: switch(i){ // special ops 0:pop 1:enlist
-                case 0: unref(*top++); break;
+                case 0: if /*TODO:fix in compiler*/ (top!=base) unref(*top++); break;
                 case 1: K_int n=*ip++; a=knew(KObjType,n); top+=n; MEMCPY(a,top-n,sizeof(K)*n); *--top=squeeze(a); break;
                 }
         }
@@ -450,21 +445,20 @@ K timeExpr(K x){
 
     // get the iteration count if specified
     if (CHR_PTR(x)[2] == ':'){
-        CHR_PTR(x)[i] = 0; 
         n = int4chr(i-3, CHR_PTR(x)+3);
     }
 
     // extract + load expression
     K r = load(kstr(HDR_COUNT(x)-(i+1), CHR_PTR(x)+i+1), 0);
-    if (!r) return 0;
+    if (!r) return UNREF_X(0);
 
-    // measure nanos, report millis                                                                                 
+    // measure nanos, report millis
     struct timespec t0, t1;
-    clock_gettime(CLOCK_MONOTONIC, &t0);                                                                                                                                                         
+    clock_gettime(CLOCK_MONOTONIC, &t0);
     for (int j = 0; j < n; j++) unref(vm(OBJ_PTR(r)[0], OBJ_PTR(r)[1], OBJ_PTR(r)[2], 0, 0));
-    clock_gettime(CLOCK_MONOTONIC, &t1);                                                                                                                                                         
-                                                                                                                                                                                               
-    unref(r);                                                                                                                                                                                    
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+
+    unref(r), unref(x);
     return kint((t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_nsec - t0.tv_nsec) / 1000000);
 }
 

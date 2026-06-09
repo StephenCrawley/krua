@@ -2297,6 +2297,29 @@ TEST(adverb_each1_inner_rank_error) { // each1Generic: 2nd element (atom) fails 
     PASS();
 }
 
+// Runtime: \t timing
+TEST(timeexpr_basic) {
+    K r = eval(kcstr("\\t 1+1"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType, "\\t expr should return int millis");
+    PASS();
+}
+
+TEST(timeexpr_iterations) {
+    K r = eval(kcstr("\\t:10 1+1"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KIntType, "\\t:N expr should return int millis");
+    PASS();
+}
+
+TEST(timeexpr_error_no_space) {
+    ASSERT_ERROR("\\t:10", KERR_PARSE);
+    PASS();
+}
+
+TEST(timeexpr_error_bad_expr) { // load-failure path: timeExpr must unref x, not just the kstr copy
+    ASSERT_ERROR("\\t \"abc", KERR_PARSE);
+    PASS();
+}
+
 void run_tests() {
     printf("\nPreprocessing:\n");
     RUN_TEST(preprocess_strip_leading_comment);
@@ -2602,6 +2625,11 @@ void run_tests() {
     RUN_TEST(adverb_over1_reduce_length_error);
     RUN_TEST(adverb_scan1_reduce_length_error);
     RUN_TEST(adverb_each1_inner_rank_error);
+    // \t timing
+    RUN_TEST(timeexpr_basic);
+    RUN_TEST(timeexpr_iterations);
+    RUN_TEST(timeexpr_error_no_space);
+    RUN_TEST(timeexpr_error_bad_expr);
 
     printf("\n======================\n");
     printf("Tests run:    %d\n", tests_run);
