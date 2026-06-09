@@ -78,7 +78,7 @@ void locals(K src, K *vars){
         if (s[i] == ':' && ISALPHA(s[i-1])){
             K_char *v = &s[i-1];
             while (v > s && ISALPHA(v[-1])) --v;
-            addVar(vars, encodeSym(v, (s+i) - v));
+            addSym(vars, encodeSym(v, (s+i) - v));
         }
     }
 }
