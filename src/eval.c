@@ -33,6 +33,12 @@ K load(K, K);
 // 6      192-223: ?
 // 7      224-255: special operations (enlist, pop)
 
+// helper to append to a potentially-unallocated generic list
+static K_char appendObj(K *v, K x){
+    *v = *v ? joinObj(*v, x) : k1(x);
+    return HDR_COUNT(*v) - 1;
+}
+
 // append a variable name to a vars list and return the bytecode+index
 static K_char addVar(K *vars, K_sym x){
     return OP_GET_VAR + addSym(vars, x);
@@ -40,8 +46,7 @@ static K_char addVar(K *vars, K_sym x){
 
 // append a K value to consts lists and return the bytecode+index
 static K_char addConst(K *consts, K x){
-    *consts = (*consts == 0) ? k1(x) : joinObj(*consts, x);
-    return OP_CONST + HDR_COUNT(*consts)-1;
+    return OP_CONST + appendObj(consts, x);;
 }
 
 static K numbers(K_char *src, K_int len, K_int count){
@@ -277,8 +282,7 @@ static K reduceFenced(K x, K *fenced){
             bool p = tok[i] == '(';
             K_int end = findClose(tok, i, n, tok[i], p?')':']');
             K body = kstr(end - i - 1, tok + i + 1);
-            *fenced = *fenced ? joinObj(*fenced, body) : k1(body);
-            tok[j++] = (p ? TOK_PAREN : TOK_BRACKET) + HDR_COUNT(*fenced) - 1;
+            tok[j++] = (p ? TOK_PAREN : TOK_BRACKET) + appendObj(fenced, body);
             i = end + 1;
         } else {
             tok[j++] = tok[i++];
@@ -297,8 +301,7 @@ static K reducePostfix(K x, K *postfix){
             do ++i; while (i<n && (IS_CLASS(TOK_BRACKET, tok[i]) || IS_ADVERB(tok[i])));
             K body = kstr(i - start, tok + start);
             HDR_ADVERB(body) = IS_ADVERB(tok[i-1]);
-            *postfix = *postfix ? joinObj(*postfix, body) : k1(body);
-            tok[j++] = TOK_POSTFIX + HDR_COUNT(*postfix) - 1;
+            tok[j++] = TOK_POSTFIX + appendObj(postfix, body);
         } else {
             tok[j++] = tok[i++];
         }
