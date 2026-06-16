@@ -14,6 +14,7 @@ K where(K);
 K til(K);
 K enlist(K);
 K count(K);
+K not(K);
 K csv(K);
 
 #endif

@@ -1032,6 +1032,64 @@ TEST(unary_where_multiple) {
     PASS();
 }
 
+// Runtime: not (~)
+TEST(unary_not_int_atom) { // numeric atom -> bool, regardless of input type
+    K r = eval(kcstr("~0"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KBoolType && TAG_VAL(r) == 1, "~0 -> 1b");
+    r = eval(kcstr("~5"));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KBoolType && TAG_VAL(r) == 0, "~5 -> 0b");
+    PASS();
+}
+TEST(unary_not_char_atom) { // ~"a" -> 0b (atom result is bool, not char)
+    K r = eval(kcstr("~\"a\""));
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KBoolType && TAG_VAL(r) == 0, "~\"a\" -> 0b");
+    PASS();
+}
+TEST(unary_not_int_list) { // ~0 5 0 -> 1 0 1b (eql path)
+    K r = eval(kcstr("~0 5 0"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 3, "bool list len 3");
+    ASSERT(GET_BIT(r,0)==1 && GET_BIT(r,1)==0 && GET_BIT(r,2)==1, "~0 5 0 -> 1 0 1");
+    unref(r); PASS();
+}
+TEST(unary_not_bool_list) { // ~101b -> 010b (notBool fast path)
+    K r = eval(kcstr("~(1=1 2 1)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 3, "bool list len 3");
+    ASSERT(GET_BIT(r,0)==0 && GET_BIT(r,1)==1 && GET_BIT(r,2)==0, "~101b -> 010b");
+    unref(r); PASS();
+}
+TEST(unary_not_obj_squeeze) { // ~(0;"a") -> 10b (mixed scalars squeeze to bool vector)
+    K r = eval(kcstr("~(0;\"a\")"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 2, "bool list len 2");
+    ASSERT(GET_BIT(r,0)==1 && GET_BIT(r,1)==0, "~(0;\"a\") -> 1 0");
+    unref(r); PASS();
+}
+TEST(unary_not_obj_nested) { // ~(0 1;1 0) -> (10b;01b) (nested stays boxed; squeeze bails on non-atoms)
+    K r = eval(kcstr("~(0 1;1 0)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 2, "obj list len 2");
+    K a = OBJ_PTR(r)[0], b = OBJ_PTR(r)[1];
+    ASSERT(!IS_TAG(a) && HDR_TYPE(a) == KBoolType && HDR_COUNT(a) == 2 && GET_BIT(a,0)==1 && GET_BIT(a,1)==0, "[0] -> 1 0b");
+    ASSERT(!IS_TAG(b) && HDR_TYPE(b) == KBoolType && HDR_COUNT(b) == 2 && GET_BIT(b,0)==0 && GET_BIT(b,1)==1, "[1] -> 0 1b");
+    unref(r); PASS();
+}
+TEST(unary_not_empty_int) { // ~0#0 -> empty bool list
+    K r = eval(kcstr("~ 0#0"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 0, "empty bool");
+    unref(r); PASS();
+}
+TEST(unary_not_empty_obj) { // ~() -> empty obj (generic empty stays generic)
+    K r = eval(kcstr("~()"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 0, "empty obj");
+    unref(r); PASS();
+}
+TEST(unary_not_op_type_error) { // ~+ -> type error (regression: tag fell through to HDR_TYPE and segfaulted)
+    ASSERT_ERROR("~+", KERR_TYPE);
+    PASS();
+}
+TEST(unary_not_lambda_type_error) { // ~lambda -> type error (non-numeric pointer)
+    ASSERT_ERROR("~{[x]x}", KERR_TYPE);
+    PASS();
+}
+
 // Runtime: csv
 TEST(unary_csv_headerless_all_int) {
     K r = eval(kcstr("csv (0;\"ii\";\"tests/g.csv\")"));
@@ -2464,6 +2522,16 @@ void run_tests() {
     RUN_TEST(unary_value_type_error);
     RUN_TEST(unary_where_single);
     RUN_TEST(unary_where_multiple);
+    RUN_TEST(unary_not_int_atom);
+    RUN_TEST(unary_not_char_atom);
+    RUN_TEST(unary_not_int_list);
+    RUN_TEST(unary_not_bool_list);
+    RUN_TEST(unary_not_obj_squeeze);
+    RUN_TEST(unary_not_obj_nested);
+    RUN_TEST(unary_not_empty_int);
+    RUN_TEST(unary_not_empty_obj);
+    RUN_TEST(unary_not_op_type_error);
+    RUN_TEST(unary_not_lambda_type_error);
     // csv
     RUN_TEST(unary_csv_headerless_all_int);
     RUN_TEST(unary_csv_headerless_skip_first);

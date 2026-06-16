@@ -87,6 +87,15 @@ K count(K x){
     return UNREF_X(TAG(KIntType, IS_ATOM(x) ? 1 : HDR_COUNT(x)));
 }
 
+K not(K x){
+    if (IS_TAG(x)){
+        TYPE_ERROR(TAG_TYPE(x) >= KNumericEndType, "~x expects numeric type", );
+        return TAG(KBoolType, 0==TAG_VAL(x));
+    }
+    TYPE_ERROR(HDR_TYPE(x) >= KNumericEndType, "~x expects numeric type", unref(x))
+    return HDR_TYPE(x) == 0 ? squeeze(_each1(not, x)) : KBoolType==HDR_TYPE(x) ? notBool(x) : eql(kint(0), x);
+}
+
 // 'csv' helper macro
 // uses locals of 'csv'
 #define PARSE_COL(KT, STORE, PARSE) do { \
