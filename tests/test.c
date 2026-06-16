@@ -1990,6 +1990,33 @@ TEST(binary_join_lambda_atom){ // {[a;b]a+b},5 -> (lambda; 5)
     ASSERT(IS_TAG(OBJ_PTR(r)[1]) && TAG_TYPE(OBJ_PTR(r)[1]) == KIntType && TAG_VAL(OBJ_PTR(r)[1]) == 5, "[1] int atom 5");
     unref(r); PASS();
 }
+TEST(binary_join_int_lists){ // 1 2,3 4 -> 1 2 3 4 (same-type joinList)
+    ASSERT_INT_LIST("1 2,3 4", 4, ((K_int[]){1, 2, 3, 4}));
+    PASS();
+}
+TEST(binary_join_char_lists){ // "ab","cd" -> "abcd" (same-type joinList)
+    K r = eval(kcstr("\"ab\",\"cd\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType && HDR_COUNT(r) == 4 && memcmp(CHR_PTR(r), "abcd", 4) == 0, "should be \"abcd\"");
+    unref(r); PASS();
+}
+TEST(binary_join_int_char_lists){ // 1 2,"ab" -> (1;2;"a";"b") (diff-type, both expanded)
+    K r = eval(kcstr("1 2,\"ab\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 4, "should be 4-elem obj list");
+    K *o = OBJ_PTR(r);
+    ASSERT(IS_TAG(o[0]) && TAG_TYPE(o[0]) == KIntType && TAG_VAL(o[0]) == 1, "[0] int 1");
+    ASSERT(IS_TAG(o[1]) && TAG_TYPE(o[1]) == KIntType && TAG_VAL(o[1]) == 2, "[1] int 2");
+    ASSERT(IS_TAG(o[2]) && TAG_TYPE(o[2]) == KChrType && TAG_VAL(o[2]) == 'a', "[2] char 'a'");
+    ASSERT(IS_TAG(o[3]) && TAG_TYPE(o[3]) == KChrType && TAG_VAL(o[3]) == 'b', "[3] char 'b'");
+    unref(r); PASS();
+}
+TEST(binary_join_empty_diff_type){ // empty,diff-type list returns the non-empty operand unchanged (regression: pre-fix boxed to obj list)
+    K r = eval(kcstr("(0#0),\"abc\"")); // empty int , char list -> "abc"
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType && HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "abc", 3) == 0, "(0#0),\"abc\" should be \"abc\"");
+    unref(r);
+    r = eval(kcstr("\"abc\",(0#0)")); // char list , empty int -> "abc"
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType && HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "abc", 3) == 0, "\"abc\",(0#0) should be \"abc\"");
+    unref(r); PASS();
+}
 
 // Runtime: lambdas
 TEST(lambda_eval_returns_lambda) {
@@ -2573,6 +2600,10 @@ void run_tests() {
     RUN_TEST(binary_join_obj_char_atom);
     RUN_TEST(binary_join_atom_lambda);
     RUN_TEST(binary_join_lambda_atom);
+    RUN_TEST(binary_join_int_lists);
+    RUN_TEST(binary_join_char_lists);
+    RUN_TEST(binary_join_int_char_lists);
+    RUN_TEST(binary_join_empty_diff_type);
     // lambdas
     RUN_TEST(lambda_eval_returns_lambda);
     RUN_TEST(lambda_eval_no_params);

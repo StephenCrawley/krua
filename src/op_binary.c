@@ -177,7 +177,10 @@ K join(K x, K y){
     if (IS_ATOM(y)){
         return TAG_TYPE(y) == HDR_TYPE(x) ? joinTag(x, y) : joinObj(expand(x), y);
     }
-    return HDR_TYPE(x) == HDR_TYPE(y) ? joinList(x, y) : joinList(expand(x), expand(y));
+    return HDR_COUNT(x)==0 ? UNREF_X(y)
+         : HDR_COUNT(y)==0 ? UNREF_Y(x)
+         : HDR_TYPE(x) == HDR_TYPE(y) ? joinList(x, y)
+         : joinList(expand(x), expand(y));
 }
 
 K natom(K_int n, K x){
