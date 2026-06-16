@@ -399,7 +399,7 @@ K vm(K x, K vars, K consts, K_char varc, K*args){
         switch(*ip++ >> 5){  // class: upper 3 bits
         case 0: *top=unary_op[i](*top); if(!*top) goto bail; break;
         case 1: a=*top++; *top=binary_op[i](a,*top); if (!*top) goto bail; break;
-        case 2: a=*top++; *top=apply(a,i,top); unref(a); if (!*top) goto bail; break;
+        case 2: K r=apply(a=*top,i,top+1); unref(a); top+=i; *top=r; if (!*top) goto bail; break;
         case 3: *--top=ref(OBJ_PTR(consts)[i]); break;
         case 4: *--top=i<varc?ref(args[i]):getGlobal(v[i]); if (!*top) goto bail; break;
         case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;

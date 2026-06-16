@@ -1644,6 +1644,12 @@ TEST(apply_keyword_dyadic_rank){ // applyOperator: keyword (csv, op>=20) is unar
     PASS();
 }
 
+TEST(apply_nested_nary_stack){ // VM N_ARY must pop all i consumed args; nested call must not read inner's stale slots
+    ASSERT_INT_ATOM("+[+[1;2];10]", 13); // pre-fix read stale 2 -> 3+2=5
+    ASSERT_INT_LIST("{[x;y;z]x+y+z}[{[x;y;z]x+y+z}[1 2 3;1;1];10;0]", 3, ((K_int[]){13,14,15})); // i=3: two stale slots, pre-fix gave 5 6 7
+    PASS();
+}
+
 // Runtime: take (#)
 TEST(binary_take_atom_int){
     ASSERT_INT_LIST("3#5", 3, ((K_int[]){5, 5, 5}));
@@ -2515,6 +2521,7 @@ void run_tests() {
     RUN_TEST(apply_too_many_args_rank_error);
     RUN_TEST(apply_chained_bracket_rank_error);
     RUN_TEST(apply_keyword_dyadic_rank);
+    RUN_TEST(apply_nested_nary_stack);
     // take (#)
     RUN_TEST(binary_take_atom_int);
     RUN_TEST(binary_take_atom_char);
