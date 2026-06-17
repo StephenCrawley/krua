@@ -32,8 +32,8 @@ K applyOperator(K x, int n, K *args){
 }
 
 K applyAdverb(K x, int n, K *args){
-    NYI_ERROR(n != 1, "adverb", while(n--) unref(args[n]));
-    return adv1(x, args[0]);
+    NYI_ERROR(n > 2, "adverb", while(n--) unref(args[n]));
+    return n == 1 ? adv1(x, args[0]) : adv2(x, args[0], args[1]);
 }
 
 K applyOver(K x, int n, K *args){

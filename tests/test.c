@@ -2284,6 +2284,29 @@ TEST(adverb_bare_op_bracket_eval) {
     PASS();
 }
 
+// each2: dyadic each (x f'y) — subtraction pins arg order (x f y, not y f x)
+TEST(adverb_each2_list_list) { // 10 20-'1 2 -> 9 18
+    ASSERT_INT_LIST("10 20-'1 2", 2, ((K_int[]){9, 18}));
+    PASS();
+}
+TEST(adverb_each2_atom_left) { // 10-'1 2 3 -> 9 8 7 (eachright: atom broadcast over right)
+    ASSERT_INT_LIST("10-'1 2 3", 3, ((K_int[]){9, 8, 7}));
+    PASS();
+}
+TEST(adverb_each2_atom_right) { // 1 2 3-'10 -> -9 -8 -7 (eachleft: atom broadcast over left)
+    ASSERT_INT_LIST("1 2 3-'10", 3, ((K_int[]){-9, -8, -7}));
+    PASS();
+}
+TEST(adverb_each2_atom_atom_rank_error) { // 1+'2 -> rank error (via eachright IS_ATOM(y) guard)
+    ASSERT_ERROR("1+'2", KERR_RANK);
+    PASS();
+}
+TEST(adverb_each2_length_error) { // mismatched list lengths -> length error, both directions
+    ASSERT_ERROR("2 3 4+'5 6", KERR_LENGTH);
+    ASSERT_ERROR("2 3+'5 6 7", KERR_LENGTH);
+    PASS();
+}
+
 // over1: fast paths (specialized +/ -/ */ kernels on KIntType)
 TEST(adverb_over1_sum_fast) {
     ASSERT_INT_ATOM("+/1 2 3 4", 10);
@@ -2710,6 +2733,12 @@ void run_tests() {
     RUN_TEST(adverb_each_bare_op_count);
     RUN_TEST(adverb_each_atom_rank_error);
     RUN_TEST(adverb_bare_op_bracket_eval);
+
+    RUN_TEST(adverb_each2_list_list);
+    RUN_TEST(adverb_each2_atom_left);
+    RUN_TEST(adverb_each2_atom_right);
+    RUN_TEST(adverb_each2_atom_atom_rank_error);
+    RUN_TEST(adverb_each2_length_error);
     // over1 (f/)
     RUN_TEST(adverb_over1_sum_fast);
     RUN_TEST(adverb_over1_mul_fast);
