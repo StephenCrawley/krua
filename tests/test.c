@@ -1032,6 +1032,21 @@ TEST(unary_where_multiple) {
     PASS();
 }
 
+TEST(unary_where_int_list) { // counts -> repeated indices
+    ASSERT_INT_LIST("&2 3", 5, ((K_int[]){0, 0, 1, 1, 1}));
+    PASS();
+}
+
+TEST(unary_where_int_zeros) { // zero counts are skipped
+    ASSERT_INT_LIST("&0 2 0 1", 3, ((K_int[]){1, 1, 3}));
+    PASS();
+}
+
+TEST(unary_where_int_empty) { // all-zero counts -> empty list
+    ASSERT_INT_LIST("&0 0", 0, ((K_int[]){0}));
+    PASS();
+}
+
 // Runtime: not (~)
 TEST(unary_not_int_atom) { // numeric atom -> bool, regardless of input type
     K r = eval(kcstr("~0"));
@@ -2545,6 +2560,9 @@ void run_tests() {
     RUN_TEST(unary_value_type_error);
     RUN_TEST(unary_where_single);
     RUN_TEST(unary_where_multiple);
+    RUN_TEST(unary_where_int_list);
+    RUN_TEST(unary_where_int_zeros);
+    RUN_TEST(unary_where_int_empty);
     RUN_TEST(unary_not_int_atom);
     RUN_TEST(unary_not_char_atom);
     RUN_TEST(unary_not_int_list);

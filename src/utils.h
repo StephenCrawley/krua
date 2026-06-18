@@ -40,4 +40,17 @@ static inline K notBool(K x){
     return UNREF_X(r);
 }
 
+// relies on zeroed tail beyond logical length (bool tail invariant)
+static inline K_int sumBools(K x){
+    K_int n = 0;
+    FOR_WORDS(x) n += stdc_count_ones(((uint64_t*)x)[i]);
+    return n;
+}
+
+static inline K_int sumInts(K x){
+    K_int j = 0;
+    FOR_EACH(x) j += INT_PTR(x)[i];
+    return j;
+}
+
 #endif

@@ -3,6 +3,7 @@
 #include "apply.h"
 #include "op_unary.h"
 #include "op_binary.h"
+#include "utils.h"
 #include "error.h"
 
 // forward declarations
@@ -100,10 +101,8 @@ K over1(K f, K x){
 // specialized kernels
 
 // +/x
-K sumOver(K x){
-    K_int j = 0;
-    FOR_EACH(x) j += INT_PTR(x)[i];
-    return kint(j);
+static K sumOver(K x){
+    return kint(sumInts(x));
 }
 
 // -/x

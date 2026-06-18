@@ -45,19 +45,28 @@ K first(K x){
 
 // &x / where x
 K where(K x){
-    TYPE_ERROR(IS_TAG(x) || HDR_TYPE(x) != KBoolType, "&x expects bool", unref(x));
-    // over-read in both loops depends on zeroed last word beyond logical length n
-    K_int n = 0, m = (HDR_COUNT(x)+63)/64;
-    for (K_int i = 0; i < m; i++){
-        n += stdc_count_ones(((uint64_t*)x)[i]);
-    }
-    K r = knew(KIntType, n);
-    K_int idx = 0;
-    for (K_int i = 0, o = 0; i < m; i++, o += 64){
-        uint64_t word = ((uint64_t*)x)[i];
-        while (word){
-            INT_PTR(r)[idx++] = o + stdc_trailing_zeros(word);
-            word &= word - 1;
+    TYPE_ERROR(IS_TAG(x) || (HDR_TYPE(x) != KBoolType && HDR_TYPE(x) != KIntType), "&x expects bool or int list", unref(x));
+    K r;
+    if (HDR_TYPE(x) == KIntType){
+        // TODO: negative ints
+        K_int n = sumInts(x);
+        r = knew(KIntType, n);
+        K_int j = 0;
+        FOR_EACH(x){
+            K_int k = INT_PTR(x)[i];
+            while (k-- > 0) INT_PTR(r)[j++] = i;
+        }
+    } else {
+        K_int n = sumBools(x);
+        r = knew(KIntType, n);
+        K_int idx = 0;
+        // fill loop over-reads last word; depends on zeroed tail beyond length
+        FOR_WORDS(x){
+            uint64_t word = ((uint64_t*)x)[i];
+            while (word){
+                INT_PTR(r)[idx++] = i*64 + stdc_trailing_zeros(word);
+                word &= word - 1;
+            }
         }
     }
     return UNREF_X(r);
