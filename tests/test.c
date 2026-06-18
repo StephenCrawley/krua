@@ -1259,6 +1259,15 @@ TEST(binary_add_obj_list) {
     PASS();
 }
 
+TEST(binary_each2_obj_bool) { // _each2 with a bool operand (item() handles bool)
+    K r = eval(kcstr("(1 2;3 4)+1=1 1"));   // obj + 1 1b -> (2 3;4 5)
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 2, "obj+bool shape");
+    ASSERT_2_INTS(OBJ_PTR(r)[0], 2, 3);
+    ASSERT_2_INTS(OBJ_PTR(r)[1], 4, 5);
+    unref(r);
+    PASS();
+}
+
 TEST(binary_add_obj_obj) {
     K r = eval(kcstr("(1 2;3 4)+(1 2;3 4)"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType, "(1 2;3 4)+(1 2;3 4) should return obj list");
@@ -2338,6 +2347,17 @@ TEST(adverb_over1_sub_fast) { // subOver's 2*x[0] trick, order-sensitive
     PASS();
 }
 
+TEST(adverb_over1_sum_bool) { // +/bool hits sumBools, like +/int hits sumInts
+    ASSERT_INT_ATOM("+/1=1 2 1 3 1", 3);   // 1 0 1 0 1b -> 3
+    PASS();
+}
+
+TEST(adverb_over1_max_bool) { // |/bool via over1Generic (item() handles bool)
+    K r = eval(kcstr("|/1=1 2 1"));   // 1 0 1b, max -> 1b
+    ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KBoolType && TAG_VAL(r) == 1, "|/bool -> 1b");
+    PASS();
+}
+
 // over1: generic path (non-special ops fall through to over1Generic)
 TEST(adverb_over1_max_generic) {
     ASSERT_INT_ATOM("|/3 1 4 1 5", 5);
@@ -2595,6 +2615,7 @@ void run_tests() {
     RUN_TEST(binary_sub_list_list);
     RUN_TEST(binary_sub_list_atom);
     RUN_TEST(binary_add_obj_list);
+    RUN_TEST(binary_each2_obj_bool);
     RUN_TEST(binary_add_obj_obj);
     RUN_TEST(binary_add_obj_atom);
     RUN_TEST(binary_add_int_list_long);
@@ -2761,6 +2782,8 @@ void run_tests() {
     RUN_TEST(adverb_over1_sum_fast);
     RUN_TEST(adverb_over1_mul_fast);
     RUN_TEST(adverb_over1_sub_fast);
+    RUN_TEST(adverb_over1_sum_bool);
+    RUN_TEST(adverb_over1_max_bool);
     RUN_TEST(adverb_over1_max_generic);
     RUN_TEST(adverb_over1_min_generic);
     RUN_TEST(adverb_over1_nested);
@@ -2795,3 +2818,4 @@ int main() {
     run_tests();
     return tests_failed ? 1 : 0;
 }
+

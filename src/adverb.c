@@ -24,7 +24,6 @@ K scan2(K, K, K);
 // f'x f/x f\x
 K adv1(K f, K x){
     RANK_ERROR(IS_ATOM(x), "f'atom", unref(x));
-    NYI_ERROR(HDR_TYPE(x) == KBoolType, "adverb on bool", unref(x));
     return PICK3(HDR_ADVERB(f), each1, over1, scan1)(OBJ_PTR(f)[0], x);
 }
 
@@ -134,7 +133,9 @@ K over1Generic(K f, K x){
 }
 
 K over1Special(K f, K x){
-    return HDR_TYPE(x) == KIntType ? UNREF_X(PICK3(TAG_VAL(f)-1,sumOver,subOver,mulOver)(x)) : over1Generic(f, x);
+    if (HDR_TYPE(x) == KIntType) return UNREF_X(PICK3(TAG_VAL(f)-1,sumOver,subOver,mulOver)(x));
+    if (HDR_TYPE(x) == KBoolType && TAG_VAL(f) == 1) return UNREF_X(kint(sumBools(x))); // +/ only
+    return over1Generic(f, x);
 }
 
 K over2(K f, K x, K y){

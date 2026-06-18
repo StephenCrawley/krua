@@ -12,7 +12,6 @@
 // f'[x;y]
 static K _each2(F2 f, K x, K y){
     LENGTH_ERROR(HDR_COUNT(x) != HDR_COUNT(y), "", unref(x); unref(y));
-    NYI_ERROR(HDR_TYPE(x) == KBoolType || HDR_TYPE(y) == KBoolType, "_each2 bool", unref(x); unref(y));
     K r = knew(KObjType, HDR_COUNT(x)), *robj = OBJ_PTR(r);
     FOR_EACH(r){
         K t = f(item(i, x), item(i, y));

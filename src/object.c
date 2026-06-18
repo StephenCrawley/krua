@@ -307,7 +307,7 @@ K expand(K x){
 // retrieve item from index i
 K item(K_int i, K x){
     int t = HDR_TYPE(x);
-    return (t == KObjType) ? ref(OBJ_PTR(x)[i]) : TAG(t, WIDTH_OF(x)==1 ? CHR_PTR(x)[i] : INT_PTR(x)[i]);
+    return t == KObjType ? ref(OBJ_PTR(x)[i]) : TAG(t, t == KBoolType ? GET_BIT(x, i) : WIDTH_OF(x) == 1 ? CHR_PTR(x)[i] : INT_PTR(x)[i]);
 }
 
 // promote x to type t. widens if smaller than target. error if non-numeric type
