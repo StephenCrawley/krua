@@ -3,6 +3,7 @@
 #include "object.h"
 #include "error.h"
 #include "op_binary.h"
+#include <immintrin.h>
 
 #define BUCKET_SHIFT 7  // log2(MIN_ALLOC)
 #define NUM_BUCKETS 23
@@ -310,13 +311,44 @@ K item(K_int i, K x){
     return t == KObjType ? ref(OBJ_PTR(x)[i]) : TAG(t, t == KBoolType ? GET_BIT(x, i) : WIDTH_OF(x) == 1 ? CHR_PTR(x)[i] : INT_PTR(x)[i]);
 }
 
-// promote x to type t. widens if smaller than target. error if non-numeric type
+#ifdef __AVX512F__
+static void widenBits(K_char *dst, const K_char *src, K_int n){
+    FOR((n+63)/64) _mm512_storeu_si512(dst + 64*i, _mm512_maskz_mov_epi8(((const __mmask64*)src)[i], _mm512_set1_epi8(1)));
+}
+#else
+
+static inline uint64_t expand8(uint8_t b){
+    uint64_t x = (b * 0x0101010101010101ULL) & 0x8040201008040201ULL;
+    return ((x + 0x7f7f7f7f7f7f7f7fULL) & 0x8080808080808080ULL) >> 7;
+}
+
+static void widenBits(K_char *dst, const K_char *src, K_int n){
+    FOR((n+7)/8) ((uint64_t*)dst)[i] = expand8(src[i]);
+}
+
+#endif
+
+typedef K_char VC16 __attribute__((vector_size(16), aligned(1)));  // C->I: 16 lanes
+typedef K_int  VI16 __attribute__((vector_size(64), aligned(1)));
+typedef K_int  VI8  __attribute__((vector_size(32), aligned(1)));  // I->J: 8 lanes
+typedef K_long VJ8  __attribute__((vector_size(64), aligned(1)));
+
+// widen x one numeric step: bool->chr->int->long. consumes x.
+static K widen1(K x){
+    int t = HDR_TYPE(x);
+    K_int n = HDR_COUNT(x);
+    K r = knew(t+1, n);
+    PICK3(t-1,
+        widenBits(CHR_PTR(r), CHR_PTR(x), n),
+        ({ FOR((n+15)/16) ((VI16*)r)[i] = __builtin_convertvector(((VC16*)x)[i], VI16); }),
+        ({ FOR((n+7)/8)   ((VJ8*)r)[i]  = __builtin_convertvector(((VI8*)x)[i],  VJ8);  }));
+    return UNREF_X(r);
+}
+
+// promote x to numeric type t, widening one step at a time. error if non-numeric.
 K promote(int t, K x){
     TYPE_ERROR(HDR_TYPE(x) >= KNumericEndType, "", unref(x));
-    if (HDR_TYPE(x) == t) return x;
-    NYI_ERROR(HDR_TYPE(x) == KBoolType, "promote KBoolType", unref(x));
-    NYI_ERROR(HDR_TYPE(x) == KLngType, "promote LngType", unref(x));
-    return UNREF_X( ({K r = knew(t, HDR_COUNT(x)); FOR_EACH(r) INT_PTR(r)[i] = CHR_PTR(x)[i]; r;}) );
+    return HDR_TYPE(x) == t ? x : promote(t, widen1(x));
 }
 
 // ** K object print ** //

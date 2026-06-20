@@ -1309,6 +1309,44 @@ TEST(binary_add_int_atom_long) {
     PASS();
 }
 
+// Runtime: promote (staged type widening bool->chr->int->long)
+TEST(promote_bool_to_int) {
+    // bool list (1 0 1 0) + 10 -> int list: 2 hops, bool->chr->int
+    K_int expected[] = {11, 10, 11, 10};
+    ASSERT_INT_LIST("(1 2 1 2=1)+10", 4, expected);
+    PASS();
+}
+
+TEST(promote_chr_to_int) {
+    K_int expected[] = {97, 98, 99};
+    ASSERT_INT_LIST("\"abc\"+0 0 0", 3, expected);
+    PASS();
+}
+
+TEST(promote_bool_to_int_tail) {
+    // 521 = 8*64+9: forces >1 SIMD chunk (64-bool AVX512 word / 8-bool scalar word)
+    // plus a 9-bool partial tail, so over-processing into headroom is on the hot path.
+    // 0xAA => bit i = i&1 (alternating) AND poisons the headroom past n, so a wrong tail
+    // length or misindexed unpack surfaces as a wrong value, not a coincidental zero.
+    K_int n = 521;
+    K x = knew(KBoolType, n);
+    FILL_BUCKET(x, 0xAA);
+    K r = promote(KIntType, x);
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType && HDR_COUNT(r) == n, "shape");
+    int ok = 1;
+    for (K_int i = 0; i < n; i++) if (INT_PTR(r)[i] != (i & 1)) { ok = 0; break; }
+    ASSERT(ok, "each int == source bit i (i&1) for 0xAA fill");
+    unref(r);
+    PASS();
+}
+
+TEST(promote_empty_bool) {
+    K r = promote(KIntType, knew(KBoolType, 0));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType && HDR_COUNT(r) == 0, "empty bool -> empty int");
+    unref(r);
+    PASS();
+}
+
 // Runtime: comparison
 TEST(comparison_int_atom_true) {
     K r = eval(kcstr("1=1"));
@@ -2620,6 +2658,11 @@ void run_tests() {
     RUN_TEST(binary_add_obj_atom);
     RUN_TEST(binary_add_int_list_long);
     RUN_TEST(binary_add_int_atom_long);
+    // promote (staged type widening)
+    RUN_TEST(promote_bool_to_int);
+    RUN_TEST(promote_chr_to_int);
+    RUN_TEST(promote_bool_to_int_tail);
+    RUN_TEST(promote_empty_bool);
     // comparison
     RUN_TEST(comparison_int_atom_true);
     RUN_TEST(comparison_int_atom_false);
