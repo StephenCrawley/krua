@@ -25,12 +25,23 @@ leak: clean test_leak
 test_leak: tests/test.c tests/refcount.c $(SOURCES) $(HEADERS)
 	$(CC) $(CFLAGS) -DTRACK_REFS -o test_leak tests/test.c tests/refcount.c $(SOURCES)
 
+# Build & run the suite across ISA levels: exercises both __AVX512F__ branches
+# (scalar fallback for v2/v3, AVX-512 path for v4) and convertvector lowering.
+# A level needing instructions the host lacks (e.g. v4 without AVX-512) will SIGILL.
+ARCHES = x86-64-v2 x86-64-v3 x86-64-v4
+test-allarch: $(SOURCES) $(HEADERS) tests/test.c
+	@for a in $(ARCHES); do \
+	  echo "=== -march=$$a ==="; \
+	  $(CC) $(filter-out -march=native,$(CFLAGS)) -march=$$a -o test_$$a tests/test.c $(SOURCES) && ./test_$$a || exit 1; \
+	done
+	@rm -f $(addprefix test_,$(ARCHES))
+
 # Pattern rule for object files
 %.o: %.c $(HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Clean target
 clean:
-	rm -f krua test_krua test_leak src/*.o tests/*.o
+	rm -f krua test_krua test_leak test_x86-64-* src/*.o tests/*.o
 
-.PHONY: test leak clean
+.PHONY: test leak test-allarch clean
