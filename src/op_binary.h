@@ -14,6 +14,8 @@ K sub(K, K);
 K mul(K, K);
 K min(K, K);
 K max(K, K);
+K ltn(K, K);
+K mtn(K, K);
 K eql(K, K);
 K at(K, K);
 K join(K, K);

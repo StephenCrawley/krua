@@ -37,7 +37,7 @@ static K _eachleft(F2 f, K x, K y){
 K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
 
 //                :    +    -    *    %    &    |    <    >    =    @   .    !    ,     ?    #     _     ~    $    ^
-F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, nyi, nyi, eql, at, nyi, nyi, join, nyi, take, drop, nyi, nyi, cut};
+F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, ltn, mtn, eql, at, nyi, nyi, join, nyi, take, drop, nyi, nyi, cut};
 
 #define  ADD(x, y) ((x)+(y))
 //#define SUB(x, y) ((x)-(y)) // currently dead code
@@ -48,6 +48,10 @@ F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
 #define   OR(x, y) ((x)|(y))
 #define VMIN(x, y) __builtin_elementwise_min((x), (y))
 #define VMAX(x, y) __builtin_elementwise_max((x), (y))
+#define  LTN(x, y) ((x)<(y))
+#define  MTN(x, y) ((x)>(y))
+#define BLTN(x, y) (((x)^(y))&(y))
+#define BMTN(x, y) (((x)^(y))&(x))
 
 #ifdef __AVX512F__
     typedef K_char VC __attribute__((vector_size(64), aligned(1)));
@@ -117,12 +121,12 @@ F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, nyi, nyi, eql, at, nyi, nyi
 #define CY(V, E) { if (IS_TAG(y)) CA(V, E) else CL(V, E); zeroBoolTail(r); }
 #define LY(V, E) { if (IS_TAG(y)) LA(V, E) else LL(V, E) }
 
-#define LC(V) case 5:LY(V,VMIN);break; case 6:LY(V,VMAX);break; case 9:CY(V,EQL);break;
+#define LC(V) case 5:LY(V,VMIN);break; case 6:LY(V,VMAX);break; case 7:CY(V,LTN);break; case 8:CY(V,MTN);break; case 9:CY(V,EQL);break;
 #define LX(V) case 1:LY(V,ADD); break; case 3:LY(V,MUL); break; LC(V)
 
 #define VSWITCH() \
     switch(t){ \
-    case KBoolType: switch(op){case 5:BY(AND);break; case 6:BY(OR);break; case 9:BY(BEQL);break;} break; \
+    case KBoolType: switch(op){case 5:BY(AND);break; case 6:BY(OR);break; case 7:BY(BLTN);break; case 8:BY(BMTN);break; case 9:BY(BEQL);break;} break; \
     case KChrType:  switch(op){LC(VC)} break; \
     case KIntType:  switch(op){LX(VI)} break; \
     case KLngType:  switch(op){case 9: CY(VJ,EQL); break;} break; }
@@ -151,7 +155,7 @@ K f(K x, K y){ \
             TYPE_ERROR(t >= KNumericEndType, "", ); \
             return TAG(op < 5 ? KIntType : op < 7 ? t : KBoolType, g(TAG_VAL(x), TAG_VAL(y))); \
         } \
-        return f(y, x); /* swap means op must be commutative! */ \
+        return (op==7 ? mtn : op==8 ? ltn : f)(y, x); /* swap means op must be commutative! */ \
     } \
     if (IS_TAG(y)){ \
         return HDR_TYPE(x) ? binaryDispatch(op, x, y) : _eachleft(f, x, y); \
@@ -164,6 +168,8 @@ K sub(K x, K y){ K r; return (r=neg(y)) ? add(x,r) : UNREF_X(r); }
 BINARY_OP(mul,MUL,3)
 BINARY_OP(min,MIN,5)
 BINARY_OP(max,MAX,6)
+BINARY_OP(ltn,LTN,7)
+BINARY_OP(mtn,MTN,8)
 BINARY_OP(eql,EQL,9)
 
 K at(K x, K y){

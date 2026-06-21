@@ -1506,6 +1506,78 @@ TEST(comparison_tail_bool_eql_atom) {
     PASS();
 }
 
+TEST(comparison_tail_int_lt_list) {
+    K_int n = 521;
+    K x = knew(KIntType, n), y = knew(KIntType, n);
+    FILL_BUCKET(x, 0x41); FILL_BUCKET(y, 0x42);
+    K r = ltn(x, y);
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_int_lt_atom) {
+    K_int n = 521;
+    K x = knew(KIntType, n);
+    FILL_BUCKET(x, 0x41);
+    K r = ltn(x, kint(0x42424242));
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_int_gt_list) {
+    K_int n = 521;
+    K x = knew(KIntType, n), y = knew(KIntType, n);
+    FILL_BUCKET(x, 0x42); FILL_BUCKET(y, 0x41);
+    K r = mtn(x, y);
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_char_lt_list) {
+    K_int n = 521;
+    K x = knew(KChrType, n), y = knew(KChrType, n);
+    FILL_BUCKET(x, 'A'); FILL_BUCKET(y, 'B');
+    K r = ltn(x, y);
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_bool_lt_list) {
+    K_int n = 521;
+    K x = knew(KBoolType, n), y = knew(KBoolType, n);
+    FILL_BUCKET(x, 0x00); FILL_BUCKET(y, 0xFF);
+    K r = ltn(x, y);
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_tail_bool_gt_list) {
+    K_int n = 521;
+    K x = knew(KBoolType, n), y = knew(KBoolType, n);
+    FILL_BUCKET(x, 0xFF); FILL_BUCKET(y, 0x00);
+    K r = mtn(x, y);
+    ASSERT(r && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == n, "shape");
+    ASSERT_ALL_BITS_SET(r, n);
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
 TEST(comparison_min_atom) {
     ASSERT_INT_ATOM("1&2", 1);
     PASS();
@@ -1587,6 +1659,68 @@ TEST(comparison_max_bool) {
     ASSERT(GET_BIT(r, 0) == 1, "element 0 should be 1");
     ASSERT(GET_BIT(r, 1) == 1, "element 1 should be 1");
     ASSERT(GET_BIT(r, 2) == 1, "element 2 should be 1");
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_lt_atom) {
+    K a = eval(kcstr("3<5"));
+    ASSERT(a && IS_TAG(a) && TAG_TYPE(a) == KBoolType && TAG_VAL(a) == 1, "3<5 should be 1b");
+    K b = eval(kcstr("5<3"));
+    ASSERT(b && IS_TAG(b) && TAG_TYPE(b) == KBoolType && TAG_VAL(b) == 0, "5<3 should be 0b");
+    PASS();
+}
+
+TEST(comparison_gt_atom) {
+    K a = eval(kcstr("5>3"));
+    ASSERT(a && IS_TAG(a) && TAG_TYPE(a) == KBoolType && TAG_VAL(a) == 1, "5>3 should be 1b");
+    K b = eval(kcstr("3>5"));
+    ASSERT(b && IS_TAG(b) && TAG_TYPE(b) == KBoolType && TAG_VAL(b) == 0, "3>5 should be 0b");
+    PASS();
+}
+
+TEST(comparison_lt_list_list) {
+    K r = eval(kcstr("1 2 3<3 2 1"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 3, "1 2 3<3 2 1 returns 3-element bool list");
+    ASSERT(GET_BIT(r, 0) == 1 && GET_BIT(r, 1) == 0 && GET_BIT(r, 2) == 0, "should be 1 0 0b");
+    unref(r);
+    PASS();
+}
+
+// atom-on-left routes through the operand+operator swap in BINARY_OP (op_binary.c)
+TEST(comparison_lt_atom_list) {
+    K r = eval(kcstr("2<1 2 3"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 3, "2<1 2 3 returns 3-element bool list");
+    ASSERT(GET_BIT(r, 0) == 0 && GET_BIT(r, 1) == 0 && GET_BIT(r, 2) == 1, "should be 0 0 1b");
+    unref(r);
+    K s = eval(kcstr("2>1 2 3"));
+    ASSERT(s && !IS_TAG(s) && HDR_TYPE(s) == KBoolType && HDR_COUNT(s) == 3, "2>1 2 3 returns 3-element bool list");
+    ASSERT(GET_BIT(s, 0) == 1 && GET_BIT(s, 1) == 0 && GET_BIT(s, 2) == 0, "should be 1 0 0b");
+    unref(s);
+    PASS();
+}
+
+TEST(comparison_lt_char) {
+    K r = eval(kcstr("\"abc\"<\"abd\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 3, "char < returns 3-element bool list");
+    ASSERT(GET_BIT(r, 0) == 0 && GET_BIT(r, 1) == 0 && GET_BIT(r, 2) == 1, "should be 0 0 1b");
+    unref(r);
+    PASS();
+}
+
+// bool < bool / bool > bool exercise the BLESS/BMORE bit kernels
+TEST(comparison_lt_bool) {
+    K r = eval(kcstr("(2=1 2 3)<(1=1 2 3)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 3, "bool < bool returns 3-element bool list");
+    ASSERT(GET_BIT(r, 0) == 1 && GET_BIT(r, 1) == 0 && GET_BIT(r, 2) == 0, "should be 1 0 0b");
+    unref(r);
+    PASS();
+}
+
+TEST(comparison_gt_bool) {
+    K r = eval(kcstr("(1=1 2 3)>(2=1 2 3)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 3, "bool > bool returns 3-element bool list");
+    ASSERT(GET_BIT(r, 0) == 1 && GET_BIT(r, 1) == 0 && GET_BIT(r, 2) == 0, "should be 1 0 0b");
     unref(r);
     PASS();
 }
@@ -2678,6 +2812,12 @@ void run_tests() {
     RUN_TEST(comparison_tail_bool_or_atom);
     RUN_TEST(comparison_tail_bool_eql_list);
     RUN_TEST(comparison_tail_bool_eql_atom);
+    RUN_TEST(comparison_tail_int_lt_list);
+    RUN_TEST(comparison_tail_int_lt_atom);
+    RUN_TEST(comparison_tail_int_gt_list);
+    RUN_TEST(comparison_tail_char_lt_list);
+    RUN_TEST(comparison_tail_bool_lt_list);
+    RUN_TEST(comparison_tail_bool_gt_list);
     RUN_TEST(comparison_min_atom);
     RUN_TEST(comparison_min_atom_2);
     RUN_TEST(comparison_max_atom);
@@ -2690,6 +2830,13 @@ void run_tests() {
     RUN_TEST(comparison_max_char_list_long);
     RUN_TEST(comparison_min_bool);
     RUN_TEST(comparison_max_bool);
+    RUN_TEST(comparison_lt_atom);
+    RUN_TEST(comparison_gt_atom);
+    RUN_TEST(comparison_lt_list_list);
+    RUN_TEST(comparison_lt_atom_list);
+    RUN_TEST(comparison_lt_char);
+    RUN_TEST(comparison_lt_bool);
+    RUN_TEST(comparison_gt_bool);
     // squeeze
     RUN_TEST(squeeze_bool_eval);
     RUN_TEST(squeeze_bool_n1);
