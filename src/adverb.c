@@ -13,7 +13,8 @@ K each2(K, K, K);
 K each2Generic(K, K, K);
 K over1(K, K);
 K over1Generic(K, K);
-K over1Special(K, K);
+K over1Bool(K, K);
+K over1Int(K, K);
 K over2(K, K, K);
 K scan1(K, K);
 K scan1Generic(K, K);
@@ -94,29 +95,26 @@ K each2Generic(K f, K x, K y){
 // over (reduce)
 
 K over1(K f, K x){
-    return (TAG_TYPE(f) != KOpType || OOB(TAG_VAL(f)-1, 3) ? over1Generic : over1Special)(f, x);
+    return (TAG_TYPE(f) == KOpType ? // specialized kernels for some reductions
+            HDR_TYPE(x) == KBoolType && TAG_VAL(f)-1u < 6u ? over1Bool : HDR_TYPE(x) == KIntType && TAG_VAL(f)-1u < 3u ? over1Int : over1Generic : 
+            over1Generic)(f, x);
 }
 
-// specialized kernels
-
-// +/x
-static K sumOver(K x){
-    return kint(sumInts(x));
-}
+// specialized int kernels (sumInts is in utils.h)
 
 // -/x
-K subOver(K x){
-    if (!HDR_COUNT(x)) return kint(0);
+K_int subInts(K x){
+    if (!HDR_COUNT(x)) return 0;
     K_int j = 2*INT_PTR(x)[0];
     FOR_EACH(x) j -= INT_PTR(x)[i];
-    return kint(j);
+    return j;
 }
 
 // */x
-K mulOver(K x){
+K_int mulInts(K x){
     K_int j = 1;
     FOR_EACH(x) j *= INT_PTR(x)[i];
-    return kint(j);
+    return j;
 }
 
 // general cases
@@ -132,10 +130,21 @@ K over1Generic(K f, K x){
     return UNREF_X(r);
 }
 
-K over1Special(K f, K x){
-    if (HDR_TYPE(x) == KIntType) return UNREF_X(PICK3(TAG_VAL(f)-1,sumOver,subOver,mulOver)(x));
-    if (HDR_TYPE(x) == KBoolType && TAG_VAL(f) == 1) return UNREF_X(kint(sumBools(x))); // +/ only
-    return over1Generic(f, x);
+K over1Bool(K f, K x){
+    K_int j = sumBools(x);
+    switch (TAG_VAL(f)){
+    case 1: /* nothing to do */ ; break; // +
+    case 2: j = GET_BIT(x,0)*2 - j; break; // -
+    case 3: /* fallthrough */
+    case 4: /* fallthrough */
+    case 5: j = j == HDR_COUNT(x); break; // * % &
+    case 6: j = j>0; break; // |
+    }
+    return UNREF_X(TAG(TAG_VAL(f) < 5 ? KIntType : KBoolType, j));
+}
+
+K over1Int(K f, K x){
+    return UNREF_X(kint(PICK3(TAG_VAL(f)-1, sumInts, subInts, mulInts)(x)));
 }
 
 K over2(K f, K x, K y){

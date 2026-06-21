@@ -2524,7 +2524,7 @@ TEST(adverb_over1_sum_bool) { // +/bool hits sumBools, like +/int hits sumInts
     PASS();
 }
 
-TEST(adverb_over1_max_bool) { // |/bool via over1Generic (item() handles bool)
+TEST(adverb_over1_max_bool) { // |/bool via over1Bool (sumBools>0)
     K r = eval(kcstr("|/1=1 2 1"));   // 1 0 1b, max -> 1b
     ASSERT(r && IS_TAG(r) && TAG_TYPE(r) == KBoolType && TAG_VAL(r) == 1, "|/bool -> 1b");
     PASS();
@@ -2548,9 +2548,29 @@ TEST(adverb_over1_nested) {
 }
 
 // over1: confirmed edge semantics
-TEST(adverb_over1_empty_identity) { // empty KIntType -> specialized identity
+TEST(adverb_over1_empty_identity) { // empty KIntType -> over1Int identities
     ASSERT_INT_ATOM("+/!0", 0);
+    ASSERT_INT_ATOM("-/!0", 0);   // subInts empty guard
     ASSERT_INT_ATOM("*/!0", 1);
+    PASS();
+}
+
+TEST(adverb_over1_empty_bool) { // empty KBoolType -> over1Bool identities (zeroed tail)
+    ASSERT_INT_ATOM("+/1=!0", 0); // sum -> 0 (int)
+    ASSERT_INT_ATOM("-/1=!0", 0); // 2*b[0]-k, b[0] reads zeroed tail -> 0 (int)
+    ASSERT_INT_ATOM("*/1=!0", 1); // all-ones -> 1 (int)
+    K a = eval(kcstr("&/1=!0"));
+    ASSERT(a && IS_TAG(a) && TAG_TYPE(a) == KBoolType && TAG_VAL(a) == 1, "&/ empty bool -> 1b");
+    K o = eval(kcstr("|/1=!0"));
+    ASSERT(o && IS_TAG(o) && TAG_TYPE(o) == KBoolType && TAG_VAL(o) == 0, "|/ empty bool -> 0b");
+    PASS();
+}
+
+TEST(adverb_over1_and_mul_bool) { // non-empty &/ */ bool: the j==n path in over1Bool
+    K a = eval(kcstr("&/1=1 1 2"));   // 1 1 0b -> not all ones -> 0b
+    ASSERT(a && IS_TAG(a) && TAG_TYPE(a) == KBoolType && TAG_VAL(a) == 0, "&/ bool -> 0b");
+    ASSERT_INT_ATOM("*/1=1 1 1", 1);  // 1 1 1b -> all ones -> 1 (int)
+    ASSERT_INT_ATOM("*/1=1 1 2", 0);  // 1 1 0b -> 0 (int)
     PASS();
 }
 
@@ -2978,6 +2998,8 @@ void run_tests() {
     RUN_TEST(adverb_over1_min_generic);
     RUN_TEST(adverb_over1_nested);
     RUN_TEST(adverb_over1_empty_identity);
+    RUN_TEST(adverb_over1_empty_bool);
+    RUN_TEST(adverb_over1_and_mul_bool);
     RUN_TEST(adverb_over1_atom_rank_error);
     // scan1 (f\)
     RUN_TEST(adverb_scan1_sum);
