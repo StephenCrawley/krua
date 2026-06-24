@@ -3,6 +3,7 @@
 #include "object.h"
 #include "error.h"
 #include "op_binary.h"
+#include "utils.h"
 #include <immintrin.h>
 
 #define BUCKET_SHIFT 7  // log2(MIN_ALLOC)
@@ -215,7 +216,7 @@ K knewcopy(K_char t, K_int n, K x){
 
 // copy y to address x. like a memcpy wrapper but handles KObjType y and refs as needed
 K kcpy(K x, K y){
-    MEMCPY(x, y, HDR_COUNT(y)*WIDTH_OF(y));
+    MEMCPY(x, y, HDR_TYPE(y)==KBoolType ? (HDR_COUNT(y)+63)/64*8 : HDR_COUNT(y)*WIDTH_OF(y));
     if (HDR_TYPE(y) == KObjType){
         FOR_EACH(y) ref(OBJ_PTR(y)[i]);
     }
@@ -227,7 +228,8 @@ K kcpy(K x, K y){
 // otherwise allocates a larger container and copies x
 static K kextend(K x, K_int n){
     n += HDR_COUNT(x);
-    if (HDR_REFC(x) || BUCKET_SIZEOF(x) < (n * WIDTH_OF(x) + sizeof(K_hdr))){
+    K_int bytes = HDR_TYPE(x)==KBoolType ? (n+63)/64*8 : n * WIDTH_OF(x);
+    if (HDR_REFC(x) || BUCKET_SIZEOF(x) < (bytes + sizeof(K_hdr))){
         return UNREF_X(kcpy(knew(HDR_TYPE(x), n), x));
     }
     HDR_COUNT(x) = n;
@@ -265,7 +267,8 @@ K joinStr(K x, K_char c){
 // join tagged K to list
 K joinTag(K x, K y){
     x = kextend(x, 1);
-    MEMCPY(PTR_TO(x, HDR_COUNT(x)-1), &y, WIDTH_OF(x));
+    if (HDR_TYPE(x) == KBoolType) LNG_PTR(x)[(HDR_COUNT(x)-1)/64] |= (uint64_t)TAG_VAL(y) << (HDR_COUNT(x)-1)%64;
+    else MEMCPY(PTR_TO(x, HDR_COUNT(x)-1), &y, WIDTH_OF(x));
     return x;
 }
 
@@ -275,10 +278,26 @@ K joinObj(K x, K y){
     return x;
 }
 
+// append y's bits after x's (x already sized by kextend). byte-aligned dest -> memcpy y's bytes,
+// then scrub the dirty gap in the final word; else funnel-shift y into place at bit offset s, where
+// y's zeroed tail shifts straight in as ours (no scrub). spill is conditional and out of the loop:
+// at exact bucket-fill sizes there is no spare word past rwn, and folding it in would over-read y.
+static void joinBoolList(K x, K y){
+    K_int n2 = HDR_COUNT(y), n1 = HDR_COUNT(x) - n2, s = n1 & 63;
+    uint64_t *xp = (uint64_t*)x, *yp = (uint64_t*)y;
+    if ((n1 & 7) == 0){ MEMCPY(x + n1/8, y, (n2+7)/8); zeroBoolTail(x); }
+    else {
+        K_int w = n1/64, wn = (n2+63)/64, rwn = (HDR_COUNT(x)+63)/64;
+        xp[w] |= yp[0] << s;
+        for (K_int i = 1; i < wn; i++) xp[w+i] = yp[i] << s | yp[i-1] >> (64-s);
+        if (w + wn < rwn) xp[w+wn] = yp[wn-1] >> (64-s);
+    }
+}
+
 K joinList(K x, K y){
     K_int n = HDR_COUNT(x);
     x = kextend(x, HDR_COUNT(y));
-    kcpy(PTR_TO(x, n), y);
+    if (HDR_TYPE(x) == KBoolType) joinBoolList(x, y); else kcpy(PTR_TO(x, n), y);
     return UNREF_Y(x);
 }
 

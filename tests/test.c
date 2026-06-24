@@ -2272,6 +2272,78 @@ TEST(binary_join_empty_diff_type){ // empty,diff-type list returns the non-empty
     unref(r); PASS();
 }
 
+// --- bool,bool join (joinBoolList) ---
+// build a KBoolType list of length n: logical words = lane, headroom poisoned 0xFF, logical tail
+// zeroed (the input invariant join relies on). poison makes a missing scrub / funnel tail-bleed
+// deterministic; distinct lanes (x: 0xAA..=bit i&1, y: 0x55..=bit !(i&1)) catch seam misplacement.
+static K mkbool(K_int n, uint64_t lane){
+    K x = knew(KBoolType, n);
+    FILL_BUCKET(x, 0xFF);
+    K_int wn = (n+63)/64;
+    for (K_int w = 0; w < wn; w++) ((uint64_t*)x)[w] = lane;
+    if (n & 63) ((uint64_t*)x)[wn-1] &= (1ULL << (n & 63)) - 1;
+    return x;
+}
+
+#define CHECK_JOIN_BOOL(n1, n2) do { \
+    uint64_t _lx = 0xAAAAAAAAAAAAAAAAULL, _ly = 0x5555555555555555ULL; \
+    K _r = join(mkbool((n1), _lx), mkbool((n2), _ly)); \
+    ASSERT(_r && !IS_TAG(_r) && HDR_TYPE(_r) == KBoolType && HDR_COUNT(_r) == (n1)+(n2), "bool join shape"); \
+    for (K_int bi = 0; bi < (n1); bi++) ASSERT((K_int)GET_BIT(_r, bi) == (K_int)((_lx >> (bi & 63)) & 1), "x-half bit"); \
+    for (K_int bj = 0; bj < (n2); bj++) ASSERT((K_int)GET_BIT(_r, (n1)+bj) == (K_int)((_ly >> (bj & 63)) & 1), "y-half bit"); \
+    ASSERT_BOOL_TAIL_ZERO(_r); \
+    unref(_r); \
+} while(0)
+
+TEST(binary_join_bool_word_dest)    { CHECK_JOIN_BOOL(64, 20);  PASS(); } // word-aligned dest, byte memcpy + scrub
+TEST(binary_join_bool_byte_dest)    { CHECK_JOIN_BOOL(8, 20);   PASS(); } // byte-aligned dest, single word
+TEST(binary_join_bool_byte_xword)   { CHECK_JOIN_BOOL(56, 40);  PASS(); } // byte dest, copy crosses a word boundary
+TEST(binary_join_bool_funnel)       { CHECK_JOIN_BOOL(3, 2);    PASS(); } // funnel, single word, no spill
+TEST(binary_join_bool_funnel_spill) { CHECK_JOIN_BOOL(1, 64);   PASS(); } // funnel, spill word fires
+TEST(binary_join_bool_funnel_multi) { CHECK_JOIN_BOOL(65, 130); PASS(); } // funnel, loop + spill across words
+TEST(binary_join_bool_fill_byte)    { CHECK_JOIN_BOOL(8, 504);  PASS(); } // exact bucket fill (512b), byte path
+TEST(binary_join_bool_fill_word)    { CHECK_JOIN_BOOL(448, 64); PASS(); } // exact bucket fill, word-aligned dest
+TEST(binary_join_bool_fill_funnel)  { CHECK_JOIN_BOOL(1, 511);  PASS(); } // exact bucket fill, funnel spill at top
+TEST(binary_join_bool_realloc)      { CHECK_JOIN_BOOL(8, 5000); PASS(); } // result outgrows x's bucket -> realloc
+
+TEST(binary_join_bool_lists){ // ((!3)<3),(!2)<0 -> 11100b (same-type bool list join routes to joinBoolList)
+    K r = eval(kcstr("((!3)<3),(!2)<0"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 5, "5-elem bool list");
+    K_int exp[5] = {1,1,1,0,0};
+    for (K_int i = 0; i < 5; i++) ASSERT((K_int)GET_BIT(r, i) == exp[i], "bit");
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r); PASS();
+}
+TEST(binary_join_bool_atom){ // bool list , bool ATOM (joinTag): tagged bool has WIDTH 0, so the bit must
+    // be packed explicitly. true atom -> trailing 1; false atom -> trailing 0.
+    K r = eval(kcstr("((!3)<3),(1<2)")); // 111b , 1b -> 1111b
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 4, "4-elem bool list");
+    K_int exp[4] = {1,1,1,1};
+    for (K_int i = 0; i < 4; i++) ASSERT((K_int)GET_BIT(r, i) == exp[i], "bit");
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    K z = eval(kcstr("((!3)<3),(2<1)")); // 111b , 0b -> 1110b
+    ASSERT(z && HDR_COUNT(z) == 4 && (K_int)GET_BIT(z, 3) == 0, "false atom -> trailing 0");
+    unref(z); PASS();
+}
+TEST(binary_join_bool_sum){ // +/ over a joined bool list hits sumBools (whole-word reads) -> clean tail e2e
+    ASSERT_INT_ATOM("+/((!100)<100),(!100)<100", 200);
+    PASS();
+}
+TEST(binary_join_bool_grow_word_span){ // grow a bucket-0 bool list past its safe word span:
+    // whole-word tail ops (scrub, sumBools) touch the FINAL word, so kextend must size by the word
+    // span, not the byte span -- else the last word reaches past the data region into the next header.
+    K x = mkbool(8, 0xAAAAAAAAAAAAAAAAULL);
+    K y = mkbool(900, 0x5555555555555555ULL);
+    K r = join(x, y); // 908 bits: byte span 114 fits bucket 0, word span 120 does not
+    K_int wn = (HDR_COUNT(r) + 63) / 64;
+    ASSERT((K_int)(wn * 8) <= (K_int)(BUCKET_SIZEOF(r) - sizeof(K_hdr)), "grown bool word span must not reach next block's header");
+    for (K_int bi = 0; bi < 8;   bi++) ASSERT((K_int)GET_BIT(r, bi)     == (bi & 1),       "x bit");
+    for (K_int bj = 0; bj < 900; bj++) ASSERT((K_int)GET_BIT(r, 8 + bj) == ((bj & 1) ^ 1), "y bit");
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r); PASS();
+}
+
 // Runtime: lambdas
 TEST(lambda_eval_returns_lambda) {
     K r = eval(kcstr("{[x]x+1}"));
@@ -2944,6 +3016,20 @@ void run_tests() {
     RUN_TEST(binary_join_char_lists);
     RUN_TEST(binary_join_int_char_lists);
     RUN_TEST(binary_join_empty_diff_type);
+    RUN_TEST(binary_join_bool_word_dest);
+    RUN_TEST(binary_join_bool_byte_dest);
+    RUN_TEST(binary_join_bool_byte_xword);
+    RUN_TEST(binary_join_bool_funnel);
+    RUN_TEST(binary_join_bool_funnel_spill);
+    RUN_TEST(binary_join_bool_funnel_multi);
+    RUN_TEST(binary_join_bool_fill_byte);
+    RUN_TEST(binary_join_bool_fill_word);
+    RUN_TEST(binary_join_bool_fill_funnel);
+    RUN_TEST(binary_join_bool_realloc);
+    RUN_TEST(binary_join_bool_lists);
+    RUN_TEST(binary_join_bool_atom);
+    RUN_TEST(binary_join_bool_sum);
+    RUN_TEST(binary_join_bool_grow_word_span);
     // lambdas
     RUN_TEST(lambda_eval_returns_lambda);
     RUN_TEST(lambda_eval_no_params);
