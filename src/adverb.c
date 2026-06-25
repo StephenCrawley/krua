@@ -100,7 +100,20 @@ K over1(K f, K x){
             over1Generic)(f, x);
 }
 
-// specialized int kernels (sumInts is in utils.h)
+// specialized kernels (sumInts is in utils.h)
+
+K over1Bool(K f, K x){
+    K_int j = sumBools(x);
+    switch (TAG_VAL(f)){
+    case 1: /* nothing to do */ ; break; // +
+    case 2: j = GET_BIT(x,0)*2 - j; break; // -
+    case 3: /* fallthrough */
+    case 4: /* fallthrough */
+    case 5: j = j == HDR_COUNT(x); break; // * % &. div here is an implementation quirk: it is NYI thru every other path
+    case 6: j = j>0; break; // |
+    }
+    return UNREF_X(TAG(TAG_VAL(f) < 5 ? KIntType : KBoolType, j));
+}
 
 // -/x
 K_int subInts(K x){
@@ -117,6 +130,10 @@ K_int mulInts(K x){
     return j;
 }
 
+K over1Int(K f, K x){
+    return UNREF_X(kint(PICK3(TAG_VAL(f)-1, sumInts, subInts, mulInts)(x)));
+}
+
 // general cases
 
 // f/x
@@ -128,23 +145,6 @@ K over1Generic(K f, K x){
         if (!r){ unref(x); return r; }
     }
     return UNREF_X(r);
-}
-
-K over1Bool(K f, K x){
-    K_int j = sumBools(x);
-    switch (TAG_VAL(f)){
-    case 1: /* nothing to do */ ; break; // +
-    case 2: j = GET_BIT(x,0)*2 - j; break; // -
-    case 3: /* fallthrough */
-    case 4: /* fallthrough */
-    case 5: j = j == HDR_COUNT(x); break; // * % &. div here is an implementation quirk: it is NYI thru every other path
-    case 6: j = j>0; break; // |
-    }
-    return UNREF_X(TAG(TAG_VAL(f) < 5 ? KIntType : KBoolType, j));
-}
-
-K over1Int(K f, K x){
-    return UNREF_X(kint(PICK3(TAG_VAL(f)-1, sumInts, subInts, mulInts)(x)));
 }
 
 K over2(K f, K x, K y){
