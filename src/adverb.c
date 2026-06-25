@@ -137,7 +137,7 @@ K over1Bool(K f, K x){
     case 2: j = GET_BIT(x,0)*2 - j; break; // -
     case 3: /* fallthrough */
     case 4: /* fallthrough */
-    case 5: j = j == HDR_COUNT(x); break; // * % &
+    case 5: j = j == HDR_COUNT(x); break; // * % &. div here is an implementation quirk: it is NYI thru every other path
     case 6: j = j>0; break; // |
     }
     return UNREF_X(TAG(TAG_VAL(f) < 5 ? KIntType : KBoolType, j));
