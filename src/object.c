@@ -57,7 +57,8 @@ K kalloc(K_int n){
     while (!M[++b]){
         // currently max heapsize is 512MiB. given bucket 0 is 128 bytes, there are only 23 bucket sizes
         if (b == NUM_BUCKETS-1){
-            K new_alloc = (K)malloc(HEAP_SIZE); // 512MiB
+            // 
+            K new_alloc = (K)malloc(HEAP_SIZE + (HDR_PAD - sizeof(K_hdr))); // 512MiB
             if (!new_alloc) { fprintf(stderr, "Out of memory\n"); exit(1); }
             M[b] = (HDR_PAD + new_alloc); // skip the header and place a pointer to the array in the bucket
             // IMPORTANT: no need to initialize M[b]. new_alloc points to the returned bucket; see variable 'r' below
@@ -267,8 +268,12 @@ K joinStr(K x, K_char c){
 // join tagged K to list
 K joinTag(K x, K y){
     x = kextend(x, 1);
-    if (HDR_TYPE(x) == KBoolType) LNG_PTR(x)[(HDR_COUNT(x)-1)/64] |= (uint64_t)TAG_VAL(y) << (HDR_COUNT(x)-1)%64;
-    else MEMCPY(PTR_TO(x, HDR_COUNT(x)-1), &y, WIDTH_OF(x));
+    K_int i = HDR_COUNT(x)-1;
+    if (HDR_TYPE(x) == KBoolType){
+        if (!(i&63)) LNG_PTR(x)[i/64] = 0; // if we allocated past a new word boundary, 0 it
+        LNG_PTR(x)[i/64] |= (uint64_t)TAG_VAL(y) << i%64;
+    }
+    else MEMCPY(PTR_TO(x, i), &y, WIDTH_OF(x));
     return x;
 }
 

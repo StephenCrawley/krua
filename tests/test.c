@@ -2326,6 +2326,18 @@ TEST(binary_join_bool_atom){ // bool list , bool ATOM (joinTag): tagged bool has
     ASSERT(z && HDR_COUNT(z) == 4 && (K_int)GET_BIT(z, 3) == 0, "false atom -> trailing 0");
     unref(z); PASS();
 }
+TEST(binary_join_bool_atom_word_cross){ // appending a bool atom that crosses into a fresh 64-bit word
+    // must clear that word's garbage tail. fresh heap reads 0 and hides this; mkbool poisons word 1
+    // with 0xFF, so a missing clear shows as a dirty tail / wrong appended bit.
+    K x = mkbool(64, 0xAAAAAAAAAAAAAAAAULL); // 64 bits in word0; word1 left poisoned (0xFF..)
+    x = joinTag(x, TAG(KBoolType, 0));       // bit 64 -> fresh word, value 0
+    x = joinTag(x, TAG(KBoolType, 1));       // bit 65 -> same word, value 1
+    ASSERT(x && !IS_TAG(x) && HDR_TYPE(x)==KBoolType && HDR_COUNT(x)==66, "66-bit bool list");
+    for (K_int i=0;i<64;i++) ASSERT((K_int)GET_BIT(x,i)==(K_int)((0xAAAAAAAAAAAAAAAAULL>>i)&1), "word0 bits");
+    ASSERT((K_int)GET_BIT(x,64)==0 && (K_int)GET_BIT(x,65)==1, "appended bits across word boundary");
+    ASSERT_BOOL_TAIL_ZERO(x);
+    unref(x); PASS();
+}
 TEST(binary_join_bool_sum){ // +/ over a joined bool list hits sumBools (whole-word reads) -> clean tail e2e
     ASSERT_INT_ATOM("+/((!100)<100),(!100)<100", 200);
     PASS();
@@ -3028,6 +3040,7 @@ void run_tests() {
     RUN_TEST(binary_join_bool_realloc);
     RUN_TEST(binary_join_bool_lists);
     RUN_TEST(binary_join_bool_atom);
+    RUN_TEST(binary_join_bool_atom_word_cross);
     RUN_TEST(binary_join_bool_sum);
     RUN_TEST(binary_join_bool_grow_word_span);
     // lambdas
