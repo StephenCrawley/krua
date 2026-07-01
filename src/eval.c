@@ -145,8 +145,8 @@ K token(K x, K *vars, K *consts){
             K_int j;
             K_sym sym = encodeSym(src+t0, i-t0);
             *tok++ = (j=findSym(KEYWORDS, sym)) < HDR_COUNT(KEYWORDS) ? j : OP_GET_VAR + addSym(vars, sym);
-        } else if (ISDIGIT(src[i]) || (ISNEGDIGIT(src) && (i==0 || strchr(" ({[;", src[i-1])))){
-            // numbers (negative literal opens at strand boundary: start, space, '(' '[' ';')
+        } else if (ISDIGIT(src[i]) || (ISNEGDIGIT(src) && (i==0 || !(isalnum(src[i-1]) || strchr(")]}\"", src[i-1]))))){
+            // numbers ('-' opens a negative literal unless it subtracts from a preceding value)
             K_int count = 1;
             do {
                 if (src[i++] == ' ' && i < n && (ISDIGIT(src[i]) || ISNEGDIGIT(src)))

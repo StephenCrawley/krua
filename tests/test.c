@@ -329,6 +329,19 @@ TEST(tokenize_negative_after_paren) {
     PASS();
 }
 
+TEST(tokenize_negative_after_operator) {
+    // '-' after an operator opens a negative literal: --1 2 parses as -(-1 2)
+    K x = kcstr("--1 2");
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 2, "--1 2 should produce 2 tokens (neg op, strand)");
+    ASSERT(CHR_PTR(r)[0] == 2, "first should be operator 2 (- in OPS[:+-*...])");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[1]), "second should be CONST");
+    ASSERT_2_INTS(OBJ_PTR(consts)[0], -1, 2);
+    unref(x), unref(r), unref(vars), unref(consts);
+    PASS();
+}
+
 TEST(tokenize_negative_trailing_space) {
     K x = kcstr("1 2 -3 ");
     K vars = 0, consts = 0;
@@ -883,6 +896,12 @@ TEST(unary_neg_atom) {
 
 TEST(unary_neg_list) {
     ASSERT_INT_LIST("- 1 2 3", 3, ((K_int[]){-1, -2, -3}));
+    PASS();
+}
+
+TEST(unary_neg_negative_literal) {
+    // --1 2 parses as -(-1 2), negating the literal -1 2
+    ASSERT_INT_LIST("--1 2", 2, ((K_int[]){1, -2}));
     PASS();
 }
 
@@ -2767,6 +2786,7 @@ void run_tests() {
     RUN_TEST(tokenize_negative_strand);
     RUN_TEST(tokenize_negative_list);
     RUN_TEST(tokenize_negative_after_paren);
+    RUN_TEST(tokenize_negative_after_operator);
     RUN_TEST(tokenize_negative_trailing_space);
     // variables
     RUN_TEST(tokenize_single_variable);
@@ -2832,6 +2852,7 @@ void run_tests() {
     // unary ops
     RUN_TEST(unary_neg_atom);
     RUN_TEST(unary_neg_list);
+    RUN_TEST(unary_neg_negative_literal);
     RUN_TEST(unary_neg_nested);
     RUN_TEST(unary_keyword_neg_atom);
     RUN_TEST(unary_keyword_neg_list);
