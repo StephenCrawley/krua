@@ -326,8 +326,12 @@ K compile(K f, K x, int mode) {
     K *ret = OBJ_PTR(r), *expr = OBJ_PTR(x);
     FOR_EACH(x){
         ret[i] = expandTokens(rpn(expr[i], postfix), fenced, postfix);
-        if(!ret[i]) goto cleanup;
+        if(!ret[i]){
+            unref(x), unref(fenced), unref(postfix), unref(r);
+            return 0;
+        }
     }
+
     if (mode) reverse(r);
     switch (mode){
     case 0: r = joinStr(r, OP_POP); break;
@@ -337,9 +341,6 @@ K compile(K f, K x, int mode) {
 
     unref(fenced), unref(postfix);
     return UNREF_X(r);
-cleanup:
-    unref(x), unref(fenced), unref(postfix), unref(r);
-    return 0;
 }
 
 // check that () and [] are balanced at all depth levels
