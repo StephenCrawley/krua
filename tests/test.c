@@ -448,6 +448,18 @@ TEST(tokenize_empty_parens) {
     PASS();
 }
 
+TEST(tokenize_empty_parens_whitespace) {
+    K vars = 0, consts = 0;
+    K x = kcstr("(  )");
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "( ) should produce 1 token");
+    ASSERT(CHR_PTR(r)[0] == OP_CONST, "should be CONST index 0");
+    K c = OBJ_PTR(consts)[0];
+    ASSERT(!IS_TAG(c) && HDR_TYPE(c) == KObjType && HDR_COUNT(c) == 0, "const should be empty list");
+    unref(x), unref(r), unref(vars), unref(consts);
+    PASS();
+}
+
 // Tokenization: lambdas
 TEST(tokenize_lambda_simple) {
     K x = kcstr("{[x]x+1}");
@@ -2541,6 +2553,26 @@ TEST(expr_subexpr_assignment) {
     PASS();
 }
 
+TEST(expr_repeated_semicolon) {
+    ASSERT_INT_ATOM("a:3;;a+4", 7);
+    PASS();
+}
+
+TEST(expr_leading_semicolon) {
+    ASSERT_INT_ATOM(";1+1", 2);
+    PASS();
+}
+
+TEST(expr_semicolons_only_prefix) {
+    ASSERT_INT_ATOM(";;;9", 9);
+    PASS();
+}
+
+TEST(expr_empty_paren_subexpr) {
+    ASSERT_INT_ATOM("(  );1", 1);
+    PASS();
+}
+
 TEST(expr_fenced_subexpr_basic) {
     ASSERT_INT_LIST("(1;2)", 2, ((K_int[]){1, 2}));
     PASS();
@@ -2801,6 +2833,7 @@ void run_tests() {
     // parens
     RUN_TEST(tokenize_paren_passthrough);
     RUN_TEST(tokenize_empty_parens);
+    RUN_TEST(tokenize_empty_parens_whitespace);
     // lambdas
     RUN_TEST(tokenize_lambda_simple);
     RUN_TEST(tokenize_lambda_full_src);
@@ -3094,6 +3127,10 @@ void run_tests() {
     RUN_TEST(expr_multiexpr_basic);
     RUN_TEST(expr_subexpr_with_ops);
     RUN_TEST(expr_subexpr_assignment);
+    RUN_TEST(expr_repeated_semicolon);
+    RUN_TEST(expr_leading_semicolon);
+    RUN_TEST(expr_semicolons_only_prefix);
+    RUN_TEST(expr_empty_paren_subexpr);
     RUN_TEST(expr_fenced_subexpr_basic);
     RUN_TEST(expr_fenced_subexpr_with_ops);
     RUN_TEST(expr_fenced_subexpr_heterogeneous);

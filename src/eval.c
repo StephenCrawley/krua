@@ -169,10 +169,11 @@ K token(K x, K *vars, K *consts){
             *tok++ = addConst(consts, res);
             i = end + 1;
         } else if (src[i] == '(' || src[i] == ')'){
-            if (src[i] == '(' && i+1 < n && src[i+1] == ')'){
+            K_int j = next(src, i+1, n);
+            if (src[i] == '(' && j < n && src[j] == ')'){
                 // add empty list literal const ()
                 *tok++ = addConst(consts, knew(KObjType, 0));
-                i += 2;
+                i = j + 1;
             } else {
                 *tok++ = src[i++];
             }
@@ -406,7 +407,7 @@ K vm(K x, K vars, K consts, K_char varc, K*args){
         case 5: K*slot=i<varc?args+i:getSlot(GLOBALS,v[i]); unref(*slot); *slot=ref(*top); break;
         case 6: if(IS_PRIMITIVE(i))*--top=kop(i); else *top=kadverb(*top,i-ADVERB_START); break;
         case 7: switch(i){ // special ops 0:pop 1:enlist
-                case 0: if /*TODO:fix in compiler*/ (top!=base) unref(*top++); break;
+                case 0: if (top!=base) unref(*top++); break; // guard: empty subexprs (';;') emit unmatched POP
                 case 1: K_int n=*ip++; a=knew(KObjType,n); top+=n; MEMCPY(a,top-n,sizeof(K)*n); *--top=squeeze(a); break;
                 }
         }
