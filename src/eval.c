@@ -8,6 +8,7 @@
 #include "op_unary.h"
 #include "op_binary.h"
 #include "file.h"
+#include "sym.h"
 #include "error.h"
 
 const char OPS[] = ":+-*%&|<>=@.!,?#_~$^         '/\\";
@@ -73,7 +74,7 @@ void locals(K src, K *vars){
         if (s[i] == ':' && ISALPHA(s[i-1])){
             K_char *v = &s[i-1];
             while (v > s && ISALPHA(v[-1])) --v;
-            addSym(vars, encodeSym(v, (s+i) - v));
+            addSym(vars, internSym((s+i) - v, v));
         }
     }
 }
@@ -143,7 +144,7 @@ K token(K x, K *vars, K *consts){
             // variables + keywords
             do ++i; while (i < n && ISALPHA(src[i]));
             K_int j;
-            K_sym sym = encodeSym(src+t0, i-t0);
+            K_sym sym = internSym(i-t0, src+t0);
             *tok++ = (j=findSym(KEYWORDS, sym)) < HDR_COUNT(KEYWORDS) ? j : OP_GET_VAR + addSym(vars, sym);
         } else if (ISDIGIT(src[i]) || (ISNEGDIGIT(src) && (i==0 || !(isalnum(src[i-1]) || strchr(")]}\"", src[i-1]))))){
             // numbers ('-' opens a negative literal unless it subtracts from a preceding value)

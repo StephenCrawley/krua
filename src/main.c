@@ -1,11 +1,13 @@
 #include "krua.h"
 #include "eval.h"
 #include "object.h"
+#include "sym.h"
 #include "error.h"
 
 int main(){
     printf("krua. mit license. "__DATE__".\n\n");
     
+    initSymTab();
     GLOBALS = ksymdict();
     KEYWORDS = syms4chrs(cutStr(kcstr(KEYWORDS_STRING), ' '));
 

@@ -1,9 +1,9 @@
 # Krua Makefile
 CC = clang
 CFLAGS = -O3 -Wall -Wextra -std=c2x -march=native -Isrc -Wno-unused-variable -Wno-psabi -D_POSIX_C_SOURCE=199309L -g
-SOURCES = src/object.c src/eval.c src/op_unary.c src/op_binary.c src/error.c src/apply.c src/file.c src/adverb.c
-OBJECTS = src/object.o src/eval.o src/op_unary.o src/op_binary.o src/error.o src/apply.o src/file.o src/adverb.o
-HEADERS = src/krua.h src/object.h src/eval.h src/limits.h src/op_unary.h src/op_binary.h src/error.h src/apply.h src/file.h src/adverb.h
+SOURCES = src/object.c src/eval.c src/op_unary.c src/op_binary.c src/error.c src/apply.c src/file.c src/adverb.c src/sym.c
+OBJECTS = src/object.o src/eval.o src/op_unary.o src/op_binary.o src/error.o src/apply.o src/file.o src/adverb.o src/sym.o
+HEADERS = src/krua.h src/object.h src/eval.h src/limits.h src/op_unary.h src/op_binary.h src/error.h src/apply.h src/file.h src/adverb.h src/sym.h
 
 # Main interpreter
 krua: src/main.o $(OBJECTS)

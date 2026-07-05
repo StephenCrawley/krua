@@ -4,6 +4,7 @@
 #include "eval.h"
 #include "object.h"
 #include "op_binary.h"
+#include "sym.h"
 #include "error.h"
 
 #ifdef TRACK_REFS
@@ -20,10 +21,12 @@ static int tests_failed = 0;
 #define RUN_TEST(name) do { \
     printf("  %-40s", #name); \
     reset(); \
+    initSymTab(); \
     GLOBALS = ksymdict(); \
     KEYWORDS = syms4chrs(cutStr(kcstr(KEYWORDS_STRING), ' ')); \
     test_##name(); \
     unref(KEYWORDS); \
+    freeSymTab(); \
     int leaks = check_leaks(GLOBALS); \
     unref(GLOBALS); \
     leaks += check_leaks((K)0); \
@@ -44,11 +47,13 @@ static int tests_failed = 0;
 
 #define RUN_TEST(name) do { \
     printf("  %-40s", #name); \
+    initSymTab(); \
     GLOBALS = ksymdict(); \
     KEYWORDS = syms4chrs(cutStr(kcstr(KEYWORDS_STRING), ' ')); \
     test_##name(); \
     unref(GLOBALS); \
     unref(KEYWORDS); \
+    freeSymTab(); \
     tests_run++; \
 } while(0)
 
@@ -220,6 +225,39 @@ TEST(preprocess_only_whitespace) {
     unref(x);
     PASS();
 }*/
+
+// Sym interning
+TEST(sym_intern_idempotent) {
+    K_sym a = internSym(3, (K_char*)"foo");
+    ASSERT(internSym(3, (K_char*)"foo") == a, "re-interning should return same id");
+    ASSERT(internSym(3, (K_char*)"bar") != a, "distinct strings should get distinct ids");
+    PASS();
+}
+
+TEST(sym_intern_dense_ids) {
+    K_sym a = internSym(3, (K_char*)"abc");
+    ASSERT(a == (K_sym)HDR_COUNT(SYMS) - 1, "new sym id should index the pool");
+    ASSERT(internSym(3, (K_char*)"abd") == a + 1, "ids should be dense");
+    PASS();
+}
+
+TEST(sym_intern_pool_roundtrip) {
+    K_sym a = internSym(5, (K_char*)"hello");
+    K s = OBJ_PTR(SYMS)[a];
+    ASSERT(HDR_COUNT(s) == 5 && !memcmp(CHR_PTR(s), "hello", 5), "pool entry should hold the sym's bytes");
+    PASS();
+}
+
+TEST(sym_intern_split_stability) {
+    // 64 distinct syms from a 4-slot table forces several table doublings
+    char b[8]; K_sym ids[64];
+    FOR(64){ sprintf(b, "s%d", i); ids[i] = internSym(strlen(b), (K_char*)b); }
+    FOR(64){ sprintf(b, "s%d", i); ASSERT(internSym(strlen(b), (K_char*)b) == ids[i], "ids should survive splits"); }
+    K_int nodes = 0;
+    FOR_EACH(HTAB) nodes += HDR_COUNT(OBJ_PTR(HTAB)[i]);
+    ASSERT(nodes == HDR_COUNT(SYMS), "slot counts should sum to pool count");
+    PASS();
+}
 
 // Tokenization: literals
 TEST(tokenize_empty_input) {
@@ -1798,7 +1836,7 @@ TEST(squeeze_bool_n65) { CHECK_SQUEEZE_BOOL(65); PASS(); }
 TEST(assignment_basic) {
     K r = eval(kcstr("x:42"));
     ASSERT(r == knull(), "assignment as final op should return knull");
-    K x_val = getGlobal(encodeSym((K_char*)"x", 1));
+    K x_val = getGlobal(internSym(1, (K_char*)"x"));
     ASSERT(x_val && TAG_VAL(x_val) == 42, "x should be assigned 42");
     PASS();
 }
@@ -1806,7 +1844,7 @@ TEST(assignment_basic) {
 TEST(assignment_basic_2) {
     K r = eval(kcstr("x:42+1"));
     ASSERT(r == knull(), "assignment as final op should return knull");
-    K x_val = getGlobal(encodeSym((K_char*)"x", 1));
+    K x_val = getGlobal(internSym(1, (K_char*)"x"));
     ASSERT(x_val && TAG_VAL(x_val) == 43, "x should be assigned 43");
     PASS();
 }
@@ -2804,6 +2842,12 @@ void run_tests() {
     RUN_TEST(preprocess_strip_both);
     RUN_TEST(preprocess_only_whitespace);
     //RUN_TEST(ignore_quoted_slash);
+
+    printf("\nSym interning:\n");
+    RUN_TEST(sym_intern_idempotent);
+    RUN_TEST(sym_intern_dense_ids);
+    RUN_TEST(sym_intern_pool_roundtrip);
+    RUN_TEST(sym_intern_split_stability);
 
     printf("\nTokenization:\n");
     // literals

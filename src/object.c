@@ -4,6 +4,7 @@
 #include "error.h"
 #include "op_binary.h"
 #include "utils.h"
+#include "sym.h"
 #include <immintrin.h>
 
 #define BUCKET_SHIFT 7  // log2(MIN_ALLOC)
@@ -150,20 +151,10 @@ K ksymdict(){
     return k2(knew(KSymType,0), knew(KObjType,0));
 }
 
-// atom creation
-
-// create K_char atom
-K_sym encodeSym(K_char *src, int n){
-    // TODO: proper sym iterning
-    K_int sym = 0;
-    memcpy(&sym, src, n > 4 ? 4 : n);
-    return sym;
-}
-
 K syms4chrs(K x){
     K r = knew(KSymType, HDR_COUNT(x)), *xobj = OBJ_PTR(x);
     FOR_EACH(x){
-        SYM_PTR(r)[i] = encodeSym(CHR_PTR(xobj[i]), HDR_COUNT(xobj[i]));
+        SYM_PTR(r)[i] = internSym(HDR_COUNT(xobj[i]), CHR_PTR(xobj[i]));
     }
     return UNREF_X(r);
 }
@@ -394,7 +385,8 @@ static void _kprint(K x){
         } else if (type == KIntType){
             printf("%d", TAG_VAL(x));
         } else if (type == KSymType){
-            printf("`%.4s", (char*)&x);
+            K s = OBJ_PTR(SYMS)[TAG_VAL(x)];
+            printf("`%.*s", HDR_COUNT(s), CHR_PTR(s));
         } else if (type == KOpType){
             if (TAG_VAL(x) == 0) return;
             putchar(OPS[TAG_VAL(x)]);
@@ -405,7 +397,7 @@ static void _kprint(K x){
     K_int n = HDR_COUNT(x);
 
     if (n == 0){
-        char *empty[] = {"()", "0#0b", "\"\"", "0#0", "0#`"};
+        char *empty[] = {"()", "0#0b", "\"\"", "0#0", "0#0", "0#`"};
         printf("%s", empty[HDR_TYPE(x)]);
         return;
     }
@@ -429,8 +421,8 @@ static void _kprint(K x){
         FOR_EACH(x) { printf("%d ", INT_PTR(x)[i]); }
     } else if (type == KSymType){
         FOR_EACH(x){
-            K_char *s = CHR_PTR(&SYM_PTR(x)[i]);
-            int j=0; putchar('`'); while (j++<4 && *s) putchar(*s++);
+            K s = OBJ_PTR(SYMS)[SYM_PTR(x)[i]];
+            printf("`%.*s", HDR_COUNT(s), CHR_PTR(s));
         }
     } else if (type == KLambdaType) {
         _kprint(OBJ_PTR(x)[n - 1]); // last object in KLambdaType is a K string of the lambda

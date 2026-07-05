@@ -15,7 +15,6 @@
 
 K ref(K);
 void _unref(K);
-K_sym encodeSym(K_char*, int);
 K syms4chrs(K);
 K_char addSym(K*, K_sym);
 K* getSlot(K, K_sym);

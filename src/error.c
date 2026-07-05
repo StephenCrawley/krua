@@ -1,6 +1,7 @@
 // error handling implementation
 
 #include "error.h"
+#include "sym.h"
 
 // Error state variables (defined here, declared extern in error.h)
 int kerrno = -1;  // -1 = uninitialized; errors start at 0 (KERR_PARSE)
@@ -25,9 +26,8 @@ void kperror(char *src){
 }
 
 // functions to copy string into kerrbuf in VALUE_ERROR
-inline void _copy_sym(K_sym v) {
-    MEMCPY(kerrbuf, &v, sizeof(K_sym));
-    kerrbuf[sizeof(K_sym)] = 0;
+inline void _copy_sym(K_sym v){
+    _copy_chr(OBJ_PTR(SYMS)[v]);
 }
 inline void _copy_chr(K x) {
     size_t n = HDR_COUNT(x);
