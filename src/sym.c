@@ -10,7 +10,6 @@
 // SYMS is a list of K strings (KChrType). this is our sym pool
 
 K HTAB = 0, SYMS = 0;
-static K_int split = 0; // the split index
 
 static uint32_t djb2(K_int n, K_char *s){
     uint32_t h = 5381;
@@ -19,7 +18,6 @@ static uint32_t djb2(K_int n, K_char *s){
 }
 
 void initSymTab(){
-    split = 0;
     SYMS = knew(KObjType, 0);
     HTAB = knew(KObjType, 4);
     FOR_EACH(HTAB) OBJ_PTR(HTAB)[i] = knew(KLngType, 0);
@@ -29,26 +27,26 @@ void freeSymTab(){
     unref(SYMS), unref(HTAB);
 }
 
-// split the chain at 'split' index when an insert lengthens a non-empty chain
+// split entries in chain at 'split' index between old and newly appended chain
 static void splitChain(){
-    K_int lvl = HDR_COUNT(HTAB) - split;
+    K_int m = HDR_COUNT(HTAB), maxsplit = stdc_bit_floor((K_sym)m), split = m - maxsplit;
     K chain = OBJ_PTR(HTAB)[split], lo = knew(KLngType, 0), hi = knew(KLngType, 0);
     FOR_EACH(chain){
         K entry = LNG_PTR(chain)[i];
-        if (((K_sym)entry & ((lvl<<1) - 1)) == (K_sym)(split + lvl))
+        if ((K_sym)entry & maxsplit) // maxsplit's single bit is the only bit of hash%(2*maxsplit) that varies within a chain
             hi = joinTag(hi, entry);
         else
             lo = joinTag(lo, entry);
     }
     unref(chain);
-    OBJ_PTR(HTAB)[split] = lo, HTAB = joinObj(HTAB, hi);
-    if (2 * ++split == HDR_COUNT(HTAB)) split = 0;
+    OBJ_PTR(HTAB)[split] = lo, HTAB = joinObj(HTAB, hi); // hi lands at index m
 }
 
+// h = hashed sym. m = number of chains. maxsplit = split index bound: highest pow2 <= m, so split = m-maxsplit
 K_sym internSym(K_int n, K_char *s){
     K_sym h = djb2(n, s);
-    K_int lvl = HDR_COUNT(HTAB) - split, i = h & (lvl-1);
-    if (i < split) i = h & ((lvl<<1) - 1);
+    K_int m = HDR_COUNT(HTAB), maxsplit = stdc_bit_floor((K_sym)m), i = h & (2*maxsplit - 1);
+    if (i >= m) i -= maxsplit;
     K chain = OBJ_PTR(HTAB)[i], *syms = OBJ_PTR(SYMS);
     FOR_EACH(chain){
         K entry = LNG_PTR(chain)[i];
