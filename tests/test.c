@@ -423,7 +423,7 @@ TEST(tokenize_sym_scalar) {
     ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "should be CONST");
     K c = OBJ_PTR(consts)[0];
     ASSERT(IS_TAG(c) && TAG_TYPE(c) == KSymType, "const should be a sym atom");
-    ASSERT(TAG_VAL(c) == internSym(3, (K_char*)"abc"), "sym should be `abc");
+    ASSERT((K_sym)TAG_VAL(c) == internSym(3, (K_char*)"abc"), "sym should be `abc");
     unref(r), unref(x), unref(vars), unref(consts);
     PASS();
 }
@@ -453,7 +453,7 @@ TEST(tokenize_sym_empty) {
     ASSERT(r && HDR_COUNT(r) == 1, "` should produce 1 token");
     K c = OBJ_PTR(consts)[0];
     ASSERT(IS_TAG(c) && TAG_TYPE(c) == KSymType, "const should be a sym atom");
-    ASSERT(TAG_VAL(c) == internSym(0, (K_char*)""), "sym should be the empty-name sym");
+    ASSERT((K_sym)TAG_VAL(c) == internSym(0, (K_char*)""), "sym should be the empty-name sym");
     unref(r), unref(x), unref(vars), unref(consts);
     PASS();
 }
@@ -482,8 +482,8 @@ TEST(tokenize_sym_boundary_comma) {
     ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "first should be CONST");
     ASSERT(!IS_CLASS(OP_CONST, CHR_PTR(r)[1]), "middle should be the ',' operator");
     ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[2]), "third should be CONST");
-    ASSERT(TAG_VAL(OBJ_PTR(consts)[0]) == internSym(3, (K_char*)"abc"), "first const should be `abc");
-    ASSERT(TAG_VAL(OBJ_PTR(consts)[1]) == internSym(3, (K_char*)"def"), "second const should be `def");
+    ASSERT((K_sym)TAG_VAL(OBJ_PTR(consts)[0]) == internSym(3, (K_char*)"abc"), "first const should be `abc");
+    ASSERT((K_sym)TAG_VAL(OBJ_PTR(consts)[1]) == internSym(3, (K_char*)"def"), "second const should be `def");
     unref(r), unref(vars), unref(consts);
     PASS();
 }
