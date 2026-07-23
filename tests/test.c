@@ -411,6 +411,83 @@ TEST(tokenize_negative_trailing_space) {
     PASS();
 }
 
+// regression: bounds-unsafe backtick scan (missing i<n) reads bucket headroom past n;
+// poison headroom with an alpha byte ('z') so a missing bounds check visibly grows the name
+TEST(tokenize_sym_scalar) {
+    K x = knew(KChrType, 4);
+    FILL_BUCKET(x, 'z');
+    memcpy(CHR_PTR(x), "`abc", 4);
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "`abc should produce 1 token");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "should be CONST");
+    K c = OBJ_PTR(consts)[0];
+    ASSERT(IS_TAG(c) && TAG_TYPE(c) == KSymType, "const should be a sym atom");
+    ASSERT(TAG_VAL(c) == internSym(3, (K_char*)"abc"), "sym should be `abc");
+    unref(r), unref(x), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(tokenize_sym_chained_list) {
+    K x = knew(KChrType, 6);
+    FILL_BUCKET(x, 'z');
+    memcpy(CHR_PTR(x), "`a`b`c", 6);
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "`a`b`c should produce 1 token");
+    K c = OBJ_PTR(consts)[0];
+    ASSERT(!IS_TAG(c) && HDR_TYPE(c) == KSymType && HDR_COUNT(c) == 3, "const should be a 3-sym list");
+    ASSERT(SYM_PTR(c)[0] == internSym(1, (K_char*)"a"), "[0] should be `a");
+    ASSERT(SYM_PTR(c)[1] == internSym(1, (K_char*)"b"), "[1] should be `b");
+    ASSERT(SYM_PTR(c)[2] == internSym(1, (K_char*)"c"), "[2] should be `c");
+    unref(r), unref(x), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(tokenize_sym_empty) {
+    K x = knew(KChrType, 1);
+    FILL_BUCKET(x, 'z');
+    memcpy(CHR_PTR(x), "`", 1);
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "` should produce 1 token");
+    K c = OBJ_PTR(consts)[0];
+    ASSERT(IS_TAG(c) && TAG_TYPE(c) == KSymType, "const should be a sym atom");
+    ASSERT(TAG_VAL(c) == internSym(0, (K_char*)""), "sym should be the empty-name sym");
+    unref(r), unref(x), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(tokenize_sym_double_backtick) {
+    // only the first backtick is excluded (t0 skips it); the second backtick is itself the
+    // 1-char substring, which cutStr('`') splits into two empty names
+    K x = knew(KChrType, 2);
+    FILL_BUCKET(x, 'z');
+    memcpy(CHR_PTR(x), "``", 2);
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "`` should produce 1 token");
+    K c = OBJ_PTR(consts)[0];
+    ASSERT(!IS_TAG(c) && HDR_TYPE(c) == KSymType && HDR_COUNT(c) == 2, "const should be a 2-sym list");
+    ASSERT(SYM_PTR(c)[0] == internSym(0, (K_char*)""), "[0] should be the empty-name sym");
+    ASSERT(SYM_PTR(c)[1] == internSym(0, (K_char*)""), "[1] should be the empty-name sym");
+    unref(r), unref(x), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(tokenize_sym_boundary_comma) {
+    K vars = 0, consts = 0;
+    K r = tokenizeVC("`abc,`def", &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 3, "`abc,`def should produce 3 tokens");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "first should be CONST");
+    ASSERT(!IS_CLASS(OP_CONST, CHR_PTR(r)[1]), "middle should be the ',' operator");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[2]), "third should be CONST");
+    ASSERT(TAG_VAL(OBJ_PTR(consts)[0]) == internSym(3, (K_char*)"abc"), "first const should be `abc");
+    ASSERT(TAG_VAL(OBJ_PTR(consts)[1]) == internSym(3, (K_char*)"def"), "second const should be `def");
+    unref(r), unref(vars), unref(consts);
+    PASS();
+}
+
 // Tokenization: variables
 TEST(tokenize_single_variable) {
     K r = tokenize("abc");
@@ -2636,6 +2713,11 @@ void run_tests() {
     RUN_TEST(tokenize_negative_after_paren);
     RUN_TEST(tokenize_negative_after_operator);
     RUN_TEST(tokenize_negative_trailing_space);
+    RUN_TEST(tokenize_sym_scalar);
+    RUN_TEST(tokenize_sym_chained_list);
+    RUN_TEST(tokenize_sym_empty);
+    RUN_TEST(tokenize_sym_double_backtick);
+    RUN_TEST(tokenize_sym_boundary_comma);
     // variables
     RUN_TEST(tokenize_single_variable);
     RUN_TEST(tokenize_multiple_variables);

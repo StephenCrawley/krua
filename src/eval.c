@@ -146,6 +146,11 @@ K token(K x, K *vars, K *consts){
             K_int j;
             K_sym sym = internSym(i-t0, src+t0);
             *tok++ = (j=findSym(KEYWORDS, sym)) < HDR_COUNT(KEYWORDS) ? j : OP_GET_VAR + addSym(vars, sym);
+        } else if (src[i] == '`'){
+            ++t0;
+            do ++i; while (i < n && (src[i] == '`' || ISALPHA(src[i])));
+            K x = syms4chrs(cutStr(kstr(i-t0, src+t0), '`'));
+            *tok++ = addConst(consts, HDR_COUNT(x) == 1 ? UNREF_X(item(0, x)) : x);
         } else if (ISDIGIT(src[i]) || (ISNEGDIGIT(src) && (i==0 || !(isalnum(src[i-1]) || strchr(")]}\"", src[i-1]))))){
             // numbers ('-' opens a negative literal unless it subtracts from a preceding value)
             K_int count = 1;
