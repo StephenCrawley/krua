@@ -18,6 +18,7 @@ K over1Int(K, K);
 K over2(K, K, K);
 K scan1(K, K);
 K scan1Generic(K, K);
+K sumsBools(K);
 K scan2(K, K, K);
 
 // dispatch
@@ -155,10 +156,17 @@ K over2(K f, K x, K y){
 // scan (accumulate)
 
 K scan1(K f, K x){
-    return scan1Generic(f, x);
+    return TAG_TYPE(f)==KOpType && TAG_VAL(f)==1 && HDR_TYPE(x)==KBoolType ? sumsBools(x) : scan1Generic(f, x);
 }
 
-// TODO: specialized kernels
+// specialized kernels
+
+K sumsBools(K x){
+    K r = knew(KIntType, HDR_COUNT(x));
+    K_int *ints = INT_PTR(r);
+    FOR_EACH(x) ints[i] = !i ? GET_BIT(x,0) : ints[i-1] + GET_BIT(x,i);
+    return UNREF_X(r);
+}
 
 // general cases
 

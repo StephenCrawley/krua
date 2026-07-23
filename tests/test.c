@@ -2518,7 +2518,13 @@ TEST(adverb_over1_atom_rank_error) {
     PASS();
 }
 
-// scan1: generic (scan has no fast path; all go through scan1Generic)
+// scan1: fast paths
+TEST(adverb_scan1_sum_bool) {
+    ASSERT_INT_LIST("+\\1=1 2 1 3 1", 5, ((K_int[]){1, 1, 2, 2, 3})); // 1 0 1 0 1b -> running count
+    PASS();
+}
+
+// scan1: generic
 TEST(adverb_scan1_sum) {
     ASSERT_INT_LIST("+\\1 2 3 4", 4, ((K_int[]){1, 3, 6, 10}));
     PASS();
@@ -2969,6 +2975,7 @@ void run_tests() {
     RUN_TEST(adverb_over1_and_mul_bool);
     RUN_TEST(adverb_over1_atom_rank_error);
     // scan1 (f\)
+    RUN_TEST(adverb_scan1_sum_bool);
     RUN_TEST(adverb_scan1_sum);
     RUN_TEST(adverb_scan1_mul);
     RUN_TEST(adverb_scan1_sub);
