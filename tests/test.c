@@ -1834,6 +1834,16 @@ TEST(binary_take_atom_char){
     PASS();
 }
 
+TEST(binary_take_atom_bool){ // n#boolatom replicates the atom's bit; the 0xFF true-fill needs its tail cleared
+    ASSERT_BOOL_LIST("3#1=0", 3, ((K_char[]){0, 0, 0})); // false -> all zeros
+    K r = eval(kcstr("3#1=1"));                          // true -> all ones; 0xFF fills byte 0, bits 3..7 must clear
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 3, "3#1b -> 111b");
+    for (K_int i = 0; i < 3; i++) ASSERT((K_int)GET_BIT(r, i) == 1, "bit set");
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
 TEST(binary_take_undertake){
     ASSERT_INT_LIST("2#1 2 3 4", 2, ((K_int[]){1, 2}));
     PASS();
@@ -1869,6 +1879,60 @@ TEST(binary_take_overtake_char){
 
 TEST(binary_take_undertake_squeeze){ // shrink prefix turns homogeneous -> flat type
     ASSERT_INT_LIST("2#(1;2;\"ab\")", 2, ((K_int[]){1, 2}));
+    PASS();
+}
+
+TEST(binary_take_undertake_bool){ // n < #list take of a bool list
+    ASSERT_BOOL_LIST("3#(1<2 0 3 0 2 0)", 3, ((K_char[]){1, 0, 1}));
+    PASS();
+}
+
+TEST(binary_take_overtake_bool){ // n#bools cycles the source; only n == #x*2^k terminated before
+    ASSERT_BOOL_LIST("5#(1<2 0 3)", 5, ((K_char[]){1, 0, 1, 1, 0}));       // #x < n < 2*#x: no double fits
+    ASSERT_BOOL_LIST("6#(1<2 0 3)", 6, ((K_char[]){1, 0, 1, 1, 0, 1}));    // n == 2*#x
+    ASSERT_BOOL_LIST("7#(1<2 0 3)", 7, ((K_char[]){1, 0, 1, 1, 0, 1, 1})); // double, then join a prefix
+    PASS();
+}
+
+TEST(binary_take_overtake_bool_word){ // past 64 bits: joinBoolList funnel-shifts and spills into the next word
+    K r = eval(kcstr("70#(1<2 0 3)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 70, "70#101b -> 70 bools");
+    for (K_int i = 0; i < 70; i++) ASSERT((K_int)GET_BIT(r, i) == (i % 3 != 1), "cycle bit");
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(binary_take_overtake_bool_wide){ // source is itself word-crossing and unaligned
+    K r = eval(kcstr("150#70#(1<2 0 3)"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 150, "150#70 bools");
+    for (K_int i = 0; i < 150; i++) ASSERT((K_int)GET_BIT(r, i) == (i % 70 % 3 != 1), "cycle bit");
+    ASSERT_BOOL_TAIL_ZERO(r);
+    unref(r);
+    PASS();
+}
+
+TEST(binary_take_overtake_bool_shared){ // a global holds x: the join must copy, not extend it in place
+    ASSERT_BOOL_LIST("a:1<2 0 3;5#a", 5, ((K_char[]){1, 0, 1, 1, 0}));
+    ASSERT_BOOL_LIST("a", 3, ((K_char[]){1, 0, 1}));
+    PASS();
+}
+
+TEST(binary_take_overtake_empty){ // nothing to cycle: fill with the type's zero, as out-of-bounds indexing does
+    ASSERT_INT_LIST("5#0#1 2 3", 5, ((K_int[]){0, 0, 0, 0, 0}));
+    ASSERT_BOOL_LIST("5#0#(1<2 0 3)", 5, ((K_char[]){0, 0, 0, 0, 0}));
+    K r = eval(kcstr("5#0#\"abc\""));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "5#0#\"abc\" should be KChrType list");
+    ASSERT(HDR_COUNT(r) == 5 && memcmp(CHR_PTR(r), "     ", 5) == 0, "5#0#\"abc\" should be 5 spaces");
+    unref(r);
+    K s = eval(kcstr("5#0#`a`b"));                       // sym fill is the interned empty symbol
+    ASSERT(s && !IS_TAG(s) && HDR_TYPE(s) == KSymType && HDR_COUNT(s) == 5, "5#0#`a`b should be 5 syms");
+    for (K_int i = 0; i < 5; i++) ASSERT(SYM_PTR(s)[i] == internSym(0, CHR_PTR("")), "empty sym fill");
+    unref(s);
+    K g = eval(kcstr("5#()"));                           // generic fill is the empty list, shared by reference
+    ASSERT(g && !IS_TAG(g) && HDR_TYPE(g) == KObjType && HDR_COUNT(g) == 5, "5#() should be 5 elements");
+    for (K_int i = 0; i < 5; i++) ASSERT(!IS_TAG(OBJ_PTR(g)[i]) && HDR_COUNT(OBJ_PTR(g)[i]) == 0, "each fill is ()");
+    unref(g);
     PASS();
 }
 
@@ -2005,6 +2069,11 @@ TEST(binary_drop_char_back){ // negative drop from the back of a char list
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "-2_char-list should be KChrType list");
     ASSERT(HDR_COUNT(r) == 3 && memcmp(CHR_PTR(r), "abc", 3) == 0, "-2_\"abcde\" should be \"abc\"");
     unref(r);
+    PASS();
+}
+
+TEST(binary_drop_bool_back){ // negative drop from the back of a bool list
+    ASSERT_BOOL_LIST("-3_(1<2 0 3 0 2 0)", 3, ((K_char[]){1, 0, 1}));
     PASS();
 }
 
@@ -2928,6 +2997,7 @@ void run_tests() {
     // take (#)
     RUN_TEST(binary_take_atom_int);
     RUN_TEST(binary_take_atom_char);
+    RUN_TEST(binary_take_atom_bool);
     RUN_TEST(binary_take_undertake);
     RUN_TEST(binary_take_exact);
     RUN_TEST(binary_take_overtake_cycle);
@@ -2935,6 +3005,12 @@ void run_tests() {
     RUN_TEST(binary_take_overtake_boundary);
     RUN_TEST(binary_take_overtake_char);
     RUN_TEST(binary_take_undertake_squeeze);
+    RUN_TEST(binary_take_undertake_bool);
+    RUN_TEST(binary_take_overtake_bool);
+    RUN_TEST(binary_take_overtake_bool_word);
+    RUN_TEST(binary_take_overtake_bool_wide);
+    RUN_TEST(binary_take_overtake_bool_shared);
+    RUN_TEST(binary_take_overtake_empty);
     RUN_TEST(binary_take_undertake_stays_generic);
     RUN_TEST(binary_take_overtake_generic);
     RUN_TEST(binary_take_lambda_replicate);
@@ -2955,6 +3031,7 @@ void run_tests() {
     RUN_TEST(binary_drop_overdrop_neg);
     RUN_TEST(binary_drop_char);
     RUN_TEST(binary_drop_char_back);
+    RUN_TEST(binary_drop_bool_back);
     RUN_TEST(binary_drop_generic);
     RUN_TEST(binary_drop_generic_back);
     RUN_TEST(binary_drop_squeeze);

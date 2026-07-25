@@ -4,6 +4,7 @@
 #include "object.h"
 #include "op_unary.h"
 #include "apply.h"
+#include "sym.h"
 #include "utils.h"
 #include "error.h"
 
@@ -191,6 +192,7 @@ K join(K x, K y){
 K natom(K_int n, K x){
     K r = knew(TAG_TYPE(x), n);
     switch(KWIDTHS[TAG_TYPE(x)]){
+    case 0: memset(CHR_PTR(r), TAG_VAL(x) ? 0xFF : 0, (n+7)/8); zeroBoolTail(r); break;
     case 1: FOR(n) CHR_PTR(r)[i] = TAG_VAL(x); break;
     case 4: FOR(n) INT_PTR(r)[i] = TAG_VAL(x); break;
     case 8: FOR(n) LNG_PTR(r)[i] = TAG_VAL(x); break;
@@ -202,6 +204,16 @@ K natom(K_int n, K x){
 K ntake(K_int n, K x){
     K_int xn = HDR_COUNT(x), t = HDR_TYPE(x), w = KWIDTHS[t];
     if (n <= xn) return n == xn ? x : UNREF_X(squeeze(knewcopy(t, n, x)));
+    if (xn == 0){
+        if (t){
+            return UNREF_X(natom(n, TAG(t, t==KChrType ? ' ' : t==KSymType ? internSym(0,CHR_PTR("")) : 0)));
+        }
+        x = enlist(x); xn = 1;
+    }
+    if (t == KBoolType){
+        while (n >= 2*HDR_COUNT(x)) x = joinList(x, ref(x));
+        return n == HDR_COUNT(x) ? x : joinList(x, ntake(n-HDR_COUNT(x), ref(x)));
+    }
     K r = knew(t, n);
     MEMCPY(r, x, xn*w);
     for (K_int f = xn; f < n; ){

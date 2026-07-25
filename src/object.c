@@ -199,9 +199,11 @@ K reuse(K_char t, K x){
 
 // allocate a new list and copy n items from x
 K knewcopy(K_char t, K_int n, K x){
-    K r = MEMCPY(knew(t,n), x, n*KWIDTHS[t]);
+    K r = MEMCPY(knew(t,n), x, (t==KBoolType ? (n+7)/8 : n*KWIDTHS[t]));
     if (HDR_TYPE(r) == KObjType){ // TODO? handle all types which are list of K objects
         FOR_EACH(r) { ref(OBJ_PTR(r)[i]); }
+    } else if (HDR_TYPE(r) == KBoolType){
+        zeroBoolTail(r);
     }
     return r;
 }
