@@ -411,6 +411,49 @@ TEST(tokenize_negative_trailing_space) {
     PASS();
 }
 
+TEST(tokenize_bool_literal) { // a lone 0/1 digit before 'b' is an atom, a run is a list
+    K vars = 0, consts = 0;
+    K r = tokenizeVC("1b", &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "1b should produce 1 token");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "should be CONST");
+    K c = OBJ_PTR(consts)[0];
+    ASSERT(IS_TAG(c) && TAG_TYPE(c) == KBoolType && TAG_VAL(c) == 1, "const should be the bool atom 1b");
+    unref(r), unref(vars), unref(consts);
+    vars = consts = 0;
+    r = tokenizeVC("101b", &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "101b should produce 1 token");
+    c = OBJ_PTR(consts)[0];
+    ASSERT(!IS_TAG(c) && HDR_TYPE(c) == KBoolType && HDR_COUNT(c) == 3, "const should be a 3-bit bool list");
+    ASSERT(GET_BIT(c,0) == 1 && GET_BIT(c,1) == 0 && GET_BIT(c,2) == 1, "const should be 101b");
+    ASSERT_BOOL_TAIL_ZERO(c);
+    unref(r), unref(vars), unref(consts);
+    PASS();
+}
+
+// regression: the 0/1 run scan must stop at n, not read the byte past the source;
+// poison the headroom with 'b' so an unbounded scan turns the int 101 into a bool literal
+TEST(tokenize_bool_literal_bounds) {
+    K x = knew(KChrType, 3);
+    FILL_BUCKET(x, 'b');
+    memcpy(CHR_PTR(x), "101", 3);
+    K vars = 0, consts = 0;
+    K r = token(x, &vars, &consts);
+    ASSERT(r && HDR_COUNT(r) == 1, "101 should produce 1 token");
+    K c = OBJ_PTR(consts)[0];
+    ASSERT(IS_TAG(c) && TAG_TYPE(c) == KIntType && TAG_VAL(c) == 101, "const should be the int atom 101");
+    unref(r), unref(x), unref(vars), unref(consts);
+    PASS();
+}
+
+TEST(tokenize_bool_literal_partial) { // a digit outside 0/1 disables the literal: 012 then variable b
+    K r = tokenize("012b");
+    ASSERT(r && HDR_COUNT(r) == 2, "012b should produce 2 tokens");
+    ASSERT(IS_CLASS(OP_CONST, CHR_PTR(r)[0]), "012 should be CONST");
+    ASSERT(IS_CLASS(OP_GET_VAR, CHR_PTR(r)[1]), "b should be GET_VAR");
+    unref(r);
+    PASS();
+}
+
 // regression: bounds-unsafe backtick scan (missing i<n) reads bucket headroom past n;
 // poison headroom with an alpha byte ('z') so a missing bounds check visibly grows the name
 TEST(tokenize_sym_scalar) {
@@ -1164,12 +1207,12 @@ TEST(unary_value_type_error) {
 }
 
 TEST(unary_where_single) {
-    ASSERT_INT_LIST("&1=!3", 1, ((K_int[]){1}));
+    ASSERT_INT_LIST("&010b", 1, ((K_int[]){1}));
     PASS();
 }
 
 TEST(unary_where_multiple) {
-    ASSERT_INT_LIST("&1=0 1 2 1 0 0", 2, ((K_int[]){1, 3}));
+    ASSERT_INT_LIST("&010100b", 2, ((K_int[]){1, 3}));
     PASS();
 }
 
@@ -1202,8 +1245,8 @@ TEST(unary_not_int_list) { // ~0 5 0 -> 1 0 1b (eql path)
     ASSERT_BOOL_LIST("~0 5 0", 3, ((K_int[]){1, 0, 1}));
     PASS();
 }
-TEST(unary_not_bool_list) { // ~101b -> 010b (notBool fast path)
-    ASSERT_BOOL_LIST("~(1=1 2 1)", 3, ((K_int[]){0, 1, 0}));
+TEST(unary_not_bool_list) { // notBool fast path
+    ASSERT_BOOL_LIST("~101b", 3, ((K_int[]){0, 1, 0}));
     PASS();
 }
 TEST(unary_not_obj_squeeze) { // ~(0;"a") -> 10b (mixed scalars squeeze to bool vector)
@@ -1388,7 +1431,7 @@ TEST(binary_add_obj_list) {
 }
 
 TEST(binary_each2_obj_bool) { // _each2 with a bool operand (item() handles bool)
-    K r = eval(kcstr("(1 2;3 4)+1=1 1"));   // obj + 1 1b -> (2 3;4 5)
+    K r = eval(kcstr("(1 2;3 4)+11b"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 2, "obj+bool shape");
     ASSERT_2_INTS(OBJ_PTR(r)[0], 2, 3);
     ASSERT_2_INTS(OBJ_PTR(r)[1], 4, 5);
@@ -1431,9 +1474,9 @@ TEST(binary_add_int_atom_long) {
 
 // Runtime: promote (staged type widening bool->chr->int->long)
 TEST(promote_bool_to_int) {
-    // bool list (1 0 1 0) + 10 -> int list: 2 hops, bool->chr->int
+    // 2 hops: bool->chr->int
     K_int expected[] = {11, 10, 11, 10};
-    ASSERT_INT_LIST("(1 2 1 2=1)+10", 4, expected);
+    ASSERT_INT_LIST("1010b+10", 4, expected);
     PASS();
 }
 
@@ -1597,12 +1640,12 @@ TEST(comparison_max_char_list_long) {
 }
 
 TEST(comparison_min_bool) {
-    ASSERT_BOOL_LIST("(1=1) & (1=1 2 3)", 3, ((K_int[]){1, 0, 0}));
+    ASSERT_BOOL_LIST("1b&100b", 3, ((K_int[]){1, 0, 0}));
     PASS();
 }
 
 TEST(comparison_max_bool) {
-    ASSERT_BOOL_LIST("(1=1) | (1=1 2 3)", 3, ((K_int[]){1, 1, 1}));
+    ASSERT_BOOL_LIST("1b|100b", 3, ((K_int[]){1, 1, 1}));
     PASS();
 }
 
@@ -1637,12 +1680,12 @@ TEST(comparison_lt_char) {
 
 // bool < bool / bool > bool exercise the BLESS/BMORE bit kernels
 TEST(comparison_lt_bool) {
-    ASSERT_BOOL_LIST("(2=1 2 3)<(1=1 2 3)", 3, ((K_int[]){1, 0, 0}));
+    ASSERT_BOOL_LIST("010b<100b", 3, ((K_int[]){1, 0, 0}));
     PASS();
 }
 
 TEST(comparison_gt_bool) {
-    ASSERT_BOOL_LIST("(1=1 2 3)>(2=1 2 3)", 3, ((K_int[]){1, 0, 0}));
+    ASSERT_BOOL_LIST("100b>010b", 3, ((K_int[]){1, 0, 0}));
     PASS();
 }
 
@@ -1668,7 +1711,7 @@ TEST(comparison_gt_bool) {
 } while(0)
 
 TEST(squeeze_bool_eval) {
-    ASSERT_BOOL_LIST("(1=1;1=0;1=1)", 3, ((K_int[]){1, 0, 1}));
+    ASSERT_BOOL_LIST("(1b;0b;1b)", 3, ((K_int[]){1, 0, 1}));
     PASS();
 }
 
@@ -1835,8 +1878,8 @@ TEST(binary_take_atom_char){
 }
 
 TEST(binary_take_atom_bool){ // n#boolatom replicates the atom's bit; the 0xFF true-fill needs its tail cleared
-    ASSERT_BOOL_LIST("3#1=0", 3, ((K_char[]){0, 0, 0})); // false -> all zeros
-    K r = eval(kcstr("3#1=1"));                          // true -> all ones; 0xFF fills byte 0, bits 3..7 must clear
+    ASSERT_BOOL_LIST("3#0b", 3, ((K_char[]){0, 0, 0}));
+    K r = eval(kcstr("3#1b")); // 0xFF fills byte 0, bits 3..7 must clear
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 3, "3#1b -> 111b");
     for (K_int i = 0; i < 3; i++) ASSERT((K_int)GET_BIT(r, i) == 1, "bit set");
     ASSERT_BOOL_TAIL_ZERO(r);
@@ -1896,19 +1939,19 @@ TEST(binary_take_undertake_negative){ // squeeze must not read int payload as K 
 }
 
 TEST(binary_take_undertake_bool){ // n < #list take of a bool list
-    ASSERT_BOOL_LIST("3#(1<2 0 3 0 2 0)", 3, ((K_char[]){1, 0, 1}));
+    ASSERT_BOOL_LIST("3#101010b", 3, ((K_char[]){1, 0, 1}));
     PASS();
 }
 
 TEST(binary_take_overtake_bool){ // n#bools cycles the source; only n == #x*2^k terminated before
-    ASSERT_BOOL_LIST("5#(1<2 0 3)", 5, ((K_char[]){1, 0, 1, 1, 0}));       // #x < n < 2*#x: no double fits
-    ASSERT_BOOL_LIST("6#(1<2 0 3)", 6, ((K_char[]){1, 0, 1, 1, 0, 1}));    // n == 2*#x
-    ASSERT_BOOL_LIST("7#(1<2 0 3)", 7, ((K_char[]){1, 0, 1, 1, 0, 1, 1})); // double, then join a prefix
+    ASSERT_BOOL_LIST("5#101b", 5, ((K_char[]){1, 0, 1, 1, 0}));       // #x < n < 2*#x: no double fits
+    ASSERT_BOOL_LIST("6#101b", 6, ((K_char[]){1, 0, 1, 1, 0, 1}));    // n == 2*#x
+    ASSERT_BOOL_LIST("7#101b", 7, ((K_char[]){1, 0, 1, 1, 0, 1, 1})); // double, then join a prefix
     PASS();
 }
 
 TEST(binary_take_overtake_bool_word){ // past 64 bits: joinBoolList funnel-shifts and spills into the next word
-    K r = eval(kcstr("70#(1<2 0 3)"));
+    K r = eval(kcstr("70#101b"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 70, "70#101b -> 70 bools");
     for (K_int i = 0; i < 70; i++) ASSERT((K_int)GET_BIT(r, i) == (i % 3 != 1), "cycle bit");
     ASSERT_BOOL_TAIL_ZERO(r);
@@ -1917,7 +1960,7 @@ TEST(binary_take_overtake_bool_word){ // past 64 bits: joinBoolList funnel-shift
 }
 
 TEST(binary_take_overtake_bool_wide){ // source is itself word-crossing and unaligned
-    K r = eval(kcstr("150#70#(1<2 0 3)"));
+    K r = eval(kcstr("150#70#101b"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 150, "150#70 bools");
     for (K_int i = 0; i < 150; i++) ASSERT((K_int)GET_BIT(r, i) == (i % 70 % 3 != 1), "cycle bit");
     ASSERT_BOOL_TAIL_ZERO(r);
@@ -1926,14 +1969,14 @@ TEST(binary_take_overtake_bool_wide){ // source is itself word-crossing and unal
 }
 
 TEST(binary_take_overtake_bool_shared){ // a global holds x: the join must copy, not extend it in place
-    ASSERT_BOOL_LIST("a:1<2 0 3;5#a", 5, ((K_char[]){1, 0, 1, 1, 0}));
+    ASSERT_BOOL_LIST("a:101b;5#a", 5, ((K_char[]){1, 0, 1, 1, 0}));
     ASSERT_BOOL_LIST("a", 3, ((K_char[]){1, 0, 1}));
     PASS();
 }
 
 TEST(binary_take_overtake_empty){ // nothing to cycle: fill with the type's zero, as out-of-bounds indexing does
     ASSERT_INT_LIST("5#0#1 2 3", 5, ((K_int[]){0, 0, 0, 0, 0}));
-    ASSERT_BOOL_LIST("5#0#(1<2 0 3)", 5, ((K_char[]){0, 0, 0, 0, 0}));
+    ASSERT_BOOL_LIST("5#0#101b", 5, ((K_char[]){0, 0, 0, 0, 0}));
     K r = eval(kcstr("5#0#\"abc\""));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KChrType, "5#0#\"abc\" should be KChrType list");
     ASSERT(HDR_COUNT(r) == 5 && memcmp(CHR_PTR(r), "     ", 5) == 0, "5#0#\"abc\" should be 5 spaces");
@@ -2086,7 +2129,7 @@ TEST(binary_drop_char_back){ // negative drop from the back of a char list
 }
 
 TEST(binary_drop_bool_back){ // negative drop from the back of a bool list
-    ASSERT_BOOL_LIST("-3_(1<2 0 3 0 2 0)", 3, ((K_char[]){1, 0, 1}));
+    ASSERT_BOOL_LIST("-3_101010b", 3, ((K_char[]){1, 0, 1}));
     PASS();
 }
 
@@ -2305,7 +2348,7 @@ TEST(binary_join_bool_fill_funnel)  { CHECK_JOIN_BOOL(1, 511);  PASS(); } // exa
 TEST(binary_join_bool_realloc)      { CHECK_JOIN_BOOL(8, 5000); PASS(); } // result outgrows x's bucket -> realloc
 
 TEST(binary_join_bool_lists){ // ((!3)<3),(!2)<0 -> 11100b (same-type bool list join routes to joinBoolList)
-    K r = eval(kcstr("((!3)<3),(!2)<0"));
+    K r = eval(kcstr("111b,00b"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 5, "5-elem bool list");
     K_int exp[5] = {1,1,1,0,0};
     for (K_int i = 0; i < 5; i++) ASSERT((K_int)GET_BIT(r, i) == exp[i], "bit");
@@ -2314,13 +2357,13 @@ TEST(binary_join_bool_lists){ // ((!3)<3),(!2)<0 -> 11100b (same-type bool list 
 }
 TEST(binary_join_bool_atom){ // bool list , bool ATOM (joinTag): tagged bool has WIDTH 0, so the bit must
     // be packed explicitly. true atom -> trailing 1; false atom -> trailing 0.
-    K r = eval(kcstr("((!3)<3),(1<2)")); // 111b , 1b -> 1111b
+    K r = eval(kcstr("111b,1b"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KBoolType && HDR_COUNT(r) == 4, "4-elem bool list");
     K_int exp[4] = {1,1,1,1};
     for (K_int i = 0; i < 4; i++) ASSERT((K_int)GET_BIT(r, i) == exp[i], "bit");
     ASSERT_BOOL_TAIL_ZERO(r);
     unref(r);
-    K z = eval(kcstr("((!3)<3),(2<1)")); // 111b , 0b -> 1110b
+    K z = eval(kcstr("111b,0b"));
     ASSERT(z && HDR_COUNT(z) == 4 && (K_int)GET_BIT(z, 3) == 0, "false atom -> trailing 0");
     unref(z); PASS();
 }
@@ -2622,12 +2665,12 @@ TEST(adverb_over1_sub_fast) { // subOver's 2*x[0] trick, order-sensitive
 }
 
 TEST(adverb_over1_sum_bool) { // +/bool hits sumBools, like +/int hits sumInts
-    ASSERT_INT_ATOM("+/1=1 2 1 3 1", 3);   // 1 0 1 0 1b -> 3
+    ASSERT_INT_ATOM("+/10101b", 3);
     PASS();
 }
 
 TEST(adverb_over1_max_bool) { // |/bool via over1Bool (sumBools>0)
-    ASSERT_BOOL_ATOM("|/1=1 2 1", 1);   // 1 0 1b, max -> 1b
+    ASSERT_BOOL_ATOM("|/101b", 1);
     PASS();
 }
 
@@ -2657,18 +2700,18 @@ TEST(adverb_over1_empty_identity) { // empty KIntType -> over1Int identities
 }
 
 TEST(adverb_over1_empty_bool) { // empty KBoolType -> over1Bool identities (zeroed tail)
-    ASSERT_INT_ATOM("+/1=!0", 0); // sum -> 0 (int)
-    ASSERT_INT_ATOM("-/1=!0", 0); // 2*b[0]-k, b[0] reads zeroed tail -> 0 (int)
-    ASSERT_INT_ATOM("*/1=!0", 1); // all-ones -> 1 (int)
-    ASSERT_BOOL_ATOM("&/1=!0", 1); // &/ empty bool -> 1b
-    ASSERT_BOOL_ATOM("|/1=!0", 0); // |/ empty bool -> 0b
+    ASSERT_INT_ATOM("+/0#1b", 0);
+    ASSERT_INT_ATOM("-/0#1b", 0); // 2*b[0]-k, b[0] reads zeroed tail -> 0 (int)
+    ASSERT_INT_ATOM("*/0#1b", 1); // all-ones -> 1 (int)
+    ASSERT_BOOL_ATOM("&/0#1b", 1);
+    ASSERT_BOOL_ATOM("|/0#1b", 0);
     PASS();
 }
 
 TEST(adverb_over1_and_mul_bool) { // non-empty &/ */ bool: the j==n path in over1Bool
-    ASSERT_BOOL_ATOM("&/1=1 1 2", 0);  // 1 1 0b -> not all ones -> 0b
-    ASSERT_INT_ATOM("*/1=1 1 1", 1);  // 1 1 1b -> all ones -> 1 (int)
-    ASSERT_INT_ATOM("*/1=1 1 2", 0);  // 1 1 0b -> 0 (int)
+    ASSERT_BOOL_ATOM("&/110b", 0);  // not all ones
+    ASSERT_INT_ATOM("*/111b", 1);  // all ones
+    ASSERT_INT_ATOM("*/110b", 0);
     PASS();
 }
 
@@ -2679,7 +2722,7 @@ TEST(adverb_over1_atom_rank_error) {
 
 // scan1: fast paths
 TEST(adverb_scan1_sum_bool) {
-    ASSERT_INT_LIST("+\\1=1 2 1 3 1", 5, ((K_int[]){1, 1, 2, 2, 3})); // 1 0 1 0 1b -> running count
+    ASSERT_INT_LIST("+\\10101b", 5, ((K_int[]){1, 1, 2, 2, 3})); // running count
     PASS();
 }
 
@@ -2795,6 +2838,9 @@ void run_tests() {
     RUN_TEST(tokenize_negative_after_paren);
     RUN_TEST(tokenize_negative_after_operator);
     RUN_TEST(tokenize_negative_trailing_space);
+    RUN_TEST(tokenize_bool_literal);
+    RUN_TEST(tokenize_bool_literal_bounds);
+    RUN_TEST(tokenize_bool_literal_partial);
     RUN_TEST(tokenize_sym_scalar);
     RUN_TEST(tokenize_sym_chained_list);
     RUN_TEST(tokenize_sym_empty);

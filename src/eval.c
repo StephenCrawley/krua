@@ -113,9 +113,16 @@ static K lambda(K_char *src, K_int start, K_int end){
 }
 
 // return index of next non-whitespace character
-static int next(K_char *src, K_int i, K_int n){
+static int next(K_int n, K_int i, K_char *src){
     while (i < n && src[i] == ' ') ++i;
     return i;
+}
+
+// check if bool token. return 0 if not, else return length of 01 run
+static K_int booltoken(K_int n, K_int i, K_char *src){
+    K_int j = i;
+    while (i < n && (src[i] == '0' || src[i] == '1')) ++i;
+    return i < n && src[i] == 'b' ? i - j : 0;
 }
 
 // return a token stream from source code
@@ -135,7 +142,7 @@ K token(K x, K *vars, K *consts){
     K_int i = 0;
     K_char *src = CHR_PTR(x);
     K_char *tok = CHR_PTR(r);
-    while ((i = next(src, i, n)) < n){ // while next() non-whitespace position is valid/in source
+    while ((i = next(n, i, src)) < n){ // while next() non-whitespace position is valid/in source
         // token start index
         K_int t0 = i;
 
@@ -152,14 +159,21 @@ K token(K x, K *vars, K *consts){
             K x = syms4chrs(cutStr(kstr(i-t0, src+t0), '`'));
             *tok++ = addConst(consts, HDR_COUNT(x) == 1 ? UNREF_X(item(0, x)) : x);
         } else if (ISDIGIT(src[i]) || (ISNEGDIGIT(src) && (i==0 || !(isalnum(src[i-1]) || strchr(")]}\"", src[i-1]))))){
-            // numbers ('-' opens a negative literal unless it subtracts from a preceding value)
-            K_int count = 1;
-            do {
-                if (src[i++] == ' ' && i < n && (ISDIGIT(src[i]) || ISNEGDIGIT(src)))
-                    count++, i += (src[i] == '-');   // new element; swallow its sign so the loop just sees digits
-            } while (i < n && (ISDIGIT(src[i]) || src[i] == ' '));
-            while (src[i-1] == ' ') --i;
-            *tok++ = addConst(consts, numbers(src+t0, i-t0, count));
+            K_int count;
+            if ((count = booltoken(n, i, src))){
+                K x = count == 1 ? TAG(KBoolType, src[i]=='1') : eql(kchr('1'), kstr(count, src+i));
+                *tok++ = addConst(consts, x);
+                i += count + 1;
+            } else {
+                // numbers ('-' opens a negative literal unless it subtracts from a preceding value)
+                count = 1;
+                do {
+                    if (src[i++] == ' ' && i < n && (ISDIGIT(src[i]) || ISNEGDIGIT(src)))
+                        count++, i += (src[i] == '-');   // new element; swallow its sign so the loop just sees digits
+                } while (i < n && (ISDIGIT(src[i]) || src[i] == ' '));
+                while (src[i-1] == ' ') --i;
+                *tok++ = addConst(consts, numbers(src+t0, i-t0, count));
+            }
         } else if (src[i] == '"'){
             // string
             ++t0;
@@ -175,7 +189,7 @@ K token(K x, K *vars, K *consts){
             *tok++ = addConst(consts, res);
             i = end + 1;
         } else if (src[i] == '(' || src[i] == ')'){
-            K_int j = next(src, i+1, n);
+            K_int j = next(n, i+1, src);
             if (src[i] == '(' && j < n && src[j] == ')'){
                 // add empty list literal const ()
                 *tok++ = addConst(consts, knew(KObjType, 0));
