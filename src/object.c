@@ -301,7 +301,7 @@ K joinList(K x, K y){
 
 // (1;2) -> 1 2
 K squeeze(K x){
-    if (!x || HDR_COUNT(x) == 0) return x;
+    if (!x || HDR_TYPE(x) || HDR_COUNT(x) == 0) return x;
     K_char type = TAG_TYPE(OBJ_PTR(x)[0]);
     if (!type) return x;
     FOR_EACH(x) if (type != TAG_TYPE(OBJ_PTR(x)[i])) return x;

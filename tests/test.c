@@ -1882,6 +1882,19 @@ TEST(binary_take_undertake_squeeze){ // shrink prefix turns homogeneous -> flat 
     PASS();
 }
 
+TEST(binary_take_undertake_negative){ // squeeze must not read int payload as K words: -1 -2 has a 0xFF top byte
+    K j1 = knew(KIntType, 16), j2 = knew(KIntType, 16); // dirty the buckets the take below will reuse
+    memset(INT_PTR(j1), 0xFF, 64), memset(INT_PTR(j2), 0xFF, 64);
+    unref(j1), unref(j2);
+    K x = knew(KIntType, 3);
+    INT_PTR(x)[0] = -1, INT_PTR(x)[1] = -2, INT_PTR(x)[2] = -3;
+    K r = take(kint(2), x);
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KIntType && HDR_COUNT(r) == 2, "2#-1 -2 -3 stays a 2-int list");
+    ASSERT(INT_PTR(r)[0] == -1 && INT_PTR(r)[1] == -2, "values preserved");
+    unref(r);
+    PASS();
+}
+
 TEST(binary_take_undertake_bool){ // n < #list take of a bool list
     ASSERT_BOOL_LIST("3#(1<2 0 3 0 2 0)", 3, ((K_char[]){1, 0, 1}));
     PASS();
@@ -3005,6 +3018,7 @@ void run_tests() {
     RUN_TEST(binary_take_overtake_boundary);
     RUN_TEST(binary_take_overtake_char);
     RUN_TEST(binary_take_undertake_squeeze);
+    RUN_TEST(binary_take_undertake_negative);
     RUN_TEST(binary_take_undertake_bool);
     RUN_TEST(binary_take_overtake_bool);
     RUN_TEST(binary_take_overtake_bool_word);
