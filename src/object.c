@@ -404,7 +404,7 @@ static void _kprint(K x){
         return;
     }
     
-    if (n == 1) putchar(',');
+    if (n == 1 && !IS_ATOM(x)) putchar(',');
 
     type = HDR_TYPE(x);
     if (type == KObjType){
