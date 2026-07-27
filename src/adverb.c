@@ -11,6 +11,10 @@ K each1(K, K);
 K each1Generic(K, K);
 K each2(K, K, K);
 K each2Generic(K, K, K);
+K eachright1(K, K);
+K eachleft1(K, K);
+static K eachright2(K, K, K);
+static K eachleft2(K, K, K);
 K over1(K, K);
 K over1Generic(K, K);
 K over1Bool(K, K);
@@ -20,18 +24,20 @@ K scan1(K, K);
 K scan1Generic(K, K);
 K sumsBools(K);
 K scan2(K, K, K);
+K prior1(K, K);
+K prior2(K, K, K);
 
 // dispatch
 
-// f'x f/x f\x
+// f'x f/x f\x f':x
 K adv1(K f, K x){
     RANK_ERROR(IS_ATOM(x), "f'atom", unref(x));
-    return PICK3(HDR_ADVERB(f), each1, over1, scan1)(OBJ_PTR(f)[0], x);
+    return PICK6(HDR_ADVERB(f), each1, over1, scan1, prior1, eachright1, eachleft1)(OBJ_PTR(f)[0], x);
 }
 
-// f'[x;y] f/[x;y] f\[x;y]
+// f'[x;y] f/[x;y] f\[x;y] x f/:y x f\:y
 K adv2(K f, K x, K y){
-    return PICK3(HDR_ADVERB(f), each2, over2, scan2)(OBJ_PTR(f)[0], x, y);
+    return PICK6(HDR_ADVERB(f), each2, over2, scan2, prior2, eachright2, eachleft2)(OBJ_PTR(f)[0], x, y);
 }
 
 // each (map)
@@ -52,8 +58,14 @@ K each1Generic(K f, K x){
     return UNREF_X( squeeze(r) );
 }
 
+// f/:x
+K eachright1(K f, K x){
+    (void)f;
+    NYI_ERROR(1, "eachright1", UNREF_X(0));
+}
+
 // x f/: y
-static K eachright(K f, K x, K y){
+static K eachright2(K f, K x, K y){
     RANK_ERROR(IS_ATOM(y), "x f/: yatom", UNREF_XY(0));
     if (IS_ATOM(x) && IS_ATOMIC_BINOP(f)) return binop(f, x, y);
     K r = knew(KObjType, HDR_COUNT(y));
@@ -65,8 +77,14 @@ static K eachright(K f, K x, K y){
     return UNREF_XY(squeeze(r));
 }
 
+// f\:x
+K eachleft1(K f, K x){
+    (void)f;
+    NYI_ERROR(1, "eachleft1", UNREF_X(0));
+}
+
 // x f\: y
-static K eachleft(K f, K x, K y){
+static K eachleft2(K f, K x, K y){
     RANK_ERROR(IS_ATOM(x), "xatom f\\: y", UNREF_XY(0));
     if (IS_ATOM(y) && IS_ATOMIC_BINOP(f)) return binop(f, x, y);
     K r = knew(KObjType, HDR_COUNT(x));
@@ -79,7 +97,7 @@ static K eachleft(K f, K x, K y){
 }
 
 K each2(K f, K x, K y){
-    return (IS_ATOM(x) ? eachright : IS_ATOM(y) ? eachleft : IS_ATOMIC_BINOP(f) ? binop : each2Generic)(f, x, y);
+    return (IS_ATOM(x) ? eachright2 : IS_ATOM(y) ? eachleft2 : IS_ATOMIC_BINOP(f) ? binop : each2Generic)(f, x, y);
 }
 
 K each2Generic(K f, K x, K y){
@@ -184,4 +202,22 @@ K scan1Generic(K f, K x){
 K scan2(K f, K x, K y){
     (void)f;
     NYI_ERROR(1, "scan2", UNREF_XY(0));
+}
+
+// prior (pairwise)
+
+// f':x. x[0] passes through, so -': is deltas
+K prior1(K f, K x){
+    K r = knew(KObjType, HDR_COUNT(x));
+    FOR_EACH(x){
+        K t = !i ? item(i, x) : apply(f, 2, (K[]){item(i, x), item(i-1, x)});
+        if (!t) { HDR_COUNT(r)=i; unref(r); return UNREF_X(0); }
+        OBJ_PTR(r)[i] = t;
+    }
+    return UNREF_X( squeeze(r) );
+}
+
+K prior2(K f, K x, K y){
+    (void)f;
+    NYI_ERROR(1, "prior2", UNREF_XY(0));
 }

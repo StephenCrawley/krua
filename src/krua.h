@@ -55,7 +55,7 @@ enum {
     // only atomic from here too. must be careful
     K_ATOMIC_GENERICS_TYPE_START = K_GENERIC_TYPES_START,
     KLambdaType = K_ATOMIC_GENERICS_TYPE_START,
-    KAdverbType, // k1() wrapper; hdr.a encodes which: 0=each 1=over 2=scan
+    KAdverbType, // k1() wrapper; hdr.a encodes which: 0=each 1=over 2=scan, +3 for the ':' forms
 };
 
 // when K is a pointer, it points to the start of a heap-allocated list
@@ -107,6 +107,7 @@ typedef struct {
 #define MAX(x, y)       ({ typeof(x)_x=(x); typeof(y)_y=(y); _x>_y?_x:_y; })
 #define GET_BIT(x, i)   ({ typeof(i)_i=(i); (LNG_PTR(x)[_i/64] >> _i%64) & 1; })
 #define PICK3(n,x,y,z)  ({int _n=(n);!_n?x:_n==1?y:z;})
+#define PICK6(n,a,b,c,d,e,f) ({int _m=(n);_m<3?PICK3(_m,a,b,c):PICK3(_m-3,d,e,f);}) // _m, not _n: PICK3 shadows it
 
 // some useful global data is here:
 

@@ -19,7 +19,7 @@ enum {
 #define IS_CLASS(class, b) (b-class < 32u)
 #define IS_OPERATOR(x) ((x) < 20u)  // raw operators. see OPS
 #define IS_PRIMITIVE(x) ((x) < ADVERB_START) // operator + keywords
-#define ADVERB_START 29u
+#define ADVERB_START 26u // 26-28: ' / \  +3 gives their ':' forms ': /: \:
 
 extern K GLOBALS; // global interpreter state
 extern const char KEYWORDS_STRING[]; // unary primitive keywords string

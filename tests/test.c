@@ -600,6 +600,31 @@ TEST(tokenize_subtraction_after_paren) {
     PASS();
 }
 
+// Tokenization: adverbs (a ':' suffix selects the variant: ADVERB_START+3+n)
+TEST(tokenize_adverb_each_prior) {
+    K r = tokenize("-':x");
+    ASSERT(r && HDR_COUNT(r) == 3, "-':x should produce 3 tokens (': is one token)");
+    ASSERT(CHR_PTR(r)[1] == ADVERB_START + 3, "': should be each-prior (each+3)");
+    unref(r);
+    PASS();
+}
+
+TEST(tokenize_adverb_each_right) {
+    K r = tokenize("x f/:y");
+    ASSERT(r && HDR_COUNT(r) == 4, "x f/:y should produce 4 tokens");
+    ASSERT(CHR_PTR(r)[2] == ADVERB_START + 4, "/: should be each-right (over+3)");
+    unref(r);
+    PASS();
+}
+
+TEST(tokenize_adverb_each_left) {
+    K r = tokenize("x f\\:y");
+    ASSERT(r && HDR_COUNT(r) == 4, "x f\\:y should produce 4 tokens");
+    ASSERT(CHR_PTR(r)[2] == ADVERB_START + 5, "\\: should be each-left (scan+3)");
+    unref(r);
+    PASS();
+}
+
 // Tokenization: parens
 TEST(tokenize_paren_passthrough) {
     K r = tokenize("(1)");
@@ -2648,6 +2673,38 @@ TEST(adverb_each2_length_error) { // mismatched list lengths -> length error, bo
     PASS();
 }
 
+// eachright2/eachleft2: x f/:y walks y holding x whole, x f\:y walks x holding y whole.
+// subtraction pins the orientation — for + the two are indistinguishable.
+// each rejects an atom on the axis it walks, so the rank errors are mirrored, not symmetric
+TEST(adverb_eachright2) { // 1 2-/:3 4 -> ((-2 -1);(-3 -2))
+    K r = eval(kcstr("1 2-/:3 4"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 2, "should be one result per item of y");
+    ASSERT_2_INTS(OBJ_PTR(r)[0], -2, -1);
+    ASSERT_2_INTS(OBJ_PTR(r)[1], -3, -2);
+    unref(r);
+    ASSERT_INT_LIST("1-/:3 4", 2, ((K_int[]){-2, -3})); // atom x takes the IS_ATOMIC_BINOP shortcut
+    ASSERT_ERROR("1 2-/:3", KERR_RANK);                 // nothing to walk
+    PASS();
+}
+
+TEST(adverb_eachleft2) { // 1 2-\:3 4 -> ((-2 -3);(-1 -2))
+    K r = eval(kcstr("1 2-\\:3 4"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 2, "should be one result per item of x");
+    ASSERT_2_INTS(OBJ_PTR(r)[0], -2, -3);
+    ASSERT_2_INTS(OBJ_PTR(r)[1], -1, -2);
+    unref(r);
+    ASSERT_INT_LIST("1 2-\\:3", 2, ((K_int[]){-2, -1})); // atom y takes the IS_ATOMIC_BINOP shortcut
+    ASSERT_ERROR("1-\\:3 4", KERR_RANK);                 // nothing to walk
+    PASS();
+}
+
+// prior1: f':x pairs each item with its predecessor, x[0] passing through. so -': is deltas
+TEST(adverb_prior1) {
+    ASSERT_INT_LIST("-':1 3 6", 3, ((K_int[]){1, 2, 3}));
+    ASSERT_INT_LIST("+':1 2 3", 3, ((K_int[]){1, 3, 5}));
+    PASS();
+}
+
 // over1: fast paths (specialized +/ -/ */ kernels on KIntType)
 TEST(adverb_over1_sum_fast) {
     ASSERT_INT_ATOM("+/1 2 3 4", 10);
@@ -2856,6 +2913,10 @@ void run_tests() {
     RUN_TEST(tokenize_csv_keyword);
     RUN_TEST(tokenize_subtraction);
     RUN_TEST(tokenize_subtraction_after_paren);
+    // adverbs
+    RUN_TEST(tokenize_adverb_each_prior);
+    RUN_TEST(tokenize_adverb_each_right);
+    RUN_TEST(tokenize_adverb_each_left);
     // parens
     RUN_TEST(tokenize_paren_passthrough);
     RUN_TEST(tokenize_empty_parens);
@@ -3180,6 +3241,9 @@ void run_tests() {
     RUN_TEST(adverb_each2_atom_right);
     RUN_TEST(adverb_each2_atom_atom_rank_error);
     RUN_TEST(adverb_each2_length_error);
+    RUN_TEST(adverb_eachright2);
+    RUN_TEST(adverb_eachleft2);
+    RUN_TEST(adverb_prior1);
     // over1 (f/)
     RUN_TEST(adverb_over1_sum_fast);
     RUN_TEST(adverb_over1_mul_fast);

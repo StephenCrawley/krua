@@ -11,10 +11,10 @@
 #include "sym.h"
 #include "error.h"
 
-const char OPS[] = ":+-*%&|<>=@.!,?#_~$^         '/\\";
+const char OPS[] = ":+-*%&|<>=@.!,?#_~$^      '/\\";
 const char KEYWORDS_STRING[] = ": flip neg first % where | < > group type value til , ? count _ not $ ^ csv";
 
-#define IS_ADVERB(x) (x-ADVERB_START < 3u)
+#define IS_ADVERB(x) (x-ADVERB_START < 6u)
 #define IS_POSTFIX_ADVERB(x) ({K_char _p=(x); IS_CLASS(TOK_POSTFIX, _p) && HDR_ADVERB(OBJ_PTR(postfix)[_p & 31]);})
 
 K GLOBALS = 0;
@@ -201,7 +201,9 @@ K token(K x, K *vars, K *consts){
             // operators, punctuation
             PARSE_ERROR((unsigned)src[i] - 32 > 94u, i, "invalid token", unref(r));
             char *op = strchr(OPS, src[i]);
-            *tok++ = op ? op - OPS : src[i];
+            K_char t = op ? op - OPS : src[i];
+            if (IS_ADVERB(t) && i+1 < n && src[i+1] == ':') t += 3, ++i;
+            *tok++ = t;
             ++i;
         }
 #undef ISNEGDIGIT

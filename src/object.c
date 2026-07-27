@@ -430,7 +430,7 @@ static void _kprint(K x){
         _kprint(OBJ_PTR(x)[n - 1]); // last object in KLambdaType is a K string of the lambda
     } else if (type == KAdverbType) {
         _kprint(OBJ_PTR(x)[0]);
-        putchar("'/\\"[HDR_ARGC(x)]);
+        printf("%c%s", "'/\\"[HDR_ARGC(x)%3], HDR_ARGC(x)>2 ? ":" : "");
     }
 }
 
