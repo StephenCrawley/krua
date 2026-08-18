@@ -3,8 +3,6 @@
 
 #include "krua.h"
 
-typedef K (*F1)(K); // unary operator f[x]
-
 extern F1 unary_op[21];
 
 K neg(K);

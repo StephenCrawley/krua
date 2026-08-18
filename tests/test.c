@@ -2639,6 +2639,44 @@ TEST(adverb_each_bare_op_count) {
     PASS();
 }
 
+// each1 routes a primitive verb through _each1 (resolved once) instead of apply per element.
+// that route must squeeze like each1Generic does, else #' returns an obj list where it returned an int vector
+TEST(adverb_each1_bare_op_squeezes) {
+    ASSERT_INT_LIST("#'(1 2;3 4 5)", 2, ((K_int[]){2, 3})); // squeezes to KIntType
+    K r = eval(kcstr(",'1 2 3"));                           // enlist each: stays KObjType, squeeze must not flatten it
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 3, ",'1 2 3 should be 3 enlisted items");
+    FOR_EACH(r){
+        K e = OBJ_PTR(r)[i];
+        ASSERT(!IS_TAG(e) && HDR_TYPE(e) == KIntType && HDR_COUNT(e) == 1 && INT_PTR(e)[0] == i+1, ",'x item should be ,x[i]");
+    }
+    unref(r);
+    PASS();
+}
+
+// each2 routes ops >= 10 (non-atomic: , # _ ^) through _each2 rather than apply per element
+TEST(adverb_each2_bare_op) { // 1 2,'3 4 -> ((1 3);(2 4))
+    K r = eval(kcstr("1 2,'3 4"));
+    ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 2, "should be one join per pair");
+    ASSERT_2_INTS(OBJ_PTR(r)[0], 1, 3);
+    ASSERT_2_INTS(OBJ_PTR(r)[1], 2, 4);
+    unref(r);
+    ASSERT_INT_LIST("(1 2;3 4)@'0 1", 2, ((K_int[]){1, 4})); // @ yields tag items, so this route must squeeze
+    PASS();
+}
+
+TEST(adverb_each2_bare_op_length_error) { // error path through _each2 from its new each2 caller
+    ASSERT_ERROR("1 2,'3 4 5", KERR_LENGTH);
+    PASS();
+}
+
+// keywords share the operator code space, so csv (20) reaches each2's resolve.
+// binary_op is sized to match: indexing is total, and the keyword's slot is nyi like any other verb with no dyadic form
+TEST(adverb_each2_keyword_nyi) {
+    ASSERT_ERROR("csv'[1 2;3 4]", KERR_NYI);
+    ASSERT_ERROR("1 2 csv\\:3 4", KERR_NYI);
+    PASS();
+}
+
 TEST(adverb_each_atom_rank_error) {
     K r = eval(kcstr("#'1"));
     ASSERT(!r && kerrno == KERR_RANK, "each on atom should be rank error");
@@ -3233,6 +3271,10 @@ void run_tests() {
     // adverbs
     RUN_TEST(adverb_each_lambda_count);
     RUN_TEST(adverb_each_bare_op_count);
+    RUN_TEST(adverb_each1_bare_op_squeezes);
+    RUN_TEST(adverb_each2_bare_op);
+    RUN_TEST(adverb_each2_bare_op_length_error);
+    RUN_TEST(adverb_each2_keyword_nyi);
     RUN_TEST(adverb_each_atom_rank_error);
     RUN_TEST(adverb_bare_op_bracket_eval);
 

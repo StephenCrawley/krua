@@ -2,22 +2,10 @@
 #include "op_binary.h"
 #include "object.h"
 #include "apply.h"
+#include "adverb.h"
 #include "file.h"
 #include "utils.h"
 #include "error.h"
-
-// iteration helpers over unary operators
-
-K _each1(F1 f, K x){
-    K r = knew(KObjType, HDR_COUNT(x));
-    FOR_EACH(x){
-        K t = f(item(i, x));
-        if (!t) { HDR_COUNT(r)=i; unref(r); return UNREF_X(0); }
-        OBJ_PTR(r)[i] = t;
-    }
-    return UNREF_X(r);
-}
-
 
 static K nyi1(K x){NYI_ERROR(1, "unary operator", unref(x);)}
 

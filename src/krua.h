@@ -35,6 +35,9 @@ typedef int32_t  K_int;  // default integer is a signed 32 bits
 typedef uint32_t K_sym;
 typedef int64_t  K_long;
 
+typedef K (*F1)(K);   // unary operator f[x]
+typedef K (*F2)(K,K); // binary operator f[x;y]
+
 // NB: K_int is 32bit instead of 64bit simply for implementation simplicity:
 //     64bit ints would require special handling as the full 64bit range can't be contained in a tag, so int atoms (common!) would require special handling
 //     to support 64bit, a K value would need a 3rd object type: a tagged pointer where the upper bits contain type (KLongType) and the lower bits are a pointer to the value

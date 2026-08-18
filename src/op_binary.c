@@ -4,41 +4,17 @@
 #include "object.h"
 #include "op_unary.h"
 #include "apply.h"
+#include "adverb.h"
 #include "sym.h"
 #include "utils.h"
 #include "error.h"
-
-// iteration helpers over binary operators
-
-// f'[x;y]
-static K _each2(F2 f, K x, K y){
-    LENGTH_ERROR(HDR_COUNT(x) != HDR_COUNT(y), "", unref(x); unref(y));
-    K r = knew(KObjType, HDR_COUNT(x)), *robj = OBJ_PTR(r);
-    FOR_EACH(r){
-        K t = f(item(i, x), item(i, y));
-        if (!t){ HDR_COUNT(r)=i; unref(r); return UNREF_XY(0); }
-        robj[i] = t;
-    }
-    return UNREF_XY(r);
-}
-
-// x f\: y
-static K _eachleft(F2 f, K x, K y){
-    K r = knew(KObjType, HDR_COUNT(x)), *robj = OBJ_PTR(r);
-    FOR_EACH(r){
-        K t = f(item(i, x), ref(y));
-        if (!t){ HDR_COUNT(r)=i; unref(r); return UNREF_XY(0); }
-        robj[i] = t;
-    }
-    return UNREF_XY(r);
-}
 
 // binary ops
 
 K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
 
-//                :    +    -    *    %    &    |    <    >    =    @   .    !    ,     ?    #     _     ~    $    ^
-F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, ltn, mtn, eql, at, nyi, nyi, join, nyi, take, drop, nyi, nyi, cut};
+//                :    +    -    *    %    &    |    <    >    =    @   .    !    ,     ?    #     _     ~    $    ^    csv
+F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, ltn, mtn, eql, at, nyi, nyi, join, nyi, take, drop, nyi, nyi, cut, nyi};
 
 #define  ADD(x, y) ((x)+(y))
 //#define SUB(x, y) ((x)-(y)) // currently dead code

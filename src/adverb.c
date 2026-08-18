@@ -1,6 +1,7 @@
 #include "adverb.h"
 #include "object.h"
 #include "apply.h"
+#include "eval.h"
 #include "op_unary.h"
 #include "op_binary.h"
 #include "utils.h"
@@ -40,11 +41,49 @@ K adv2(K f, K x, K y){
     return PICK6(HDR_ADVERB(f), each2, over2, scan2, prior2, eachright2, eachleft2)(OBJ_PTR(f)[0], x, y);
 }
 
+// function pointer kernels: the adverb hot path, bypassing apply().
+// ops call these for atomic extension over nested lists (-x is -'x, x+y is +'[x;y], x+atom is x+\:atom)
+
+K _each1(F1 f, K x){
+    K r = knew(KObjType, HDR_COUNT(x));
+    FOR_EACH(x){
+        K t = f(item(i, x));
+        if (!t) { HDR_COUNT(r)=i; unref(r); return UNREF_X(0); }
+        OBJ_PTR(r)[i] = t;
+    }
+    return UNREF_X(r);
+}
+
+// f'[x;y]
+K _each2(F2 f, K x, K y){
+    LENGTH_ERROR(HDR_COUNT(x) != HDR_COUNT(y), "", unref(x); unref(y));
+    K r = knew(KObjType, HDR_COUNT(x)), *robj = OBJ_PTR(r);
+    FOR_EACH(r){
+        K t = f(item(i, x), item(i, y));
+        if (!t){ HDR_COUNT(r)=i; unref(r); return UNREF_XY(0); }
+        robj[i] = t;
+    }
+    return UNREF_XY(r);
+}
+
+// x f\: y
+K _eachleft(F2 f, K x, K y){
+    K r = knew(KObjType, HDR_COUNT(x)), *robj = OBJ_PTR(r);
+    FOR_EACH(r){
+        K t = f(item(i, x), ref(y));
+        if (!t){ HDR_COUNT(r)=i; unref(r); return UNREF_XY(0); }
+        robj[i] = t;
+    }
+    return UNREF_XY(r);
+}
+
 // each (map)
 
 K each1(K f, K x){
-    return TAG_TYPE(f) == KOpType && TAG_VAL(f) == 2 ? neg(x) :
-           TAG_TYPE(f) == KOpType && TAG_VAL(f) ==17 ? not(x) : each1Generic(f, x);
+    if (TAG_TYPE(f) != KOpType) return each1Generic(f, x);
+    return TAG_VAL(f)==2  ? neg(x)      // unary - and ~ already iterate,
+         : TAG_VAL(f)==17 ? not(x)      // so no need to use 'each' machinery
+         : squeeze(_each1(unary_op[TAG_VAL(f)], x));
 }
 
 K each1Generic(K f, K x){
@@ -87,6 +126,7 @@ K eachleft1(K f, K x){
 static K eachleft2(K f, K x, K y){
     RANK_ERROR(IS_ATOM(x), "xatom f\\: y", UNREF_XY(0));
     if (IS_ATOM(y) && IS_ATOMIC_BINOP(f)) return binop(f, x, y);
+    if (TAG_TYPE(f) == KOpType) return squeeze(_eachleft(binary_op[TAG_VAL(f)], x, y));
     K r = knew(KObjType, HDR_COUNT(x));
     FOR_EACH(r){
         K t = apply(f, 2, (K[]){item(i, x), ref(y)});
@@ -97,7 +137,10 @@ static K eachleft2(K f, K x, K y){
 }
 
 K each2(K f, K x, K y){
-    return (IS_ATOM(x) ? eachright2 : IS_ATOM(y) ? eachleft2 : IS_ATOMIC_BINOP(f) ? binop : each2Generic)(f, x, y);
+    if (IS_ATOM(x)) return eachright2(f, x, y);
+    if (IS_ATOM(y)) return eachleft2(f, x, y);
+    if (TAG_TYPE(f) != KOpType) return each2Generic(f, x, y);
+    return IS_ATOMIC_BINOP(f) ? binop(f, x, y) : squeeze(_each2(binary_op[TAG_VAL(f)], x, y));
 }
 
 K each2Generic(K f, K x, K y){
