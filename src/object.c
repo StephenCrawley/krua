@@ -85,6 +85,7 @@ K kalloc(K_int n){
 // internal function, hidden behind `knew`, which may wrap in refcount tracking if enabled
 K _knew(K_char t, K_int n){
     K x = (K)kalloc(HDR_PAD + (t==KBoolType ? (n+7)/8 : n*KWIDTHS[t]));
+    HDR_ARGC(x) = 0;
     HDR_TYPE(x) = t;
     HDR_REFC(x) = 0;
     HDR_COUNT(x) = n;

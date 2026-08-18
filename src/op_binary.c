@@ -13,8 +13,8 @@
 
 K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
 
-//                :    +    -    *    %    &    |    <    >    =    @   .    !    ,     ?    #     _     ~    $    ^
-F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, ltn, mtn, eql, at, nyi, nyi, join, nyi, take, drop, nyi, nyi, cut};
+//                :    +    -    *    %    &    |    <    >    =    @   .    !    ,     ?    #     _     ~      $    ^
+F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, ltn, mtn, eql, at, nyi, nyi, join, nyi, take, drop, match, nyi, cut};
 
 #define  ADD(x, y) ((x)+(y))
 //#define SUB(x, y) ((x)-(y)) // currently dead code
@@ -221,6 +221,20 @@ K drop(K x, K y){
     TYPE_ERROR(IS_ATOM(y), "x_y expects list y", unref(x); unref(y));
     K_int n = TAG_VAL(x);
     return ndrop(n, y);
+}
+
+// x~y
+static K_int _match(K x, K y){
+    if (x == y) return 1;
+    if (IS_TAG(x) || IS_TAG(y)) return 0;
+    if (HDR_TYPE(x) != HDR_TYPE(y) || HDR_COUNT(x) != HDR_COUNT(y) || HDR_ARGC(x) != HDR_ARGC(y)) return 0;
+    if (!IS_NESTED(x)) return !memcmp((void*)x, (void*)y, HDR_TYPE(x)==KBoolType ? (HDR_COUNT(x)+7)/8 : HDR_COUNT(x)*WIDTH_OF(x));
+    FOR_EACH(x) if (!_match(OBJ_PTR(x)[i], OBJ_PTR(y)[i])) return 0;
+    return 1;
+}
+
+K match(K x, K y){
+    return UNREF_XY(TAG(KBoolType, _match(x, y)));
 }
 
 K cut(K x, K y){

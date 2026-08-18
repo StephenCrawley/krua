@@ -19,6 +19,7 @@ K at(K, K);
 K join(K, K);
 K take(K, K);
 K drop(K, K);
+K match(K, K);
 K cut(K, K);
 
 #endif

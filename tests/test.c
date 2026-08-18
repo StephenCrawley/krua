@@ -2197,6 +2197,57 @@ TEST(binary_drop_nonint_x_type_error){ // x must be an int atom
     PASS();
 }
 
+// Runtime: match (~)
+TEST(binary_match_atoms){ // tags match only when type and value both agree
+    ASSERT_BOOL_ATOM("1~1", 1);
+    ASSERT_BOOL_ATOM("1~2", 0);
+    ASSERT_BOOL_ATOM("1~1b", 0);
+    ASSERT_BOOL_ATOM("`a~`a", 1);
+    ASSERT_BOOL_ATOM("\"a\"~`a", 0);
+    PASS();
+}
+
+TEST(binary_match_atom_list){ // an atom never matches a list, whatever its contents
+    ASSERT_BOOL_ATOM("1~,1", 0);
+    ASSERT_BOOL_ATOM("(,1)~1", 0);
+    PASS();
+}
+
+TEST(binary_match_lists){ // flat lists match on type, count and bytes
+    ASSERT_BOOL_ATOM("1 2 3~1 2 3", 1);
+    ASSERT_BOOL_ATOM("1 2 3~1 2 4", 0);
+    ASSERT_BOOL_ATOM("1 2~1 2 3", 0);
+    ASSERT_BOOL_ATOM("\"abc\"~\"abc\"", 1);
+    ASSERT_BOOL_ATOM("(0 1 2 3)~!4", 1);
+    ASSERT_BOOL_ATOM("()~!0", 0); // empty generic and empty int list differ in type
+    PASS();
+}
+
+TEST(binary_match_bool_lists){ // bool lists compare bitwise, past the first word
+    ASSERT_BOOL_ATOM("((!100)=!100)~((!100)=!100)", 1);
+    ASSERT_BOOL_ATOM("((!100)=!100)~((!100)=1+!100)", 0);
+    PASS();
+}
+
+TEST(binary_match_nested){ // generic lists recurse, elementwise
+    ASSERT_BOOL_ATOM("(1;\"a\")~(1;\"a\")", 1);
+    ASSERT_BOOL_ATOM("(1;\"a\")~(1;\"b\")", 0);
+    ASSERT_BOOL_ATOM("(1;(2;3))~(1;(2;3))", 1);
+    PASS();
+}
+
+TEST(binary_match_lambda){ // lambdas match through their bytecode/params/consts/source
+    ASSERT_BOOL_ATOM("{[x;y]x+y}~{[x;y]x+y}", 1);
+    ASSERT_BOOL_ATOM("{[x;y]x+y}~{[x;y]x-y}", 0);
+    PASS();
+}
+
+TEST(binary_match_adverb){ // adverbs share their operand, so the adverb kind must be compared
+    ASSERT_BOOL_ATOM("(+/)~(+/)", 1);
+    ASSERT_BOOL_ATOM("(+/)~(+\\)", 0);
+    PASS();
+}
+
 // Runtime: cut (^)
 TEST(binary_cut_char){ // x^y slices y at the sorted indices in x; last segment runs to #y
     K r = eval(kcstr("2 4^\"abcdefghi\"")); // -> ("cd";"efghi")
@@ -3195,6 +3246,13 @@ void run_tests() {
     RUN_TEST(binary_drop_squeeze);
     RUN_TEST(binary_drop_atom_y_type_error);
     RUN_TEST(binary_drop_nonint_x_type_error);
+    RUN_TEST(binary_match_atoms);
+    RUN_TEST(binary_match_atom_list);
+    RUN_TEST(binary_match_lists);
+    RUN_TEST(binary_match_bool_lists);
+    RUN_TEST(binary_match_nested);
+    RUN_TEST(binary_match_lambda);
+    RUN_TEST(binary_match_adverb);
     RUN_TEST(binary_cut_char);
     RUN_TEST(binary_cut_squeeze_boxed);
     RUN_TEST(binary_cut_empty_segments);
