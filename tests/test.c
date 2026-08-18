@@ -2653,7 +2653,7 @@ TEST(adverb_each1_bare_op_squeezes) {
     PASS();
 }
 
-// each2 routes ops >= 10 (non-atomic: , # _ ^) through _each2 rather than apply per element
+// non-atomic ops (, # _ ^) have no per-item promotion, so each2 walks them item by item
 TEST(adverb_each2_bare_op) { // 1 2,'3 4 -> ((1 3);(2 4))
     K r = eval(kcstr("1 2,'3 4"));
     ASSERT(r && !IS_TAG(r) && HDR_TYPE(r) == KObjType && HDR_COUNT(r) == 2, "should be one join per pair");
@@ -2664,16 +2664,15 @@ TEST(adverb_each2_bare_op) { // 1 2,'3 4 -> ((1 3);(2 4))
     PASS();
 }
 
-TEST(adverb_each2_bare_op_length_error) { // error path through _each2 from its new each2 caller
+TEST(adverb_each2_bare_op_length_error) {
     ASSERT_ERROR("1 2,'3 4 5", KERR_LENGTH);
     PASS();
 }
 
-// keywords share the operator code space, so csv (20) reaches each2's resolve.
-// binary_op is sized to match: indexing is total, and the keyword's slot is nyi like any other verb with no dyadic form
-TEST(adverb_each2_keyword_nyi) {
-    ASSERT_ERROR("csv'[1 2;3 4]", KERR_NYI);
-    ASSERT_ERROR("1 2 csv\\:3 4", KERR_NYI);
+// keywords are unary only, so a dyadic use is a rank error from apply, whichever adverb reaches it
+TEST(adverb_each2_keyword_rank_error) {
+    ASSERT_ERROR("csv'[1 2;3 4]", KERR_RANK);
+    ASSERT_ERROR("1 2 csv\\:3 4", KERR_RANK);
     PASS();
 }
 
@@ -3274,7 +3273,7 @@ void run_tests() {
     RUN_TEST(adverb_each1_bare_op_squeezes);
     RUN_TEST(adverb_each2_bare_op);
     RUN_TEST(adverb_each2_bare_op_length_error);
-    RUN_TEST(adverb_each2_keyword_nyi);
+    RUN_TEST(adverb_each2_keyword_rank_error);
     RUN_TEST(adverb_each_atom_rank_error);
     RUN_TEST(adverb_bare_op_bracket_eval);
 

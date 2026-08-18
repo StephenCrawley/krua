@@ -126,7 +126,6 @@ K eachleft1(K f, K x){
 static K eachleft2(K f, K x, K y){
     RANK_ERROR(IS_ATOM(x), "xatom f\\: y", UNREF_XY(0));
     if (IS_ATOM(y) && IS_ATOMIC_BINOP(f)) return binop(f, x, y);
-    if (TAG_TYPE(f) == KOpType) return squeeze(_eachleft(binary_op[TAG_VAL(f)], x, y));
     K r = knew(KObjType, HDR_COUNT(x));
     FOR_EACH(r){
         K t = apply(f, 2, (K[]){item(i, x), ref(y)});
@@ -139,8 +138,7 @@ static K eachleft2(K f, K x, K y){
 K each2(K f, K x, K y){
     if (IS_ATOM(x)) return eachright2(f, x, y);
     if (IS_ATOM(y)) return eachleft2(f, x, y);
-    if (TAG_TYPE(f) != KOpType) return each2Generic(f, x, y);
-    return IS_ATOMIC_BINOP(f) ? binop(f, x, y) : squeeze(_each2(binary_op[TAG_VAL(f)], x, y));
+    return IS_ATOMIC_BINOP(f) ? binop(f, x, y) : each2Generic(f, x, y);
 }
 
 K each2Generic(K f, K x, K y){

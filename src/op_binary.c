@@ -13,8 +13,8 @@
 
 K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
 
-//                :    +    -    *    %    &    |    <    >    =    @   .    !    ,     ?    #     _     ~    $    ^    csv
-F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, ltn, mtn, eql, at, nyi, nyi, join, nyi, take, drop, nyi, nyi, cut, nyi};
+//                :    +    -    *    %    &    |    <    >    =    @   .    !    ,     ?    #     _     ~    $    ^
+F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, ltn, mtn, eql, at, nyi, nyi, join, nyi, take, drop, nyi, nyi, cut};
 
 #define  ADD(x, y) ((x)+(y))
 //#define SUB(x, y) ((x)-(y)) // currently dead code

@@ -3,7 +3,7 @@
 
 #include "krua.h"
 
-extern F2 binary_op[21];
+extern F2 binary_op[20];
 static inline K binop(K f, K x, K y){ return binary_op[TAG_VAL(f)](x, y); }
 #define IS_ATOMIC_BINOP(f) (TAG_TYPE(f) == KOpType && TAG_VAL(f) < 10)
 
