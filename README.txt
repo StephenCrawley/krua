@@ -17,7 +17,7 @@ Verb                       Adverb                Noun
 < less      -              x f':y  -
 > more      -              x f/:y  each right
 = eql       -group         x f\:y  each left
-~ -         not
+~ match     not
 ! -         til            I/O                   System
 , join      enlist         . x    read file      \l f.k  load
 # take      count          csv x  parse csv      \t e    time
