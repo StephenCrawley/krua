@@ -224,7 +224,7 @@ K kcpy(K x, K y){
 static K kextend(K x, K_int n){
     n += HDR_COUNT(x);
     K_int bytes = NBYTES(HDR_TYPE(x), n);
-    if (HDR_REFC(x) || BUCKET_SIZEOF(x) < (bytes + sizeof(K_hdr))){
+    if (HDR_REFC(x) || BUCKET_SIZEOF(x) < (bytes + HDR_PAD)){
         return UNREF_X(kcpy(knew(HDR_TYPE(x), n), x));
     }
     HDR_COUNT(x) = n;
