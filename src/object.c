@@ -84,7 +84,7 @@ K kalloc(K_int n){
 // allocate a new list
 // internal function, hidden behind `knew`, which may wrap in refcount tracking if enabled
 K _knew(K_char t, K_int n){
-    K x = (K)kalloc(HDR_PAD + (t==KBoolType ? (n+7)/8 : n*KWIDTHS[t]));
+    K x = (K)kalloc(HDR_PAD + NBYTES(t, n));
     HDR_ARGC(x) = 0;
     HDR_TYPE(x) = t;
     HDR_REFC(x) = 0;
@@ -200,8 +200,8 @@ K reuse(K_char t, K x){
 
 // allocate a new list and copy n items from x
 K knewcopy(K_char t, K_int n, K x){
-    K r = MEMCPY(knew(t,n), x, (t==KBoolType ? (n+7)/8 : n*KWIDTHS[t]));
-    if (HDR_TYPE(r) == KObjType){ // TODO? handle all types which are list of K objects
+    K r = MEMCPY(knew(t, n), x, NBYTES(t, n));
+    if (HDR_TYPE(r) == KObjType){
         FOR_EACH(r) { ref(OBJ_PTR(r)[i]); }
     } else if (HDR_TYPE(r) == KBoolType){
         zeroBoolTail(r);
@@ -211,7 +211,7 @@ K knewcopy(K_char t, K_int n, K x){
 
 // copy y to address x. like a memcpy wrapper but handles KObjType y and refs as needed
 K kcpy(K x, K y){
-    MEMCPY(x, y, HDR_TYPE(y)==KBoolType ? (HDR_COUNT(y)+63)/64*8 : HDR_COUNT(y)*WIDTH_OF(y));
+    MEMCPY(x, y, XBYTES(y));
     if (HDR_TYPE(y) == KObjType){
         FOR_EACH(y) ref(OBJ_PTR(y)[i]);
     }
@@ -223,7 +223,7 @@ K kcpy(K x, K y){
 // otherwise allocates a larger container and copies x
 static K kextend(K x, K_int n){
     n += HDR_COUNT(x);
-    K_int bytes = HDR_TYPE(x)==KBoolType ? (n+63)/64*8 : n * WIDTH_OF(x);
+    K_int bytes = NBYTES(HDR_TYPE(x), n);
     if (HDR_REFC(x) || BUCKET_SIZEOF(x) < (bytes + sizeof(K_hdr))){
         return UNREF_X(kcpy(knew(HDR_TYPE(x), n), x));
     }

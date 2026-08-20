@@ -168,7 +168,7 @@ K join(K x, K y){
 K natom(K_int n, K x){
     K r = knew(TAG_TYPE(x), n);
     switch(KWIDTHS[TAG_TYPE(x)]){
-    case 0: memset(CHR_PTR(r), TAG_VAL(x) ? 0xFF : 0, (n+7)/8); zeroBoolTail(r); break;
+    case 0: memset(CHR_PTR(r), TAG_VAL(x) ? 0xFF : 0, NBYTES(KBoolType, n)); zeroBoolTail(r); break;
     case 1: FOR(n) CHR_PTR(r)[i] = TAG_VAL(x); break;
     case 4: FOR(n) INT_PTR(r)[i] = TAG_VAL(x); break;
     case 8: FOR(n) LNG_PTR(r)[i] = TAG_VAL(x); break;
@@ -228,7 +228,7 @@ static K_int _match(K x, K y){
     if (x == y) return 1;
     if (IS_TAG(x) || IS_TAG(y)) return 0;
     if (HDR_TYPE(x) != HDR_TYPE(y) || HDR_COUNT(x) != HDR_COUNT(y) || HDR_ARGC(x) != HDR_ARGC(y)) return 0;
-    if (!IS_NESTED(x)) return !memcmp((void*)x, (void*)y, HDR_TYPE(x)==KBoolType ? (HDR_COUNT(x)+7)/8 : HDR_COUNT(x)*WIDTH_OF(x));
+    if (!IS_NESTED(x)) return !memcmp((void*)x, (void*)y, XBYTES(x));
     FOR_EACH(x) if (!_match(OBJ_PTR(x)[i], OBJ_PTR(y)[i])) return 0;
     return 1;
 }

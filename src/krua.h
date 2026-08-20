@@ -102,6 +102,8 @@ typedef struct {
 // some useful utility macros:
 #define MEMCPY(d, s, n) (K)memcpy((void*)(d), (void*)(s), n)
 #define WIDTH_OF(x)     KWIDTHS[HDR_TYPE(x)]
+#define NBYTES(t, n)    ((t)==KBoolType ? ((n)+63)/64*8 : (n)*KWIDTHS[t])
+#define XBYTES(x)       ({K_int _t=HDR_TYPE(x), _n=HDR_COUNT(x); NBYTES(_t, _n);})
 #define PTR_TO(x, i)    ({ K _x=(x); _x + (i)*WIDTH_OF(_x); })
 #define IS_ATOM(x)      ({ K _x=(x); IS_TAG(_x)||HDR_TYPE(_x)>=K_ATOMIC_GENERICS_TYPE_START ;}) // can we group type enums so atomics are contiguous?
 #define IS_NESTED(x)    ({ K_char _t=HDR_TYPE(x); !_t || _t>=K_GENERIC_TYPES_START ;})
