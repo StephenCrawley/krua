@@ -23,7 +23,7 @@ Verb                       Adverb                Noun
 # take      count          csv x  parse csv      \t e    time
 _ drop      -                                    \       exit
 $ -         -
-? -         -
+? find      -
 ^ cut       -
 @ at index  -type
 . -         value

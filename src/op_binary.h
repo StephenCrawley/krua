@@ -17,6 +17,7 @@ K mtn(K, K);
 K eql(K, K);
 K at(K, K);
 K join(K, K);
+K find(K, K);
 K take(K, K);
 K drop(K, K);
 K match(K, K);

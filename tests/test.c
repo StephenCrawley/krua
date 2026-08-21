@@ -2301,6 +2301,81 @@ TEST(binary_cut_domain_error){ // x must be ordered, in domain 0..#y, and non-ne
     PASS();
 }
 
+// Runtime: find (?)
+TEST(binary_find_int_atom){ // x?y returns the index of the first y in x
+    ASSERT_INT_ATOM("1 2 3?2", 1);
+    PASS();
+}
+
+TEST(binary_find_int_atom_missing){ // not found is #x, one past the last index
+    ASSERT_INT_ATOM("1 2 3?9", 3);
+    PASS();
+}
+
+TEST(binary_find_int_atom_duplicate){ // first match wins
+    ASSERT_INT_ATOM("1 2 1?1", 0);
+    PASS();
+}
+
+TEST(binary_find_char_atom){ // width 1
+    ASSERT_INT_ATOM("\"abc\"?\"b\"", 1);
+    ASSERT_INT_ATOM("\"abc\"?\"z\"", 3);
+    PASS();
+}
+
+TEST(binary_find_sym_atom){ // width 4, but syms must not be searched as ints of the same width
+    ASSERT_INT_ATOM("`a`b`c?`c", 2);
+    ASSERT_INT_ATOM("`a`b`c?`z", 3);
+    PASS();
+}
+
+TEST(binary_find_empty_x){ // nothing to find: #x is 0
+    ASSERT_INT_ATOM("(0#1 2)?1", 0);
+    PASS();
+}
+
+TEST(binary_find_int_list){ // list y searches each element, hits and misses alike
+    ASSERT_INT_LIST("1 2 3?3 1 9", 3, ((K_int[]){2, 0, 3}));
+    PASS();
+}
+
+TEST(binary_find_char_list){ // y may be longer than x
+    ASSERT_INT_LIST("\"hello\"?\"lo\"", 2, ((K_int[]){2, 4}));
+    ASSERT_INT_LIST("1 2 3?1 2 3 4 5", 5, ((K_int[]){0, 1, 2, 3, 3}));
+    PASS();
+}
+
+TEST(binary_find_sym_list){
+    ASSERT_INT_LIST("`a`b`c?`x`b", 2, ((K_int[]){3, 1}));
+    PASS();
+}
+
+TEST(binary_find_empty_y){ // empty y gives an empty result, not an atom
+    ASSERT_INT_LIST("1 2 3?0#1 2", 0, ((K_int[]){0}));
+    PASS();
+}
+
+TEST(binary_find_atom_x_rank_error){ // x must be a list
+    ASSERT_ERROR("5?1", KERR_RANK);
+    PASS();
+}
+
+TEST(binary_find_type_mismatch){ // x and y must agree, atom y and list y alike
+    ASSERT_ERROR("1 2 3?\"a\"", KERR_TYPE);
+    ASSERT_ERROR("\"abc\"?1 2", KERR_TYPE);
+    PASS();
+}
+
+TEST(binary_find_bool_nyi){ // bools are bit-packed, so width dispatch can't reach them
+    ASSERT_ERROR("101b?1b", KERR_NYI);
+    PASS();
+}
+
+TEST(binary_find_nested_nyi){ // nested x needs a recursive compare, not an element scan
+    ASSERT_ERROR("(1 2;3 4)?(5;6 7)", KERR_NYI);
+    PASS();
+}
+
 // Runtime: join (,)
 TEST(binary_join_char_atoms){ // "a","b" -> "ab"
     K r = eval(kcstr("\"a\",\"b\""));
@@ -3259,6 +3334,20 @@ void run_tests() {
     RUN_TEST(binary_cut_atom_x_type_error);
     RUN_TEST(binary_cut_atom_y_type_error);
     RUN_TEST(binary_cut_domain_error);
+    RUN_TEST(binary_find_int_atom);
+    RUN_TEST(binary_find_int_atom_missing);
+    RUN_TEST(binary_find_int_atom_duplicate);
+    RUN_TEST(binary_find_char_atom);
+    RUN_TEST(binary_find_sym_atom);
+    RUN_TEST(binary_find_empty_x);
+    RUN_TEST(binary_find_int_list);
+    RUN_TEST(binary_find_char_list);
+    RUN_TEST(binary_find_sym_list);
+    RUN_TEST(binary_find_empty_y);
+    RUN_TEST(binary_find_atom_x_rank_error);
+    RUN_TEST(binary_find_type_mismatch);
+    RUN_TEST(binary_find_bool_nyi);
+    RUN_TEST(binary_find_nested_nyi);
     RUN_TEST(binary_join_char_atoms);
     RUN_TEST(binary_join_char_list_atom);
     RUN_TEST(binary_join_char_atom_list);

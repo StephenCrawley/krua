@@ -20,6 +20,15 @@ static inline K_int int4chr(K_int n, K_char *s){
     return j;
 }
 
+#define FIND(T, PTR) { \
+    T *v = PTR(x); \
+    FOR_EACH(x) { if(v[i] == y) return i; } \
+    return HDR_COUNT(x); } 
+
+static inline K_int findChr(K x, K_char y) FIND(K_char, CHR_PTR)
+static inline K_int findInt(K x, K_int  y) FIND(K_int,  INT_PTR)
+static inline K_int findLng(K x, K_long y) FIND(K_long, LNG_PTR)
+
 // 0 non-logical tail elements in the last word of a KBoolType array
 // NB: this is for bit bool representation
 static inline void zeroBoolTail(K x){

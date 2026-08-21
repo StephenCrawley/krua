@@ -13,8 +13,8 @@
 
 K nyi(K x, K y){NYI_ERROR(1, "binary operator", unref(x);unref(y))}
 
-//                :    +    -    *    %    &    |    <    >    =    @   .    !    ,     ?    #     _     ~      $    ^
-F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, ltn, mtn, eql, at, nyi, nyi, join, nyi, take, drop, match, nyi, cut};
+//                :    +    -    *    %    &    |    <    >    =    @   .    !    ,     ?     #     _     ~      $    ^
+F2 binary_op[] = {nyi, add, sub, mul, nyi, min, max, ltn, mtn, eql, at, nyi, nyi, join, find, take, drop, match, nyi, cut};
 
 #define  ADD(x, y) ((x)+(y))
 //#define SUB(x, y) ((x)-(y)) // currently dead code
@@ -163,6 +163,26 @@ K join(K x, K y){
          : HDR_COUNT(y)==0 ? UNREF_Y(x)
          : HDR_TYPE(x) == HDR_TYPE(y) ? joinList(x, y)
          : joinList(expand(x), expand(y));
+}
+
+// x?y
+K find(K x, K y){
+    RANK_ERROR(IS_ATOM(x), "x?y expects x list", UNREF_XY(0));
+    TYPE_ERROR(HDR_TYPE(x) != (IS_TAG(y)?TAG_TYPE(y):HDR_TYPE(y)), "x?y types must match", UNREF_XY(0));
+    NYI_ERROR(IS_NESTED(x)||HDR_TYPE(x)==KBoolType, "x?y", UNREF_XY(0));
+    if (IS_TAG(y)){
+        K_int i = WIDTH_OF(x) == 1 ? findChr(x, TAG_VAL(y)) : 
+                  WIDTH_OF(x) == 4 ? findInt(x, TAG_VAL(y)) : findLng(x, TAG_VAL(y));
+        return UNREF_XY(kint(i));
+    }
+    K r = knew(KIntType, HDR_COUNT(y));
+    K_int *d = INT_PTR(r);
+    switch(WIDTH_OF(y)){
+    case 1: {K_char *s = CHR_PTR(y); FOR_EACH(r) d[i] = findChr(x, s[i]); break;}
+    case 4: {K_int  *s = INT_PTR(y); FOR_EACH(r) d[i] = findInt(x, s[i]); break;}
+    case 8: {K_long *s = LNG_PTR(y); FOR_EACH(r) d[i] = findLng(x, s[i]); break;}
+    }
+    return UNREF_XY(r);
 }
 
 K natom(K_int n, K x){
